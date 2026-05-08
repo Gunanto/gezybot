@@ -156,6 +156,9 @@ export const TOOL_DOMAIN_MAP: Record<string, ToolDomain> = {
   browser_get_cookies: 'browse',
   browser_clear_cookies: 'browse',
   browser_request_human: 'browse',
+  browser_save_state: 'browse',
+  browser_list_states: 'browse',
+  browser_delete_state: 'browse',
   // Contacts
   get_contact: 'contacts',
   search_contacts: 'contacts',

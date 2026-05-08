@@ -898,6 +898,28 @@ Le Kin appelle ensuite `browser_click({ ref: "e3" })`. En interne, on tagge les 
 
 Pattern typique : l'utilisateur se logge dans son propre navigateur, exporte les cookies via une extension type "Cookie Editor", les colle dans le chat → le Kin ouvre une session pré-loadée et arrive directement authentifié.
 
+### Persistence inter-sessions — reprendre un travail commencé
+
+Une session navigateur est éphémère par nature : une fois fermée (idle GC, fin de task, redémarrage serveur), tout son état est perdu. Pour garder une authentification, un panier en cours, des préférences localStorage, etc. d'une session à l'autre, le Kin peut **sauvegarder l'état complet** sous un nom et le **recharger** plus tard :
+
+| Tool | Rôle |
+|---|---|
+| `browser_save_state({ session_id, name, description? })` | Capture cookies + localStorage + sessionStorage + origin storage de la session courante et le stocke sous un nom (ex: `"github-marlburrow"`, `"my-bank"`) |
+| `browser_list_states()` | Liste les états sauvegardés du Kin (nom, date, URL d'origine, description, taille) — sans le contenu pour ne pas exposer les tokens |
+| `browser_delete_state({ name })` | Supprime un état sauvegardé |
+| `browser_open_session({ load_state: name, ... })` | Pré-charge un état avant la première navigation |
+
+**Storage** : les fichiers JSON vivent dans `data/browser-states/{kinId}/{name}.json`, **hors du workspace du Kin**. Cela évite que les filesystem tools du Kin (`read_file`, `grep`, etc.) puissent accidentellement leur accéder et fuiter des cookies de session. Le seul accès est via la famille `browser_*_state`. Permission `0o600` sur les fichiers.
+
+**Use cases** :
+- Login automatique : « connecte-toi à mon GitHub avec ces credentials » → save_state → la prochaine fois, juste `load_state: "github"`
+- Reprise de travail multi-tours : un sub-Kin remplit un long formulaire en plusieurs étapes, sauve l'état avant de rendre la main, le main Kin pourra reprendre le formulaire au prochain spawn
+- Sessions partagées entre tasks d'un même Kin : la task d'aujourd'hui save l'état, celle de demain (cron) la recharge
+
+**Limites configurables** : 20 états max par Kin, 5 Mo max par état, durée illimitée (le Kin gère sa propre rétention via `delete_state`).
+
+**Suppression du Kin** : `deleteKin` purge automatiquement le dossier d'états du Kin.
+
 ### Lifecycle et garde-fous
 
 - **1 session active max par Kin** par défaut, configurable via `BROWSER_MAX_SESSIONS_PER_KIN`

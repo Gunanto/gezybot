@@ -200,6 +200,16 @@ registerPreviewRenderer('browser_request_human', ({ args }) => {
   return args.reason ? truncate(String(args.reason), 60) : null
 })
 
+registerPreviewRenderer('browser_save_state', ({ args }) => {
+  return args.name ? `save "${args.name}"` : null
+})
+
+registerPreviewRenderer('browser_list_states', () => 'list saved')
+
+registerPreviewRenderer('browser_delete_state', ({ args }) => {
+  return args.name ? `delete "${args.name}"` : null
+})
+
 // --- Knowledge ---
 
 registerPreviewRenderer('search_knowledge', ({ args }) => {

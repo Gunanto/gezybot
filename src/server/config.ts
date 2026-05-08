@@ -396,6 +396,16 @@ export const config = {
       width: Number(process.env.BROWSER_DEFAULT_VIEWPORT_WIDTH ?? 1280),
       height: Number(process.env.BROWSER_DEFAULT_VIEWPORT_HEIGHT ?? 720),
     },
+    /** Directory where saved browser states live (cookies + localStorage). One
+     *  subdir per Kin, one JSON file per named state. Stored OUTSIDE the
+     *  workspace so the Kin's filesystem tools can't accidentally read or leak
+     *  auth tokens — access goes exclusively through browser_*_state tools. */
+    statesDir: process.env.BROWSER_STATES_DIR ?? `${dataDir}/browser-states`,
+    /** Cap on number of saved states per Kin. */
+    maxStatesPerKin: Number(process.env.BROWSER_MAX_STATES_PER_KIN ?? 20),
+    /** Max size (bytes) of a single saved state file. localStorage from heavy
+     *  SPAs can balloon — this prevents disk fills. */
+    maxStateSizeBytes: Number(process.env.BROWSER_MAX_STATE_SIZE_BYTES ?? 5 * 1024 * 1024),
   },
 
   invitations: {

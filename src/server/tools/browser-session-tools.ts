@@ -35,9 +35,13 @@ export const browserOpenSessionTool: ToolRegistration = {
   create: (ctx) =>
     tool({
       description:
-        'Open a stateful browser session that persists across multiple tool calls (page state, cookies, login, scroll position). Returns a session_id that you MUST pass to all subsequent browser_* calls. Optionally inject cookies (for already-authenticated access) and navigate to a starting URL. One active session per Kin maximum.',
+        'Open a stateful browser session that persists across multiple tool calls (page state, cookies, login, scroll position). Returns a session_id that you MUST pass to all subsequent browser_* calls. Optionally inject cookies, pre-load a previously saved state (cookies + localStorage), and navigate to a starting URL. One active session per Kin maximum.',
       inputSchema: z.object({
         start_url: z.string().url().optional().describe('If provided, navigate to this URL after opening.'),
+        load_state: z
+          .string()
+          .optional()
+          .describe('Name of a previously saved state to pre-load (cookies + localStorage). Use browser_list_states to see available names. Cookies/localStorage from the saved state are applied before any cookies parameter (cookies override).'),
         cookies: z
           .union([z.string(), z.array(z.record(z.string(), z.unknown()))])
           .optional()
@@ -53,7 +57,7 @@ export const browserOpenSessionTool: ToolRegistration = {
         user_agent: z.string().optional().describe('Override the User-Agent for this session.'),
       }),
       execute: async (args) => {
-        log.debug({ kinId: ctx.kinId, taskId: ctx.taskId, startUrl: args.start_url }, 'browser_open_session')
+        log.debug({ kinId: ctx.kinId, taskId: ctx.taskId, startUrl: args.start_url, loadState: args.load_state }, 'browser_open_session')
         try {
           if (args.start_url) {
             const blocked = await isBlockedUrl(args.start_url)
@@ -63,6 +67,14 @@ export const browserOpenSessionTool: ToolRegistration = {
           let cookies: CookieSpec[] | undefined
           if (args.cookies !== undefined) {
             cookies = parseCookieInput(args.cookies, args.default_cookie_domain)
+          }
+
+          let storageState: import('@/server/services/playwright-manager').BrowserStorageState | undefined
+          let loadedFrom: { name: string; savedAt: number; savedFromUrl: string | null } | undefined
+          if (args.load_state) {
+            const file = await playwrightManager.loadSavedState(ctx.kinId, args.load_state)
+            storageState = file.storageState
+            loadedFrom = { name: file.name, savedAt: file.savedAt, savedFromUrl: file.savedFromUrl }
           }
 
           const viewport =
@@ -78,6 +90,7 @@ export const browserOpenSessionTool: ToolRegistration = {
             taskId: ctx.taskId,
             startUrl: args.start_url,
             cookies,
+            storageState,
             viewport,
             userAgent: args.user_agent,
           })
@@ -92,6 +105,7 @@ export const browserOpenSessionTool: ToolRegistration = {
             url: session.url,
             title: session.title,
             cookies_injected: cookies?.length ?? 0,
+            state_loaded: loadedFrom ?? null,
             page_state: pageState,
           }
         } catch (e) {
@@ -462,6 +476,77 @@ export const browserClearCookiesTool: ToolRegistration = {
         try {
           await playwrightManager.clearCookies(session_id, ctx.kinId)
           return { cleared: true }
+        } catch (e) {
+          return err(e instanceof Error ? e.message : String(e))
+        }
+      },
+    }),
+}
+
+// ─── State persistence (save / load across sessions) ───────────────────────
+
+export const browserSaveStateTool: ToolRegistration = {
+  availability: ['main', 'sub-kin'],
+  defaultDisabled: true,
+  create: (ctx) =>
+    tool({
+      description:
+        'Persist the current session\'s state (cookies + localStorage + sessionStorage) under a name, so you can resume an authenticated session later via browser_open_session({ load_state: name }). Use this after a successful login to avoid going through the login flow again, or before closing a session you may want to come back to. State is stored encrypted-at-rest is NOT yet supported — the file lives outside the Kin\'s workspace and is only accessible via browser_*_state tools.',
+      inputSchema: z.object({
+        session_id: z.string(),
+        name: z
+          .string()
+          .regex(/^[a-z0-9][a-z0-9_-]{0,63}$/i)
+          .describe('Identifier for this saved state. 1-64 chars, alphanumeric + dash + underscore (e.g. "github-personal", "my-bank"). Re-using an existing name OVERWRITES it.'),
+        description: z
+          .string()
+          .max(280)
+          .optional()
+          .describe('Optional human-readable note (e.g. "Logged in as MarlBurroW on github.com").'),
+      }),
+      execute: async ({ session_id, name, description }) => {
+        try {
+          const meta = await playwrightManager.saveSessionState(session_id, ctx.kinId, name, description)
+          return { saved: true, ...meta }
+        } catch (e) {
+          return err(e instanceof Error ? e.message : String(e))
+        }
+      },
+    }),
+}
+
+export const browserListStatesTool: ToolRegistration = {
+  availability: ['main', 'sub-kin'],
+  defaultDisabled: true,
+  readOnly: true,
+  create: (ctx) =>
+    tool({
+      description: 'List all saved browser states for this Kin (name, when saved, source URL, description, file size). Does NOT return the actual state contents — load via browser_open_session({ load_state: name }).',
+      inputSchema: z.object({}),
+      execute: async () => {
+        try {
+          const states = await playwrightManager.listSavedStates(ctx.kinId)
+          return { states, count: states.length }
+        } catch (e) {
+          return err(e instanceof Error ? e.message : String(e))
+        }
+      },
+    }),
+}
+
+export const browserDeleteStateTool: ToolRegistration = {
+  availability: ['main', 'sub-kin'],
+  defaultDisabled: true,
+  create: (ctx) =>
+    tool({
+      description: 'Delete a previously saved browser state by name. The cookies and localStorage in the saved state are gone for good — if you might still want them, save under a different name first.',
+      inputSchema: z.object({
+        name: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/i),
+      }),
+      execute: async ({ name }) => {
+        try {
+          const deleted = await playwrightManager.deleteSavedState(ctx.kinId, name)
+          return { deleted, name }
         } catch (e) {
           return err(e instanceof Error ? e.message : String(e))
         }

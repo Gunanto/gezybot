@@ -189,5 +189,8 @@ Configuration des **sessions de navigateur persistantes par Kin**, utilisées pa
 | `browserSessions.maxPerKin` | `BROWSER_MAX_SESSIONS_PER_KIN` | `1` | Plafond par Kin |
 | `browserSessions.defaultViewport.width` | `BROWSER_DEFAULT_VIEWPORT_WIDTH` | `1280` | Largeur par défaut du viewport |
 | `browserSessions.defaultViewport.height` | `BROWSER_DEFAULT_VIEWPORT_HEIGHT` | `720` | Hauteur par défaut du viewport |
+| `browserSessions.statesDir` | `BROWSER_STATES_DIR` | `{dataDir}/browser-states` | Répertoire des états sauvegardés (cookies + localStorage). Stockés HORS du workspace pour que les filesystem tools du Kin ne puissent pas y accéder accidentellement. Permission `0o600`. |
+| `browserSessions.maxStatesPerKin` | `BROWSER_MAX_STATES_PER_KIN` | `20` | Nombre max d'états sauvegardés par Kin |
+| `browserSessions.maxStateSizeBytes` | `BROWSER_MAX_STATE_SIZE_BYTES` | `5_242_880` (5 Mo) | Taille max d'un fichier d'état (limite localStorage gourmand) |
 
-> **Hooks de fermeture automatique** : sessions auto-closed à la fin d'une task (`resolveTask`), à la suppression d'un Kin (`deleteKin`), au SIGTERM/SIGINT du serveur, et par le GC d'inactivité toutes les 15 s.
+> **Hooks de fermeture automatique** : sessions auto-closed à la fin d'une task (`resolveTask`), à la suppression d'un Kin (`deleteKin` — qui supprime aussi les états sauvegardés), au SIGTERM/SIGINT du serveur, et par le GC d'inactivité toutes les 15 s.

@@ -349,10 +349,14 @@ export async function deleteKin(kinId: string): Promise<boolean> {
     rmSync(existing.workspacePath, { recursive: true, force: true })
   }
 
-  // Close any browser sessions owned by this Kin (best-effort, non-blocking)
+  // Close any browser sessions owned by this Kin AND remove its saved states
+  // (best-effort, non-blocking)
   import('@/server/services/playwright-manager')
-    .then(({ playwrightManager }) => playwrightManager.closeSessionsForKin(kinId, 'kin_deleted'))
-    .catch((err) => log.warn({ kinId, err }, 'Failed to close browser sessions for deleted kin'))
+    .then(async ({ playwrightManager }) => {
+      await playwrightManager.closeSessionsForKin(kinId, 'kin_deleted')
+      await playwrightManager.deleteAllSavedStatesForKin(kinId)
+    })
+    .catch((err) => log.warn({ kinId, err }, 'Failed to clean up browser resources for deleted kin'))
 
   log.info({ kinId, name: existing.name, slug: existing.slug }, 'Kin deleted')
 

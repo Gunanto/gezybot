@@ -1,4 +1,7 @@
 import { v4 as uuid } from 'uuid'
+import { existsSync } from 'node:fs'
+import { mkdir, readFile, writeFile, readdir, unlink, stat } from 'node:fs/promises'
+import { join } from 'node:path'
 import { config } from '@/server/config'
 import { createLogger } from '@/server/logger'
 import type { ExtractMode } from '@/server/services/web-browse'
@@ -38,11 +41,33 @@ export interface CookieSpec {
   sameSite?: 'Strict' | 'Lax' | 'None'
 }
 
+/** Playwright's storageState shape (re-typed locally to avoid leaking the
+ *  playwright dependency through this module's public types). */
+export interface BrowserStorageState {
+  cookies?: unknown[]
+  origins?: unknown[]
+}
+
+export interface SavedStateMeta {
+  name: string
+  savedAt: number
+  savedFromUrl: string | null
+  savedFromTitle: string | null
+  description: string | null
+  sizeBytes: number
+}
+
+export interface SavedStateFile extends SavedStateMeta {
+  storageState: BrowserStorageState
+}
+
 export interface SessionOptions {
   kinId: string
   taskId?: string
   startUrl?: string
   cookies?: CookieSpec[]
+  /** Pre-load a previously-saved storageState (cookies + localStorage). */
+  storageState?: BrowserStorageState
   viewport?: { width: number; height: number }
   userAgent?: string
 }
@@ -359,10 +384,18 @@ class PlaywrightManager {
     let context: BrowserContext | null = null
     let page: Page | null = null
     try {
-      context = await entry.browser.newContext({
+      const contextOptions: Parameters<Browser['newContext']>[0] = {
         userAgent: opts.userAgent ?? config.webBrowsing.userAgent,
         viewport,
-      })
+      }
+      if (opts.storageState) {
+        // Cast to Playwright's expected shape — we keep the public type loose
+        // intentionally (see BrowserStorageState).
+        contextOptions.storageState = opts.storageState as Parameters<Browser['newContext']>[0] extends infer T
+          ? T extends { storageState?: infer S } ? S : never
+          : never
+      }
+      context = await entry.browser.newContext(contextOptions)
       if (opts.cookies && opts.cookies.length > 0) {
         await context.addCookies(opts.cookies as Parameters<BrowserContext['addCookies']>[0])
       }
@@ -484,6 +517,146 @@ class PlaywrightManager {
   async clearCookies(sessionId: string, kinId: string): Promise<void> {
     const s = this.resolveSession(sessionId, kinId)
     await s.context.clearCookies()
+  }
+
+  // ─── Saved state persistence (cross-session) ──────────────────────────────
+
+  private statesDirForKin(kinId: string): string {
+    return join(config.browserSessions.statesDir, kinId)
+  }
+
+  private statePathForKin(kinId: string, name: string): string {
+    return join(this.statesDirForKin(kinId), `${name}.json`)
+  }
+
+  private validateStateName(name: string): void {
+    if (!/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(name)) {
+      throw new Error(
+        `Invalid state name "${name}". Must be 1-64 characters, alphanumeric + dash + underscore, starting with a letter or digit.`,
+      )
+    }
+  }
+
+  async saveSessionState(
+    sessionId: string,
+    kinId: string,
+    name: string,
+    description?: string,
+  ): Promise<SavedStateMeta> {
+    this.validateStateName(name)
+    const session = this.resolveSession(sessionId, kinId)
+
+    const storageState = await session.context.storageState()
+    const url = session.page.url()
+    const title = await session.page.title().catch(() => null)
+    const file: SavedStateFile = {
+      name,
+      savedAt: Date.now(),
+      savedFromUrl: url || null,
+      savedFromTitle: title || null,
+      description: description ?? null,
+      sizeBytes: 0,
+      storageState: storageState as BrowserStorageState,
+    }
+    const json = JSON.stringify(file)
+    if (json.length > config.browserSessions.maxStateSizeBytes) {
+      throw new Error(
+        `Saved state would exceed max size (${json.length} bytes > ${config.browserSessions.maxStateSizeBytes}). Try saving from a page with less localStorage data.`,
+      )
+    }
+    file.sizeBytes = json.length
+
+    const dir = this.statesDirForKin(kinId)
+    await mkdir(dir, { recursive: true })
+
+    // Enforce per-Kin cap (only when creating a new entry)
+    const existingPath = this.statePathForKin(kinId, name)
+    const isNew = !existsSync(existingPath)
+    if (isNew) {
+      const existing = await this.listSavedStates(kinId)
+      if (existing.length >= config.browserSessions.maxStatesPerKin) {
+        throw new Error(
+          `This Kin already has ${existing.length} saved states (limit: ${config.browserSessions.maxStatesPerKin}). Delete one first via browser_delete_state.`,
+        )
+      }
+    }
+
+    await writeFile(existingPath, JSON.stringify({ ...file, sizeBytes: json.length }), { mode: 0o600 })
+    log.info({ kinId, name, sizeBytes: json.length, fromUrl: url }, 'Browser state saved')
+
+    return {
+      name: file.name,
+      savedAt: file.savedAt,
+      savedFromUrl: file.savedFromUrl,
+      savedFromTitle: file.savedFromTitle,
+      description: file.description,
+      sizeBytes: file.sizeBytes,
+    }
+  }
+
+  async loadSavedState(kinId: string, name: string): Promise<SavedStateFile> {
+    this.validateStateName(name)
+    const path = this.statePathForKin(kinId, name)
+    if (!existsSync(path)) {
+      throw new Error(`Saved state "${name}" not found for this Kin. Use browser_list_states to see what's available.`)
+    }
+    const raw = await readFile(path, 'utf-8')
+    const parsed = JSON.parse(raw) as SavedStateFile
+    return parsed
+  }
+
+  async listSavedStates(kinId: string): Promise<SavedStateMeta[]> {
+    const dir = this.statesDirForKin(kinId)
+    if (!existsSync(dir)) return []
+    const entries = await readdir(dir)
+    const out: SavedStateMeta[] = []
+    for (const entry of entries) {
+      if (!entry.endsWith('.json')) continue
+      const path = join(dir, entry)
+      try {
+        const stats = await stat(path)
+        const raw = await readFile(path, 'utf-8')
+        const parsed = JSON.parse(raw) as SavedStateFile
+        out.push({
+          name: parsed.name,
+          savedAt: parsed.savedAt,
+          savedFromUrl: parsed.savedFromUrl,
+          savedFromTitle: parsed.savedFromTitle,
+          description: parsed.description,
+          sizeBytes: stats.size,
+        })
+      } catch (err) {
+        log.warn({ kinId, entry, err }, 'Skipping unreadable browser state file')
+      }
+    }
+    return out.sort((a, b) => b.savedAt - a.savedAt)
+  }
+
+  async deleteSavedState(kinId: string, name: string): Promise<boolean> {
+    this.validateStateName(name)
+    const path = this.statePathForKin(kinId, name)
+    if (!existsSync(path)) return false
+    await unlink(path)
+    log.info({ kinId, name }, 'Browser state deleted')
+    return true
+  }
+
+  /** Called by deleteKin — remove all saved states for a Kin. */
+  async deleteAllSavedStatesForKin(kinId: string): Promise<number> {
+    const dir = this.statesDirForKin(kinId)
+    if (!existsSync(dir)) return 0
+    const entries = await readdir(dir)
+    let removed = 0
+    for (const entry of entries) {
+      if (!entry.endsWith('.json')) continue
+      try {
+        await unlink(join(dir, entry))
+        removed++
+      } catch (err) {
+        log.warn({ kinId, entry, err }, 'Failed to remove browser state file')
+      }
+    }
+    return removed
   }
 
   // ─── Shutdown ─────────────────────────────────────────────────────────────
