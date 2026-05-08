@@ -1808,6 +1808,7 @@
       "browser_set_cookies": "Browser: Set Cookies",
       "browser_get_cookies": "Browser: Get Cookies",
       "browser_clear_cookies": "Browser: Clear Cookies",
+      "http_request": "HTTP Request",
       "get_contact": "Get Contact",
       "search_contacts": "Search Contacts",
       "create_contact": "Create Contact",

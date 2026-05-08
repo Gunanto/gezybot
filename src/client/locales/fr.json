@@ -1808,6 +1808,7 @@
       "browser_set_cookies": "Navigateur : injecter des cookies",
       "browser_get_cookies": "Navigateur : lire les cookies",
       "browser_clear_cookies": "Navigateur : effacer les cookies",
+      "http_request": "Requête HTTP",
       "get_contact": "Obtenir un contact",
       "search_contacts": "Rechercher des contacts",
       "create_contact": "Créer un contact",
