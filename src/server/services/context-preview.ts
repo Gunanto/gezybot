@@ -271,7 +271,12 @@ export async function buildContextPreview(kinId: string): Promise<ContextPreview
       ne(messages.sourceType, 'compacting'),
     ))
     .orderBy(desc(messages.createdAt))
-    .limit(100)
+    // Match the live banner's history fetch limit so token estimates agree.
+    // The previous limit(100) caused the visualizer to under-count by
+    // hundreds of thousands of tokens on Kins with long histories — the
+    // actual API call (kin-engine.buildMessageHistory) loads up to
+    // config.historyMaxMessages messages.
+    .limit(config.historyMaxMessages)
     .all()
 
   recentMessages.reverse()
