@@ -563,6 +563,7 @@
       "steps": "{{count}} steps",
       "billableTitle": "Billable equivalent",
       "billableHint": "Cache reads cost 10% and cache writes cost 125% of fresh input — this number reflects that.",
+      "billableHintDynamic": "On this provider, cache reads cost {{readPct}}% and cache writes cost {{writePct}}% of fresh input — this number reflects that.",
       "rawBreakdown": "Raw breakdown",
       "inputGross": "Input (gross)",
       "fresh": "fresh",
@@ -572,7 +573,8 @@
     "cacheChip": {
       "aria": "Cache state from last turn",
       "title": "Last turn cache",
-      "hint": "{{hit}}% of input was served from cache (×0.1 cost). The cache is warm — your next message should be cheap unless the prefix changes significantly."
+      "hint": "{{hit}}% of input was served from cache (×0.1 cost). The cache is warm — your next message should be cheap unless the prefix changes significantly.",
+      "hintDynamic": "{{hit}}% of input was served from cache (×{{readMult}} cost on this provider). The cache is warm — your next message should be cheap unless the prefix changes significantly."
     },
     "forceCompact": "Force compaction",
     "tooltipContext": "Context window",

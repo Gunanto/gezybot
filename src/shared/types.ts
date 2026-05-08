@@ -588,5 +588,7 @@ export interface UsageSummaryRow {
   totalTokens: number
   cacheReadTokens: number
   cacheWriteTokens: number
+  /** Provider-aware billable input equivalent (sum of per-row CASE WHEN). */
+  billableInputTokens: number
   count: number
 }

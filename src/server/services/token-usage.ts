@@ -3,7 +3,28 @@ import { db } from '@/server/db/index'
 import { llmUsage } from '@/server/db/schema'
 import { and, eq, gte, lte, sql, desc } from 'drizzle-orm'
 import { createLogger } from '@/server/logger'
+import { PROVIDER_CACHE_MULTIPLIERS, DEFAULT_CACHE_MULTIPLIERS } from '@/shared/billing'
 import type { LlmUsageCallSite, LlmUsageCallType, MessageTokenUsage } from '@/shared/types'
+
+/**
+ * SQL fragment that computes the per-row billable-input-equivalent token
+ * count using provider-specific cache multipliers. Mirrors the logic of
+ * `computeBillableInput` from shared/billing.ts but executes inside the DB
+ * so aggregations across multi-provider rows produce a correct single sum.
+ *
+ * Synthesized from PROVIDER_CACHE_MULTIPLIERS to keep the source of truth
+ * in one place — adding a new provider only requires editing the map.
+ */
+function buildBillableInputSql() {
+  const fresh = sql`(COALESCE(${llmUsage.inputTokens}, 0) - COALESCE(${llmUsage.cacheReadTokens}, 0) - COALESCE(${llmUsage.cacheWriteTokens}, 0))`
+  const branches: ReturnType<typeof sql>[] = []
+  for (const [providerType, m] of Object.entries(PROVIDER_CACHE_MULTIPLIERS)) {
+    branches.push(sql`WHEN ${providerType} THEN (${fresh} + COALESCE(${llmUsage.cacheWriteTokens}, 0) * ${m.write} + COALESCE(${llmUsage.cacheReadTokens}, 0) * ${m.read})`)
+  }
+  // Fallback uses DEFAULT_CACHE_MULTIPLIERS (Anthropic).
+  const elseBranch = sql`ELSE (${fresh} + COALESCE(${llmUsage.cacheWriteTokens}, 0) * ${DEFAULT_CACHE_MULTIPLIERS.write} + COALESCE(${llmUsage.cacheReadTokens}, 0) * ${DEFAULT_CACHE_MULTIPLIERS.read})`
+  return sql`CASE ${llmUsage.providerType} ${sql.join(branches, sql` `)} ${elseBranch} END`
+}
 
 const log = createLogger('token-usage')
 
@@ -146,6 +167,7 @@ export function queryUsage(filters: UsageQueryFilters) {
     .offset(filters.offset ?? 0)
     .all()
 
+  const billable = buildBillableInputSql()
   const [totals] = db
     .select({
       inputTokens: sql<number>`COALESCE(SUM(${llmUsage.inputTokens}), 0)`,
@@ -153,6 +175,7 @@ export function queryUsage(filters: UsageQueryFilters) {
       totalTokens: sql<number>`COALESCE(SUM(${llmUsage.totalTokens}), 0)`,
       cacheReadTokens: sql<number>`COALESCE(SUM(${llmUsage.cacheReadTokens}), 0)`,
       cacheWriteTokens: sql<number>`COALESCE(SUM(${llmUsage.cacheWriteTokens}), 0)`,
+      billableInputTokens: sql<number>`COALESCE(ROUND(SUM(${billable})), 0)`,
       count: sql<number>`COUNT(*)`,
     })
     .from(llmUsage)
@@ -178,6 +201,7 @@ export function getUsageSummary(filters: UsageQueryFilters & { groupBy: UsageGro
     }
   })()
 
+  const billable = buildBillableInputSql()
   const rows = db
     .select({
       group: sql<string>`${groupColumn}`.as('grp'),
@@ -186,12 +210,13 @@ export function getUsageSummary(filters: UsageQueryFilters & { groupBy: UsageGro
       totalTokens: sql<number>`COALESCE(SUM(${llmUsage.totalTokens}), 0)`,
       cacheReadTokens: sql<number>`COALESCE(SUM(${llmUsage.cacheReadTokens}), 0)`,
       cacheWriteTokens: sql<number>`COALESCE(SUM(${llmUsage.cacheWriteTokens}), 0)`,
+      billableInputTokens: sql<number>`COALESCE(ROUND(SUM(${billable})), 0)`,
       count: sql<number>`COUNT(*)`,
     })
     .from(llmUsage)
     .where(whereClause)
     .groupBy(groupColumn)
-    .orderBy(desc(sql`COALESCE(SUM(${llmUsage.totalTokens}), 0)`))
+    .orderBy(desc(sql`COALESCE(SUM(${billable}), 0)`))
     .all()
 
   return rows

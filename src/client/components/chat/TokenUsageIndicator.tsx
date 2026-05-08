@@ -7,11 +7,14 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from '@/client/components/ui/popover'
-import { computeBillableInput, computeCacheHitRate, computeFreshInput, CACHE_READ_MULTIPLIER, CACHE_WRITE_MULTIPLIER } from '@/shared/billing'
+import { computeBillableInput, computeCacheHitRate, computeFreshInput, getCacheMultipliers } from '@/shared/billing'
 import type { MessageTokenUsage } from '@/shared/types'
 
 interface TokenUsageIndicatorProps {
   tokenUsage: MessageTokenUsage
+  /** Provider type ("anthropic", "openai", ...) to pick the right cache
+   *  multipliers. Falls back to Anthropic if absent. */
+  providerType?: string | null
 }
 
 function formatTokenCount(n: number): string {
@@ -24,11 +27,12 @@ function formatPercent(ratio: number): string {
   return `${Math.round(ratio * 100)}%`
 }
 
-export const TokenUsageIndicator = memo(function TokenUsageIndicator({ tokenUsage }: TokenUsageIndicatorProps) {
+export const TokenUsageIndicator = memo(function TokenUsageIndicator({ tokenUsage, providerType }: TokenUsageIndicatorProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
 
-  const billableInput = computeBillableInput(tokenUsage)
+  const multipliers = getCacheMultipliers(providerType)
+  const billableInput = computeBillableInput(tokenUsage, providerType)
   const fresh = computeFreshInput(tokenUsage)
   const cacheRead = tokenUsage.cacheReadTokens ?? 0
   const cacheWrite = tokenUsage.cacheWriteTokens ?? 0
@@ -78,7 +82,11 @@ export const TokenUsageIndicator = memo(function TokenUsageIndicator({ tokenUsag
             </div>
             {hasCache && (
               <p className="pt-1 text-[10px] text-muted-foreground leading-snug">
-                {t('chat.tokenUsage.billableHint', 'Cache reads cost 10% and cache writes cost 125% of fresh input — this number reflects that.')}
+                {t('chat.tokenUsage.billableHintDynamic', {
+                  defaultValue: 'On this provider, cache reads cost {{readPct}}% and cache writes cost {{writePct}}% of fresh input — this number reflects that.',
+                  readPct: Math.round(multipliers.read * 100),
+                  writePct: Math.round(multipliers.write * 100),
+                })}
               </p>
             )}
           </div>
@@ -99,13 +107,13 @@ export const TokenUsageIndicator = memo(function TokenUsageIndicator({ tokenUsag
               )}
               {cacheWrite > 0 && (
                 <>
-                  <span className="pl-2">↳ {t('chat.tokenUsage.cacheWrite')} <span className="text-muted-foreground/70">({CACHE_WRITE_MULTIPLIER}×)</span></span>
+                  <span className="pl-2">↳ {t('chat.tokenUsage.cacheWrite')} <span className="text-muted-foreground/70">({multipliers.write}×)</span></span>
                   <span className="text-right text-foreground">{formatTokenCount(cacheWrite)}</span>
                 </>
               )}
               {cacheRead > 0 && (
                 <>
-                  <span className="pl-2">↳ {t('chat.tokenUsage.cacheRead')} <span className="text-muted-foreground/70">({CACHE_READ_MULTIPLIER}×)</span></span>
+                  <span className="pl-2">↳ {t('chat.tokenUsage.cacheRead')} <span className="text-muted-foreground/70">({multipliers.read}×)</span></span>
                   <span className="text-right text-foreground">{formatTokenCount(cacheRead)}</span>
                 </>
               )}

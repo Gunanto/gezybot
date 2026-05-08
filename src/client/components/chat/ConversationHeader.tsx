@@ -5,7 +5,7 @@ import { Button } from '@/client/components/ui/button'
 import { Badge } from '@/client/components/ui/badge'
 import { Progress } from '@/client/components/ui/progress'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/client/components/ui/tooltip'
-import { computeCacheHitRate, computeFreshInput } from '@/shared/billing'
+import { computeCacheHitRate, computeFreshInput, getCacheMultipliers } from '@/shared/billing'
 import type { MessageTokenUsage } from '@/shared/types'
 import { Popover, PopoverContent, PopoverTrigger } from '@/client/components/ui/popover'
 import { ModelPicker, modelPickerValue } from '@/client/components/common/ModelPicker'
@@ -155,7 +155,10 @@ export const ConversationHeader = memo(function ConversationHeader({
     return null
   }, [messages])
 
-  const selectedModelName = llmModels.find((m) => m.id === model)?.name ?? model
+  const selectedModel = llmModels.find((m) => m.id === model)
+  const selectedModelName = selectedModel?.name ?? model
+  const currentProviderType = selectedModel?.providerType ?? null
+  const cacheMultipliers = getCacheMultipliers(currentProviderType)
 
   return (
     <div className="flex items-center gap-3 border-b px-4 py-2.5">
@@ -214,9 +217,10 @@ export const ConversationHeader = memo(function ConversationHeader({
                     {t('chat.cacheChip.title', 'Last turn cache')}
                   </div>
                   <p className="text-muted-foreground leading-snug">
-                    {t('chat.cacheChip.hint', {
-                      defaultValue: '{{hit}}% of input was served from cache (×0.1 cost). The cache is warm — your next message should be cheap unless the prefix changes significantly.',
+                    {t('chat.cacheChip.hintDynamic', {
+                      defaultValue: '{{hit}}% of input was served from cache (×{{readMult}} cost on this provider). The cache is warm — your next message should be cheap unless the prefix changes significantly.',
                       hit: Math.round(lastTurnCache.hitRate * 100),
+                      readMult: cacheMultipliers.read,
                     })}
                   </p>
                 </div>

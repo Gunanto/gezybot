@@ -563,6 +563,7 @@
       "steps": "{{count}} étapes",
       "billableTitle": "Équivalent facturé",
       "billableHint": "Le cache lu coûte 10% et le cache écrit 125% du tarif input frais — ce chiffre en tient compte.",
+      "billableHintDynamic": "Sur ce provider, le cache lu coûte {{readPct}}% et le cache écrit {{writePct}}% du tarif input frais — ce chiffre en tient compte.",
       "rawBreakdown": "Détail brut",
       "inputGross": "Entrée brute",
       "fresh": "frais",
@@ -572,7 +573,8 @@
     "cacheChip": {
       "aria": "État du cache au dernier tour",
       "title": "Cache (dernier tour)",
-      "hint": "{{hit}}% de l'input venait du cache (×0.1). Le cache est encore chaud — ta prochaine requête devrait être peu chère sauf si le préfixe change beaucoup."
+      "hint": "{{hit}}% de l'input venait du cache (×0.1). Le cache est encore chaud — ta prochaine requête devrait être peu chère sauf si le préfixe change beaucoup.",
+      "hintDynamic": "{{hit}}% de l'input venait du cache (×{{readMult}} sur ce provider). Le cache est encore chaud — ta prochaine requête devrait être peu chère sauf si le préfixe change beaucoup."
     },
     "forceCompact": "Forcer la compaction",
     "tooltipContext": "Fenêtre de contexte",

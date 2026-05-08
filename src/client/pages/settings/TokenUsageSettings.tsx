@@ -69,11 +69,14 @@ function buildQuery(params: Record<string, string | number | undefined>): string
 // ─── Summary Cards ──────────────────────────────────────────────────────────
 
 function SummaryCards({ data, loading, t }: {
-  data: { inputTokens: number; outputTokens: number; totalTokens: number; cacheReadTokens: number; cacheWriteTokens: number; calls: number }
+  data: { inputTokens: number; outputTokens: number; totalTokens: number; cacheReadTokens: number; cacheWriteTokens: number; billableInputTokens: number; calls: number }
   loading: boolean
   t: TFunction
 }) {
-  const billableInput = computeBillableInput(data)
+  // Use the provider-aware billable input computed server-side. Aggregations
+  // span multiple providers (e.g. one Kin used both Anthropic and OpenAI),
+  // so applying a single client-side multiplier here would be wrong.
+  const billableInput = data.billableInputTokens
   const billableTotal = billableInput + data.outputTokens
   const hitRate = computeCacheHitRate(data)
   const cards = [
@@ -250,7 +253,9 @@ function BreakdownTable({ rows, loading, groupBy, kinMap, t }: {
       {/* Rows */}
       <div className="max-h-[300px] overflow-y-auto">
         {rows.map((row) => {
-          const billable = computeBillableInput(row)
+          // Provider-aware billable input is computed server-side (CASE WHEN
+          // per provider_type, summed across rows in the group).
+          const billable = row.billableInputTokens
           const hit = computeCacheHitRate(row)
           const hasCache = (row.cacheReadTokens > 0) || (row.cacheWriteTokens > 0)
           return (
@@ -444,7 +449,9 @@ function DetailTable({ rows, loading, page, totalCount, onPageChange, kinMap, t 
               cacheReadTokens: row.cacheReadTokens ?? 0,
               cacheWriteTokens: row.cacheWriteTokens ?? 0,
             }
-            const billable = computeBillableInput(usage)
+            // Provider-aware: each call belongs to a single provider, so we
+            // use its multipliers directly here.
+            const billable = computeBillableInput(usage, row.providerType)
             const hit = computeCacheHitRate(usage)
             const hasCache = (row.cacheReadTokens ?? 0) > 0 || (row.cacheWriteTokens ?? 0) > 0
             const fresh = Math.max(0, (row.inputTokens ?? 0) - (row.cacheReadTokens ?? 0) - (row.cacheWriteTokens ?? 0))
@@ -640,7 +647,9 @@ export function TokenUsageSettings({ initialKinFilter }: { initialKinFilter?: st
     setDetailPage(page)
   }, [])
 
-  // Derive totals from summary rows
+  // Derive totals from summary rows. billableInputTokens is already computed
+  // per row server-side with the right provider multiplier, so summing them
+  // is correct even when rows span multiple providers.
   const totals = useMemo(() => {
     return summaryRows.reduce(
       (acc, r) => ({
@@ -649,9 +658,10 @@ export function TokenUsageSettings({ initialKinFilter }: { initialKinFilter?: st
         totalTokens: acc.totalTokens + r.totalTokens,
         cacheReadTokens: acc.cacheReadTokens + (r.cacheReadTokens ?? 0),
         cacheWriteTokens: acc.cacheWriteTokens + (r.cacheWriteTokens ?? 0),
+        billableInputTokens: acc.billableInputTokens + (r.billableInputTokens ?? 0),
         calls: acc.calls + r.count,
       }),
-      { inputTokens: 0, outputTokens: 0, totalTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, calls: 0 },
+      { inputTokens: 0, outputTokens: 0, totalTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, billableInputTokens: 0, calls: 0 },
     )
   }, [summaryRows])
 

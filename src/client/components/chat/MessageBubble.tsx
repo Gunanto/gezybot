@@ -63,6 +63,9 @@ interface MessageBubbleProps {
   onToggleReaction?: (messageId: string, emoji: string) => void
   /** Token usage data for this message (assistant messages only). */
   tokenUsage?: MessageTokenUsage | null
+  /** LLM provider type ("anthropic", "openai", ...) used to pick the right
+   *  cache multipliers when computing the billable token equivalent. */
+  providerType?: string | null
   /** Reasoning/thinking segments with offsets into content */
   reasoning?: Array<{ offset: number; text: string }> | string
 }
@@ -701,6 +704,7 @@ export const MessageBubble = memo(function MessageBubble({
   onEditResend,
   onToggleReaction,
   tokenUsage,
+  providerType,
   reasoning,
 }: MessageBubbleProps) {
   const handleToggleReaction = useCallback((emoji: string) => {
@@ -846,7 +850,7 @@ export const MessageBubble = memo(function MessageBubble({
               <RelativeTimestamp timestamp={timestamp} className="text-[10px] text-muted-foreground/70" />
             )}
             <ReadingTime content={content} />
-            {tokenUsage && <TokenUsageIndicator tokenUsage={tokenUsage} />}
+            {tokenUsage && <TokenUsageIndicator tokenUsage={tokenUsage} providerType={providerType} />}
             {onRegenerate && <RegenerateButton onRegenerate={onRegenerate} />}
             <ReadAloudButton content={content} />
             {onToggleReaction && <ReactionPicker onSelect={handleToggleReaction} isUser={false} />}
@@ -927,7 +931,7 @@ export const MessageBubble = memo(function MessageBubble({
             />
           )}
           {!isUser && <ReadingTime content={content} />}
-          {!isUser && tokenUsage && <TokenUsageIndicator tokenUsage={tokenUsage} />}
+          {!isUser && tokenUsage && <TokenUsageIndicator tokenUsage={tokenUsage} providerType={providerType} />}
           {!isUser && onRegenerate && <RegenerateButton onRegenerate={onRegenerate} />}
           {!isUser && <ReadAloudButton content={content} />}
           {onToggleReaction && <ReactionPicker onSelect={handleToggleReaction} isUser={isUser} />}

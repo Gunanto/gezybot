@@ -1,35 +1,65 @@
 /**
  * Billing-related token math.
  *
- * Anthropic prompt caching applies different multipliers to different parts
- * of the input:
- *   - fresh input (not cached) = 1.00× input rate
- *   - cache write (5 min ephemeral) = 1.25× input rate
- *   - cache read = 0.10× input rate (90% discount)
- *   - output = output rate (typically 5× input rate, billed separately)
+ * Different providers price prompt caching differently. We model this as a
+ * pair of multipliers (vs the fresh input rate) per provider:
+ *
+ *   - Anthropic   : read 0.10× / write 1.25× (5-min ephemeral cache)
+ *   - OpenAI      : read 0.50× / write 1.00× (implicit cache, ≥1024 tokens)
+ *   - Google      : read 0.25× / write 1.00× (implicit Gemini caching)
+ *   - xAI (Grok)  : read 0.25× / write 1.00×
  *
  * `inputTokens` reported by the Vercel AI SDK is the GROSS input total
- * (fresh + cache_read + cache_write). The cache portions are reported
- * separately under inputTokenDetails. So fresh input must be derived:
+ * (fresh + cache_read + cache_write). The cache portions are in
+ * `inputTokenDetails`. Fresh input is derived:
  *
  *   freshInput = inputTokens - cacheRead - cacheWrite
  *
  * `computeBillableInput` returns the input-equivalent token count after
- * applying the multipliers — a single comparable number that approximates
- * what the input portion of the call costs, independent of which parts
- * came from cache.
+ * applying the right multipliers for the provider — a single comparable
+ * number that approximates what the input portion of the call costs.
  *
  * Output tokens are kept separate because they have a completely different
  * rate and folding them in would require a model-specific input/output
- * ratio. We keep input and output as two distinct numbers and only
- * normalize the input side.
+ * ratio. Input is normalized; output is shown as-is.
  */
 
-/** Multiplier for tokens written to the 5-minute ephemeral cache. */
-export const CACHE_WRITE_MULTIPLIER = 1.25
+export interface CacheMultipliers {
+  /** Multiplier vs fresh input rate for tokens read from cache. */
+  read: number
+  /** Multiplier vs fresh input rate for tokens written to cache. */
+  write: number
+}
 
-/** Multiplier for tokens read from cache (90% discount). */
-export const CACHE_READ_MULTIPLIER = 0.1
+/** Per-provider cache pricing multipliers. Keys match `llm_usage.provider_type`. */
+export const PROVIDER_CACHE_MULTIPLIERS: Record<string, CacheMultipliers> = {
+  // Anthropic 5-min ephemeral cache.
+  // (1-h extended cache uses write 2.0× but we don't differentiate yet — Vercel
+  //  AI SDK reports a single `cacheCreationInputTokens` without TTL distinction.)
+  anthropic:       { read: 0.1, write: 1.25 },
+  // OpenAI: implicit cache, automatic for prompts ≥1024 tokens.
+  openai:          { read: 0.5, write: 1.0 },
+  // Google Gemini: implicit caching (no explicit write surcharge).
+  google:          { read: 0.25, write: 1.0 },
+  'google-vertex': { read: 0.25, write: 1.0 },
+  // xAI Grok: cached input billed at ~0.25× of fresh.
+  xai:             { read: 0.25, write: 1.0 },
+}
+
+/** Fallback when the provider type is unknown — use Anthropic numbers (most
+ *  common provider in practice for this codebase, and the conservative cache
+ *  read estimate that won't UNDER-count what the user is paying). */
+export const DEFAULT_CACHE_MULTIPLIERS: CacheMultipliers = PROVIDER_CACHE_MULTIPLIERS.anthropic!
+
+/** Anthropic-only constants kept for legacy callers; new code should use
+ *  `getCacheMultipliers(providerType)` instead. */
+export const CACHE_WRITE_MULTIPLIER = DEFAULT_CACHE_MULTIPLIERS.write
+export const CACHE_READ_MULTIPLIER = DEFAULT_CACHE_MULTIPLIERS.read
+
+export function getCacheMultipliers(providerType?: string | null): CacheMultipliers {
+  if (!providerType) return DEFAULT_CACHE_MULTIPLIERS
+  return PROVIDER_CACHE_MULTIPLIERS[providerType] ?? DEFAULT_CACHE_MULTIPLIERS
+}
 
 export interface UsageWithCache {
   inputTokens: number
@@ -38,25 +68,25 @@ export interface UsageWithCache {
 }
 
 /**
- * Compute the billable-input-equivalent token count for a single call or
- * an aggregate. Handles undefined/null cache fields by treating them as 0.
+ * Compute the billable-input-equivalent token count.
+ * If `providerType` is omitted, Anthropic multipliers are used.
  *
- * Formula: freshInput * 1.00 + cacheWrite * 1.25 + cacheRead * 0.10
+ * Formula: freshInput * 1.0 + cacheWrite * write_mult + cacheRead * read_mult
  */
-export function computeBillableInput(u: UsageWithCache): number {
+export function computeBillableInput(
+  u: UsageWithCache,
+  providerType?: string | null,
+): number {
+  const m = getCacheMultipliers(providerType)
   const cacheRead = u.cacheReadTokens ?? 0
   const cacheWrite = u.cacheWriteTokens ?? 0
   const freshInput = Math.max(0, (u.inputTokens ?? 0) - cacheRead - cacheWrite)
-  return Math.round(
-    freshInput
-    + cacheWrite * CACHE_WRITE_MULTIPLIER
-    + cacheRead * CACHE_READ_MULTIPLIER
-  )
+  return Math.round(freshInput + cacheWrite * m.write + cacheRead * m.read)
 }
 
 /**
  * Cache hit rate in [0, 1]: portion of input tokens that came from cache reads.
- * Returns 0 when there are no input tokens or no cache reads.
+ * Provider-agnostic (it's just a ratio).
  */
 export function computeCacheHitRate(u: UsageWithCache): number {
   if (!u.inputTokens) return 0
