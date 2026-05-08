@@ -1,6 +1,7 @@
 import { db } from '@/server/db/index'
 import { kins, messages, userProfiles, compactingSummaries, tasks } from '@/server/db/schema'
 import { eq, and, isNull, desc, ne, asc } from 'drizzle-orm'
+import { getFilesForMessages } from '@/server/services/files'
 import { buildSystemPrompt, joinSystemPrompt } from '@/server/services/prompt-builder'
 import { getRelevantMemories } from '@/server/services/memory'
 import { listContactsForPrompt } from '@/server/services/contacts'
@@ -90,6 +91,32 @@ interface ContextPreviewResult {
   compactingThresholdPercent: number | null
   messageCount: number
   generatedAt: number
+}
+
+/**
+ * Estimate the additional tokens contributed by attached files on a message.
+ * Mirrors the file-handling logic in kin-engine's estimateContextTokens so
+ * the visualizer matches the live banner.
+ */
+function estimateMessageFilesTokens(
+  attachedFiles: Array<{ mimeType: string; size: number }> | undefined,
+): number {
+  if (!attachedFiles || attachedFiles.length === 0) return 0
+  let total = 0
+  for (const f of attachedFiles) {
+    if (f.mimeType?.startsWith('image/')) {
+      // Same heuristic as the live banner: ~bytes/750 with a 1500 floor for
+      // typical screenshots. Beats the prior flat 85.
+      total += Math.max(1500, Math.round(f.size / 750))
+    } else if (f.mimeType === 'application/pdf') {
+      total += Math.max(500, Math.ceil(f.size / 3000) * 500)
+    } else if (f.size > 0 && f.size <= 100_000) {
+      // Small text-readable files get inlined: ~bytes/4 tokens.
+      total += Math.ceil(f.size / 4)
+    }
+    // Larger binary files are mentioned by path only (negligible tokens).
+  }
+  return total
 }
 
 function estimateTokens(text: string): number {
@@ -230,6 +257,7 @@ export async function buildContextPreview(kinId: string): Promise<ContextPreview
   // Fetch recent messages for history preview
   const recentMessages = db
     .select({
+      id: messages.id,
       role: messages.role,
       content: messages.content,
       toolCalls: messages.toolCalls,
@@ -253,11 +281,20 @@ export async function buildContextPreview(kinId: string): Promise<ContextPreview
     ? recentMessages.filter((m) => m.createdAt && (m.createdAt as unknown as number) > cutoffTimestamp)
     : recentMessages
 
+  // Pre-load attached files for all visible messages so we can count their
+  // tokens (images, inlined text files, PDFs) — matches what kin-engine sends
+  // to the API.
+  const visibleIds = visibleMessages.map((m) => m.id ?? null).filter((id): id is string => !!id)
+  const filesByMessageId = visibleIds.length > 0 ? await getFilesForMessages(visibleIds) : new Map()
+
   const messagesPreviews: MessagePreview[] = visibleMessages.map((m) => ({
     role: m.role,
     content: m.content,
     hasToolCalls: m.toolCalls !== null,
-    tokenEstimate: estimateTokens(m.content ?? '') + estimateTokens((m.toolCalls as string | null) ?? ''),
+    tokenEstimate:
+      estimateTokens(m.content ?? '')
+      + estimateTokens((m.toolCalls as string | null) ?? '')
+      + estimateMessageFilesTokens(filesByMessageId.get(m.id ?? '')),
     createdAt: m.createdAt ? (m.createdAt as unknown as number) : null,
   }))
 
@@ -505,17 +542,23 @@ export async function buildTaskContextPreview(taskId: string): Promise<ContextPr
 
   // Messages: only this task's messages
   const taskMessages = db
-    .select({ role: messages.role, content: messages.content, toolCalls: messages.toolCalls, createdAt: messages.createdAt })
+    .select({ id: messages.id, role: messages.role, content: messages.content, toolCalls: messages.toolCalls, createdAt: messages.createdAt })
     .from(messages)
     .where(and(eq(messages.kinId, task.parentKinId), eq(messages.taskId, taskId)))
     .orderBy(asc(messages.createdAt))
     .all()
 
+  const taskMsgIds = taskMessages.map((m) => m.id ?? null).filter((id): id is string => !!id)
+  const taskFilesByMessageId = taskMsgIds.length > 0 ? await getFilesForMessages(taskMsgIds) : new Map()
+
   const messagesPreviews: MessagePreview[] = taskMessages.map((m) => ({
     role: m.role,
     content: m.content,
     hasToolCalls: m.toolCalls !== null,
-    tokenEstimate: estimateTokens(m.content ?? '') + estimateTokens((m.toolCalls as string | null) ?? ''),
+    tokenEstimate:
+      estimateTokens(m.content ?? '')
+      + estimateTokens((m.toolCalls as string | null) ?? '')
+      + estimateMessageFilesTokens(taskFilesByMessageId.get(m.id ?? '')),
     createdAt: m.createdAt ? (m.createdAt as unknown as number) : null,
   }))
 
@@ -645,17 +688,23 @@ export async function buildQuickSessionContextPreview(kinId: string, sessionId: 
 
   // Messages: only this session
   const sessionMessages = db
-    .select({ role: messages.role, content: messages.content, toolCalls: messages.toolCalls, createdAt: messages.createdAt })
+    .select({ id: messages.id, role: messages.role, content: messages.content, toolCalls: messages.toolCalls, createdAt: messages.createdAt })
     .from(messages)
     .where(eq(messages.sessionId, sessionId))
     .orderBy(asc(messages.createdAt))
     .all()
 
+  const sessionMsgIds = sessionMessages.map((m) => m.id ?? null).filter((id): id is string => !!id)
+  const sessionFilesByMessageId = sessionMsgIds.length > 0 ? await getFilesForMessages(sessionMsgIds) : new Map()
+
   const messagesPreviews: MessagePreview[] = sessionMessages.map((m) => ({
     role: m.role,
     content: m.content,
     hasToolCalls: m.toolCalls !== null,
-    tokenEstimate: estimateTokens(m.content ?? '') + estimateTokens((m.toolCalls as string | null) ?? ''),
+    tokenEstimate:
+      estimateTokens(m.content ?? '')
+      + estimateTokens((m.toolCalls as string | null) ?? '')
+      + estimateMessageFilesTokens(sessionFilesByMessageId.get(m.id ?? '')),
     createdAt: m.createdAt ? (m.createdAt as unknown as number) : null,
   }))
 
