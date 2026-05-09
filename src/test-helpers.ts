@@ -246,6 +246,8 @@ export const fullMockSchema = {
   knowledgeChunks: {},
   pluginStates: {},
   pluginStorage: {},
+  cronLearnings: {},
+  llmUsage: {},
 }
 
 /**
@@ -263,6 +265,8 @@ export const fullMockDrizzleOrm = {
   not: unary,
   like: identity,
   lt: identity,
+  lte: identity,
+  gt: identity,
   gte: identity,
   asc: unary,
   desc: unary,
