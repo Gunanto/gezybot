@@ -252,7 +252,15 @@ export const config = {
       rerankModel: rerank.model,
       rerankProviderId: rerank.providerId,
       adaptiveK: process.env.MEMORY_ADAPTIVE_K !== 'false',
-      adaptiveKMinScoreRatio: Number(process.env.MEMORY_ADAPTIVE_K_MIN_SCORE_RATIO ?? 0.3),
+      // Lowered from 0.3 → 0.15: with the previous threshold, a single memory
+      // boosted by importance × retrieval feedback could be 3x its peers,
+      // putting them all under the cutoff and producing a winner-take-all
+      // effect (one memory recalled forever, rest invisible).
+      adaptiveKMinScoreRatio: Number(process.env.MEMORY_ADAPTIVE_K_MIN_SCORE_RATIO ?? 0.15),
+      // Largest-gap heuristic: only truncate when a single drop accounts for
+      // more than this fraction of the top-to-current range. Raised from the
+      // hardcoded 0.4 to be less eager to truncate after the first result.
+      adaptiveKLargestGapRatio: Number(process.env.MEMORY_ADAPTIVE_K_LARGEST_GAP_RATIO ?? 0.6),
       rrfK: Number(process.env.MEMORY_RRF_K ?? 60),
       ftsBoost: Number(process.env.MEMORY_FTS_BOOST ?? 0.5),
       subjectBoost: Number(process.env.MEMORY_SUBJECT_BOOST ?? 1.3),

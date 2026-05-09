@@ -434,15 +434,17 @@ function applyAdaptiveK<T extends { score: number }>(results: T[]): T[] {
   const minScore = topScore * config.memory.adaptiveKMinScoreRatio
   let cutoff = results.length
 
-  // Pass 1: find the largest relative gap
+  // Pass 1: find the largest relative gap. Threshold pulled from config so
+  // operators can tune it; raised default to 60% to reduce winner-take-all
+  // truncation when one memory is heavily boosted (importance × retrieval
+  // feedback loop).
+  const largestGapRatio = config.memory.adaptiveKLargestGapRatio ?? 0.6
   for (let i = 1; i < results.length; i++) {
     const prev = results[i - 1]!
     const curr = results[i]!
     const gap = prev.score - curr.score
     const rangeFromTop = topScore - curr.score
-    // If this single gap accounts for >40% of the total drop from the top score,
-    // it's a significant cliff — truncate here
-    if (rangeFromTop > 0 && gap / rangeFromTop > 0.4) {
+    if (rangeFromTop > 0 && gap / rangeFromTop > largestGapRatio) {
       cutoff = i
       break
     }
@@ -616,9 +618,11 @@ export async function searchMemories(
     const decay = temporalDecayWeight(data.updatedAt, data.category, data.importance)
     const imp = data.importance ?? 5
     const importanceWeight = 0.5 + (imp / 10)
-    // Logarithmic retrieval frequency boost: memories retrieved more often get a mild boost
-    // log2(1) = 0 → boost = 1.0 (never retrieved), log2(11) ≈ 3.46 → boost ≈ 1.17
-    const retrievalBoost = 1 + Math.log2(1 + data.retrievalCount) * 0.05
+    // Logarithmic retrieval frequency boost capped at +20% so a memory
+    // retrieved hundreds of times can't snowball past everything else
+    // forever (positive feedback: more retrievals → more boost → more
+    // retrievals → ...). Cap reached around retrieval_count ~= 256.
+    const retrievalBoost = Math.min(1.2, 1 + Math.log2(1 + data.retrievalCount) * 0.05)
     // Subject boost: if the memory's subject matches an entity mentioned in the query, boost its score
     const subjectBoost = data.subject && matchedSubjects.has(data.subject) ? subjectBoostFactor : 1.0
     // Category intent boost: if query intent matches this memory's category, boost its score
