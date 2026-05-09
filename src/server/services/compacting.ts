@@ -830,7 +830,27 @@ export async function maybeCompact(kinId: string, contextTokens?: number, contex
         kinId,
         data: { kinId, cycle: cycles, estimatedTotal: maxCycles },
       })
-      await runCompacting(kinId, contextWindow)
+      const result = await runCompacting(kinId, contextWindow)
+
+      // No-op cycle: runCompacting returned null because there weren't enough
+      // messages to summarize, the keep-window already covered everything, etc.
+      // shouldCompact would still return true (the threshold is exceeded by
+      // pieces compacting can't touch — system prompt, tools, memories — so
+      // looping again would just waste cycles and block the next user message
+      // for nothing. Break and let the operator widen the threshold or shrink
+      // tools / memories instead.
+      if (result === null) {
+        log.warn(
+          { kinId, cycle: cycles },
+          'Compacting cycle was a no-op (nothing to summarize) — breaking catch-up loop',
+        )
+        sseManager.sendToKin(kinId, {
+          type: 'compacting:done',
+          kinId,
+          data: { kinId, summary: '', memoriesExtracted: 0 },
+        })
+        break
+      }
 
       // After the first compaction, clear the passed-in values so subsequent
       // iterations re-estimate from DB (context has changed)
