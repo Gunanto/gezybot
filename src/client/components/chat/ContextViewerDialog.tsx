@@ -31,6 +31,8 @@ interface MessagePreview {
   role: string
   content: string | null
   hasToolCalls: boolean
+  /** Calibrated estimate (content + tool calls JSON), filled by server. */
+  tokenEstimate?: number
   createdAt: number | null
 }
 
@@ -496,33 +498,63 @@ export function ContextViewerDialog({ open, onOpenChange, kinId, taskId, session
                   <p className="text-xs text-muted-foreground">{t('chat.contextViewer.noMessages')}</p>
                 ) : (
                   <div className="space-y-1.5">
-                    {data.rawPayload.messages.map((msg, i) => (
-                      <div key={i} className="flex items-start gap-2 text-xs">
-                        <span className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-medium ${
-                          msg.role === 'user'
-                            ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
-                            : msg.role === 'assistant'
-                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                              : 'bg-muted text-muted-foreground'
-                        }`}>
-                          {t(`chat.contextViewer.messageRole.${msg.role}`, msg.role)}
-                        </span>
-                        <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                          {msg.content
-                            ? msg.content.length > 120
-                              ? msg.content.slice(0, 120) + '…'
-                              : msg.content
-                            : msg.hasToolCalls
-                              ? t('chat.contextViewer.withToolCalls')
-                              : '—'}
-                        </span>
-                        {msg.createdAt && (
-                          <span className="shrink-0 text-[10px] text-muted-foreground/50">
-                            {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        )}
-                      </div>
-                    ))}
+                    {(() => {
+                      // Pre-compute the heaviest message in the list so we can
+                      // tint the worst offenders' token chip — quickly answers
+                      // "which message is bloating my context?" at a glance.
+                      const maxMsgTokens = Math.max(
+                        1,
+                        ...data.rawPayload.messages.map((m) => m.tokenEstimate ?? 0),
+                      )
+                      return data.rawPayload.messages.map((msg, i) => {
+                        const tokens = msg.tokenEstimate ?? 0
+                        const share = tokens / maxMsgTokens
+                        // Only highlight if this message is meaningfully large
+                        // AND the dominant one in the list (>= 60% of the max).
+                        const heavy = share >= 0.6 && tokens >= 1000
+                        return (
+                          <div key={i} className="flex items-start gap-2 text-xs">
+                            <span className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-medium ${
+                              msg.role === 'user'
+                                ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                                : msg.role === 'assistant'
+                                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                  : 'bg-muted text-muted-foreground'
+                            }`}>
+                              {t(`chat.contextViewer.messageRole.${msg.role}`, msg.role)}
+                            </span>
+                            <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                              {msg.content
+                                ? msg.content.length > 120
+                                  ? msg.content.slice(0, 120) + '…'
+                                  : msg.content
+                                : msg.hasToolCalls
+                                  ? t('chat.contextViewer.withToolCalls')
+                                  : '—'}
+                            </span>
+                            {tokens > 0 && (
+                              <span
+                                className={`shrink-0 rounded px-1 py-px font-mono text-[10px] tabular-nums ${
+                                  heavy
+                                    ? 'bg-warning/15 text-warning'
+                                    : 'bg-muted text-muted-foreground/70'
+                                }`}
+                                title={t('chat.contextViewer.messageTokensHint', {
+                                  defaultValue: 'Estimated tokens for this message (content + tool calls)',
+                                })}
+                              >
+                                {formatTokenCount(tokens)}
+                              </span>
+                            )}
+                            {msg.createdAt && (
+                              <span className="shrink-0 text-[10px] text-muted-foreground/50">
+                                {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            )}
+                          </div>
+                        )
+                      })
+                    })()}
                   </div>
                 )}
               </FadingSection>
