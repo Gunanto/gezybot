@@ -331,7 +331,7 @@ function estimateTokens(text: string): number {
 }
 
 function buildMemoriesBlock(memories: Memory[]): string {
-  const header = `## Memories\n\nRelevant information from your past interactions. Prioritize ⬤ (highly relevant) and ★ (important) memories. Treat ○ (loosely related) as background context only. When memories conflict, prefer the most recent one.\n\nLegend: ★ = high importance, ⬤ = highly relevant, ◉ = relevant, ○ = loosely related`
+  const header = `## Memories — what you actually know\n\nThese are facts and context you've learned across past interactions. **Use them.** When the user references something past, don't ask them to remind you if it's here. When you're choosing how to phrase or scope a response, let these inform you — they're why you're not a stranger.\n\nGuidelines:\n- Weight ⬤ (highly relevant) and ★ (important) memories most. Treat ○ (loosely related) as background.\n- When memories conflict, prefer the most recent one.\n- Don't quote them mechanically — weave them into your reply naturally, as something you remember.\n- If a memory is clearly outdated or wrong relative to what the user just said, trust the user and the new info will eventually update the memory.\n\nLegend: ★ = high importance · ⬤ = highly relevant · ◉ = relevant · ○ = loosely related`
 
   // Normalize scores relative to top score so relevance tags are scale-independent
   const topScore = memories.reduce((max, m) => Math.max(max, m.score ?? 0), 0)
