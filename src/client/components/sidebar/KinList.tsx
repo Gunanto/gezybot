@@ -43,6 +43,7 @@ interface KinListProps {
   selectedKinSlug: string | null
   unavailableKinIds: Set<string>
   kinQueueState: Map<string, { isProcessing: boolean; queueSize: number }>
+  unreadCounts: Map<string, number>
   onSelectKin: (slug: string) => void
   onCreateKin: () => void
   onEditKin: (id: string) => void
@@ -54,7 +55,7 @@ interface KinListProps {
 
 const KIN_SEARCH_THRESHOLD = 5
 
-export const KinList = memo(function KinList({ kins, llmModels, selectedKinSlug, unavailableKinIds, kinQueueState, onSelectKin, onCreateKin, onEditKin, onDeleteKin, onSetAsHub, onViewUsage, onReorderKins }: KinListProps) {
+export const KinList = memo(function KinList({ kins, llmModels, selectedKinSlug, unavailableKinIds, kinQueueState, unreadCounts, onSelectKin, onCreateKin, onEditKin, onDeleteKin, onSetAsHub, onViewUsage, onReorderKins }: KinListProps) {
   const { t } = useTranslation()
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -166,6 +167,7 @@ export const KinList = memo(function KinList({ kins, llmModels, selectedKinSlug,
                   isProcessing={kinQueueState.get(hubKin.id)?.isProcessing}
                   queueSize={kinQueueState.get(hubKin.id)?.queueSize}
                   modelUnavailable={unavailableKinIds.has(hubKin.id)}
+                  unreadCount={unreadCounts.get(hubKin.id) ?? 0}
                   shortcutIndex={1}
                   onClick={() => onSelectKin(hubKin.slug)}
                   onEdit={() => onEditKin(hubKin.id)}
@@ -197,6 +199,7 @@ export const KinList = memo(function KinList({ kins, llmModels, selectedKinSlug,
                       isProcessing={queueState?.isProcessing}
                       queueSize={queueState?.queueSize}
                       modelUnavailable={unavailableKinIds.has(kin.id)}
+                      unreadCount={unreadCounts.get(kin.id) ?? 0}
                       shortcutIndex={hubKin ? index + 2 : index + 1}
                       onClick={() => onSelectKin(kin.slug)}
                       onEdit={() => onEditKin(kin.id)}

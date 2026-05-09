@@ -213,6 +213,7 @@ export function ChatPage() {
         selectedKinSlug={selectedKinSlug}
         unavailableKinIds={unavailableKinIds}
         kinQueueState={kinQueueState}
+        unreadCounts={unreadPerKin}
         onSelectKin={handleSelectKin}
         onCreateKin={handleOpenCreateModal}
         onEditKin={handleOpenEditModal}

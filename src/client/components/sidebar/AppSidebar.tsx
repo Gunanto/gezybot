@@ -45,6 +45,7 @@ interface AppSidebarProps {
   selectedKinId: string | null
   unavailableKinIds: Set<string>
   kinQueueState: Map<string, { isProcessing: boolean; queueSize: number }>
+  unreadCounts: Map<string, number>
   onSelectKin: (slug: string) => void
   onCreateKin: () => void
   onEditKin: (id: string) => void
@@ -60,6 +61,7 @@ export function AppSidebar({
   selectedKinSlug,
   unavailableKinIds,
   kinQueueState,
+  unreadCounts,
   onSelectKin,
   onCreateKin,
   onEditKin,
@@ -170,6 +172,7 @@ export function AppSidebar({
             selectedKinSlug={selectedKinSlug}
             unavailableKinIds={unavailableKinIds}
             kinQueueState={kinQueueState}
+            unreadCounts={unreadCounts}
             onSelectKin={onSelectKin}
             onCreateKin={onCreateKin}
             onEditKin={onEditKin}
