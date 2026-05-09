@@ -394,12 +394,16 @@ export async function runCompacting(kinId: string, contextWindow?: number): Prom
   const summaryMaxTokens = Math.floor(perSummaryBudget * 1.5)
 
   try {
-    // Generate summary
+    // Generate summary. Hard timeout: a stuck provider call would otherwise
+    // hold the compactingKins lock indefinitely, blocking every subsequent
+    // user message for this Kin. 5 min covers slow providers / large prompts
+    // while still surfacing a real hang within a tolerable window.
     const result = await safeGenerateText({
       model,
       providerId: effectiveProviderId,
       prompt: systemPrompt,
       maxTokens: summaryMaxTokens,
+      timeoutMs: 5 * 60 * 1000,
       callSite: 'compacting',
       modelId: effectiveModelId,
       kinId,

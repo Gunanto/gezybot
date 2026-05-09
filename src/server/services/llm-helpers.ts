@@ -44,6 +44,10 @@ interface SafeGenerateTextOptions {
   prompt: string
   /** Optional max tokens for the response */
   maxTokens?: number
+  /** Optional hard timeout for the LLM call (ms). Recommended for background
+   *  jobs (compacting, extraction) so a stuck provider call doesn't hold an
+   *  in-memory lock indefinitely and block the Kin's main queue. */
+  timeoutMs?: number
   /** If set, auto-records token usage with this call site label */
   callSite?: string
   /** Model ID string for usage tracking (e.g. 'claude-sonnet-4-20250514') */
@@ -63,8 +67,21 @@ interface SafeGenerateTextOptions {
 export async function safeGenerateText(
   options: SafeGenerateTextOptions,
 ): Promise<GenerateTextResult<Record<string, never>, never>> {
-  const { model, providerId, prompt, maxTokens, callSite, modelId, kinId } = options
+  const { model, providerId, prompt, maxTokens, timeoutMs, callSite, modelId, kinId } = options
   const oauth = await isOAuthProvider(providerId)
+
+  // Hard timeout via AbortController. ai SDK's `abortSignal` cancels the
+  // underlying fetch and rejects the generateText promise — so a stuck
+  // provider call eventually surfaces as an error instead of hanging
+  // forever and holding upstream locks.
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null
+  let abortSignal: AbortSignal | undefined
+  if (timeoutMs && timeoutMs > 0) {
+    const ctrl = new AbortController()
+    timeoutHandle = setTimeout(() => ctrl.abort(new Error(`safeGenerateText timed out after ${timeoutMs}ms`)), timeoutMs)
+    abortSignal = ctrl.signal
+  }
+  const timeoutOpt = abortSignal ? { abortSignal } : {}
 
   let result: GenerateTextResult<Record<string, never>, never>
 
@@ -82,20 +99,26 @@ export async function safeGenerateText(
   // running with no output cap.
   const tokenCap = maxTokens ? { maxOutputTokens: maxTokens } : {}
 
-  if (oauth) {
-    log.debug('Using OAuth-safe generateText with system block')
-    result = await generateText({
-      model,
-      system: prompt,
-      messages: [{ role: 'user', content: 'Please proceed with the task described in the system prompt.' }],
-      ...tokenCap,
-    })
-  } else {
-    result = await generateText({
-      model,
-      messages: [{ role: 'user', content: prompt }],
-      ...tokenCap,
-    })
+  try {
+    if (oauth) {
+      log.debug('Using OAuth-safe generateText with system block')
+      result = await generateText({
+        model,
+        system: prompt,
+        messages: [{ role: 'user', content: 'Please proceed with the task described in the system prompt.' }],
+        ...tokenCap,
+        ...timeoutOpt,
+      })
+    } else {
+      result = await generateText({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        ...tokenCap,
+        ...timeoutOpt,
+      })
+    }
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle)
   }
 
   if (callSite) {
