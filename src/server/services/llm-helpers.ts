@@ -76,19 +76,25 @@ export async function safeGenerateText(
   // ever refactored to separate the static instructions from the variable
   // content, revisit this and add cacheControl on the static system block.
 
+  // Vercel AI SDK v5+ renamed the option from `maxTokens` to `maxOutputTokens`.
+  // The previous spread `{ maxTokens }` was silently ignored on v6 — every
+  // caller passing maxTokens (compacting, extraction, etc.) was actually
+  // running with no output cap.
+  const tokenCap = maxTokens ? { maxOutputTokens: maxTokens } : {}
+
   if (oauth) {
     log.debug('Using OAuth-safe generateText with system block')
     result = await generateText({
       model,
       system: prompt,
       messages: [{ role: 'user', content: 'Please proceed with the task described in the system prompt.' }],
-      ...(maxTokens ? { maxTokens } : {}),
+      ...tokenCap,
     })
   } else {
     result = await generateText({
       model,
       messages: [{ role: 'user', content: prompt }],
-      ...(maxTokens ? { maxTokens } : {}),
+      ...tokenCap,
     })
   }
 

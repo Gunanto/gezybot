@@ -384,12 +384,22 @@ export async function runCompacting(kinId: string, contextWindow?: number): Prom
     return null
   }
 
+  // Cap the generated summary at one summary's slice of the budget so the
+  // LLM can't produce a 100k summary that itself triggers compacting next
+  // turn. Reserves a 50% headroom so a slightly chatty model still fits.
+  const perSummaryBudget = Math.max(
+    1500,
+    Math.floor((effectiveConfig.summaryBudgetPercent / 100) * ctxWindow / Math.max(1, effectiveConfig.maxSummaries)),
+  )
+  const summaryMaxTokens = Math.floor(perSummaryBudget * 1.5)
+
   try {
     // Generate summary
     const result = await safeGenerateText({
       model,
       providerId: effectiveProviderId,
       prompt: systemPrompt,
+      maxTokens: summaryMaxTokens,
       callSite: 'compacting',
       modelId: effectiveModelId,
       kinId,
@@ -397,6 +407,17 @@ export async function runCompacting(kinId: string, contextWindow?: number): Prom
 
     const summary = result.text
     if (!summary) return null
+
+    // Sanity check: warn if the summary is still oversized despite the cap
+    // (cap might have been raised by maxOutputTokens=… being honored as a
+    // soft limit on some providers).
+    const actualTokens = estimateTokens(summary)
+    if (actualTokens > perSummaryBudget * 2) {
+      log.warn(
+        { kinId, actualTokens, perSummaryBudget, summaryMaxTokens },
+        'Generated summary exceeds 2x its per-summary budget — consider lowering keepPercent or raising maxSummaries',
+      )
+    }
 
     const firstMsgAt = firstSummarizedMessage.createdAt as unknown as number
     const lastMsgAt = lastSummarizedMessage.createdAt as unknown as number
