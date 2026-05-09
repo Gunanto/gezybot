@@ -171,7 +171,7 @@ export const listCronsTool: ToolRegistration = {
             isActive: c.isActive,
             runOnce: c.runOnce,
             requiresApproval: c.requiresApproval,
-            lastTriggeredAt: c.lastTriggeredAt,
+            lastTriggeredAt: c.lastTriggeredAt ? c.lastTriggeredAt.toISOString() : null,
           })),
         }
       },

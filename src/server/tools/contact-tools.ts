@@ -45,8 +45,8 @@ export const getContactTool: ToolRegistration = {
           })),
           linkedUserId: contact.linkedUserId,
           linkedKinId: contact.linkedKinId,
-          createdAt: contact.createdAt,
-          updatedAt: contact.updatedAt,
+          createdAt: contact.createdAt.toISOString(),
+          updatedAt: contact.updatedAt.toISOString(),
         }
       },
     }),

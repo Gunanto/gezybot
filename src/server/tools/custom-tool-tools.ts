@@ -99,7 +99,7 @@ export const listCustomToolsTool: ToolRegistration = {
             name: t.name,
             description: t.description,
             scriptPath: t.scriptPath,
-            createdAt: t.createdAt,
+            createdAt: t.createdAt.toISOString(),
           })),
         }
       },

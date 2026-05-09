@@ -236,7 +236,7 @@ describe('custom-tool-tools', () => {
         name: 'scrape_url',
         description: 'Scrape a URL',
         scriptPath: 'tools/scrape.sh',
-        createdAt: new Date('2026-01-01'),
+        createdAt: new Date('2026-01-01').toISOString(),
       })
       expect(result.tools[1].name).toBe('send_ping')
       expect(mockListCustomTools).toHaveBeenCalledWith('kin-abc')
@@ -273,7 +273,7 @@ describe('custom-tool-tools', () => {
       expect(tool.name).toBe('test')
       expect(tool.description).toBe('Test tool')
       expect(tool.scriptPath).toBe('tools/test.sh')
-      expect(tool.createdAt).toEqual(new Date('2026-01-01'))
+      expect(tool.createdAt).toEqual(new Date('2026-01-01').toISOString())
       // These should NOT be in the mapped output
       expect(tool.kinId).toBeUndefined()
       expect(tool.parameters).toBeUndefined()

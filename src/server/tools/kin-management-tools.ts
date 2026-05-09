@@ -250,7 +250,7 @@ export const getKinDetailsTool: ToolRegistration = {
           model: details.model,
           mcpServers: details.mcpServers.map((s) => ({ id: s.id, name: s.name })),
           toolConfig,
-          createdAt: details.createdAt,
+          createdAt: details.createdAt.toISOString(),
         }
       },
     }),

@@ -298,8 +298,8 @@ describe('task-tools', () => {
           result: 'Found 3 papers',
           error: null,
           depth: 0,
-          createdAt: '2026-01-01',
-          updatedAt: '2026-01-02',
+          createdAt: new Date('2026-01-01'),
+          updatedAt: new Date('2026-01-02'),
         },
       ])
       mockTasks.listSourceKinTasks.mockResolvedValue([])
@@ -325,8 +325,8 @@ describe('task-tools', () => {
         result: null,
         error: null,
         depth: 0,
-        createdAt: '2026-01-01',
-        updatedAt: '2026-01-01',
+        createdAt: new Date('2026-01-01'),
+        updatedAt: new Date('2026-01-01'),
       }
       mockTasks.listKinTasks.mockResolvedValue([sharedTask])
       mockTasks.listSourceKinTasks.mockResolvedValue([sharedTask])
@@ -352,8 +352,8 @@ describe('task-tools', () => {
           result: null,
           error: null,
           depth: 1,
-          createdAt: '2026-01-01',
-          updatedAt: '2026-01-01',
+          createdAt: new Date('2026-01-01'),
+          updatedAt: new Date('2026-01-01'),
         },
       ])
       mockDbChain.all.mockResolvedValue([{ id: 'kin-other', slug: 'boss-kin', name: 'Boss' }])
@@ -379,8 +379,8 @@ describe('task-tools', () => {
           result: 'Done',
           error: null,
           depth: 0,
-          createdAt: '2026-01-01',
-          updatedAt: '2026-01-02',
+          createdAt: new Date('2026-01-01'),
+          updatedAt: new Date('2026-01-02'),
         },
       ])
       mockTasks.listSourceKinTasks.mockResolvedValue([])
@@ -428,11 +428,11 @@ describe('task-tools', () => {
         result: 'Done!',
         error: null,
         depth: 0,
-        createdAt: '2026-01-01',
-        updatedAt: '2026-01-02',
+        createdAt: new Date('2026-01-01'),
+        updatedAt: new Date('2026-01-02'),
       })
       mockDbChain.all.mockResolvedValue([
-        { role: 'user', content: 'hello', sourceType: 'task', createdAt: '2026-01-01' },
+        { role: 'user', content: 'hello', sourceType: 'task', createdAt: new Date('2026-01-01') },
       ])
 
       const result = await execute(getTaskDetailTool, { task_id: 'task-mine' })
@@ -456,8 +456,8 @@ describe('task-tools', () => {
         result: null,
         error: null,
         depth: 1,
-        createdAt: '2026-01-01',
-        updatedAt: '2026-01-01',
+        createdAt: new Date('2026-01-01'),
+        updatedAt: new Date('2026-01-01'),
       })
       mockDbChain.all.mockResolvedValue([])
 

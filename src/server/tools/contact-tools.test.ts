@@ -113,8 +113,8 @@ describe('contact-tools', () => {
         ],
         linkedUserId: null,
         linkedKinId: null,
-        createdAt: '2026-01-01',
-        updatedAt: '2026-01-02',
+        createdAt: new Date('2026-01-01'),
+        updatedAt: new Date('2026-01-02'),
       })
 
       const result = await execute(getContactTool, { contact_id: 'c-1' })
@@ -140,8 +140,8 @@ describe('contact-tools', () => {
         notes: [],
         linkedUserId: 'u-1',
         linkedKinId: null,
-        createdAt: '2026-01-01',
-        updatedAt: '2026-01-01',
+        createdAt: new Date('2026-01-01'),
+        updatedAt: new Date('2026-01-01'),
       })
 
       const result = await execute(getContactTool, { contact_id: 'c-2' })

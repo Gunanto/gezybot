@@ -214,14 +214,14 @@ export const listSummariesTool: ToolRegistration = {
             totalCount: filtered.length,
             summaries: filtered.map((s) => ({
               id: s.id,
-              firstMessageAt: s.firstMessageAt as unknown as number,
-              lastMessageAt: s.lastMessageAt as unknown as number,
+              firstMessageAt: s.firstMessageAt.toISOString(),
+              lastMessageAt: s.lastMessageAt.toISOString(),
               messageCount: s.messageCount,
               tokenEstimate: s.tokenEstimate,
               isInContext: s.isInContext,
               depth: s.depth,
               depthLabel: (s.depth ?? 0) === 0 ? 'detailed' : 'compressed',
-              createdAt: s.createdAt as unknown as number,
+              createdAt: s.createdAt.toISOString(),
             })),
           }
         } catch {
@@ -265,8 +265,8 @@ export const readSummaryTool: ToolRegistration = {
           return {
             id: summary.id,
             summary: summary.summary,
-            firstMessageAt: summary.firstMessageAt as unknown as number,
-            lastMessageAt: summary.lastMessageAt as unknown as number,
+            firstMessageAt: summary.firstMessageAt.toISOString(),
+            lastMessageAt: summary.lastMessageAt.toISOString(),
             messageCount: summary.messageCount,
             isInContext: summary.isInContext,
             depth: summary.depth,
