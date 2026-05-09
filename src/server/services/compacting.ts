@@ -87,14 +87,24 @@ async function getEffectiveCompactingConfig(kinId: string): Promise<EffectiveCom
  * Evaluate whether compacting should trigger for a Kin.
  * Uses token-based threshold: triggers when context tokens exceed thresholdPercent of context window.
  *
- * When contextTokens/contextWindow are provided (from kin-engine post-turn), uses them directly.
- * Otherwise falls back to estimating from DB.
+ * Prefers the provider-reported `apiContextTokens` from the cache (ground
+ * truth from the last LLM roundtrip) over the local BPE estimate, since the
+ * local estimator typically under-counts JSON / tool-heavy contexts by
+ * 30-60% — which would otherwise let compacting silently miss its threshold.
  */
 export async function shouldCompact(kinId: string, contextTokens?: number, contextWindow?: number): Promise<boolean> {
   const effectiveConfig = await getEffectiveCompactingConfig(kinId)
 
   if (contextTokens != null && contextWindow != null && contextWindow > 0) {
-    const usagePercent = (contextTokens / contextWindow) * 100
+    // If the cache has a fresh provider-reported size from the most recent
+    // turn and it exceeds the caller-supplied estimate, trust the ground
+    // truth — the next call will be at least as large.
+    const { getLastContextUsage } = await import('@/server/services/kin-engine')
+    const cached = await getLastContextUsage(kinId)
+    const effectiveTokens = cached?.apiContextTokens != null && cached.apiContextTokens > contextTokens
+      ? cached.apiContextTokens
+      : contextTokens
+    const usagePercent = (effectiveTokens / contextWindow) * 100
     return usagePercent > effectiveConfig.thresholdPercent
   }
 
@@ -143,7 +153,12 @@ export async function getCompactingProximity(kinId: string): Promise<CompactingP
   let currentPercent = 0
   const contextWindow = cached?.contextWindow ?? 0
   if (cached && contextWindow > 0) {
-    currentPercent = Math.round((cached.contextTokens / contextWindow) * 100)
+    // Prefer provider-reported ground truth over local estimate — same
+    // reason as in shouldCompact: estimates routinely under-count, which
+    // makes the displayed proximity bar lie about how close the Kin is
+    // to compacting.
+    const tokens = cached.apiContextTokens ?? cached.contextTokens
+    currentPercent = Math.round((tokens / contextWindow) * 100)
   }
 
   const activeSummaries = await getActiveSummaries(kinId)
