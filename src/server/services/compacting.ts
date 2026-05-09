@@ -121,7 +121,13 @@ export async function shouldCompact(kinId: string, contextTokens?: number, conte
   const cutoffTimestamp = latestSummary ? (latestSummary.lastMessageAt as unknown as number) : null
 
   const nonCompactedMessages = await getNonCompactedMessages(kinId, cutoffTimestamp)
-  const messageTokens = nonCompactedMessages.reduce((sum, m) => sum + estimateTokens(m.content ?? ''), 0)
+  // Same reason as in runCompacting: counting only content under-counts
+  // tool-heavy Kins by 10-100× and lets shouldCompact silently miss its
+  // threshold when there's no fresh apiContextTokens in the cache yet.
+  const messageTokens = nonCompactedMessages.reduce(
+    (sum, m) => sum + estimateTokens(m.content ?? '') + estimateTokens((m.toolCalls as string | null) ?? ''),
+    0,
+  )
   const summaryTokens = activeSummaries.reduce((sum, s) => sum + estimateTokens(s.summary), 0)
 
   // Rough estimate: messages + summaries + ~2000 for system prompt + ~1000 for tools
@@ -241,12 +247,20 @@ export async function runCompacting(kinId: string, contextWindow?: number): Prom
   const nonCompacted = await getNonCompactedMessages(kinId, cutoffTimestamp)
   if (nonCompacted.length === 0) return null
 
-  // Compute keep-window: walk backward from newest, accumulating tokens until keepPercent budget
+  // Compute keep-window: walk backward from newest, accumulating tokens until keepPercent budget.
+  //
+  // The per-message size MUST include the toolCalls JSON, not just the text
+  // content. For tool-heavy Kins (kubectl, browser, file reads) the JSON is
+  // 10-100× the text — counting only content makes the budget budget look
+  // empty, every message fits in the keep window, messagesToSummarize ends
+  // up empty, and runCompacting silently returns null every time. The Kin
+  // then accumulates context unboundedly until the main turn itself crashes.
   const keepBudget = Math.floor((effectiveConfig.keepPercent / 100) * ctxWindow)
   let keepTokens = 0
   let keepStartIndex = nonCompacted.length
   for (let i = nonCompacted.length - 1; i >= 0; i--) {
-    const msgTokens = estimateTokens(nonCompacted[i]!.content ?? '')
+    const m = nonCompacted[i]!
+    const msgTokens = estimateTokens(m.content ?? '') + estimateTokens((m.toolCalls as string | null) ?? '')
     if (keepTokens + msgTokens > keepBudget) break
     keepTokens += msgTokens
     keepStartIndex = i
