@@ -692,6 +692,17 @@
     "memoriesUsed": "{{count}} souvenirs",
     "memoriesUsedSingular": "1 souvenir",
     "thinking": "Réflexion...",
+    "thinkingPicker": {
+      "title": "Niveau de réflexion",
+      "opus47Note": "Opus 4.7 gère sa réflexion en interne — ce réglage n'a pas d'effet visible.",
+      "effort": {
+        "off": "Désactivé",
+        "low": "Faible",
+        "medium": "Moyen",
+        "high": "Élevé",
+        "max": "Maximum"
+      }
+    },
     "thinkingToggle": "Réflexion",
     "thinkingEnable": "Activer la réflexion étendue pour ce Kin",
     "thinkingDisable": "Désactiver la réflexion étendue pour ce Kin",

@@ -85,6 +85,7 @@ kinRoutes.get('/', async (c) => {
         createdAt: k.createdAt,
         isHub: k.id === hubKinId,
         thinkingEnabled: resolveThinkingConfig(k.thinkingConfig).enabled === true,
+        thinkingEffort: resolveThinkingConfig(k.thinkingConfig).effort ?? null,
         isProcessing: qs?.isProcessing ?? false,
         queueSize: qs?.queueSize ?? 0,
         processingStartedAt: qs?.processingStartedAt ?? undefined,

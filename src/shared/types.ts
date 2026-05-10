@@ -156,11 +156,16 @@ export interface KinCompactingConfig {
   maxSummaries?: number | null
 }
 
+/** Effort level for thinking/reasoning — maps to provider-specific budgets/flags. */
+export type KinThinkingEffort = 'low' | 'medium' | 'high' | 'max'
+
 /** Per-Kin thinking/reasoning configuration (stored as JSON in kins.thinking_config) */
 export interface KinThinkingConfig {
   /** Whether thinking/reasoning is enabled for this Kin */
   enabled: boolean
-  /** Token budget for reasoning (null = adaptive/provider default) */
+  /** Effort level — mapped per-provider to budget tokens or reasoning_effort. Defaults to 'medium' when enabled and unset. */
+  effort?: KinThinkingEffort | null
+  /** @deprecated Use `effort` instead. Raw token budget kept for backwards compatibility on existing rows. */
   budgetTokens?: number | null
 }
 

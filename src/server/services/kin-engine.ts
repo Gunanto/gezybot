@@ -35,7 +35,7 @@ import { getRelevantMemories, rewriteQueryWithContext } from '@/server/services/
 import { maybeCompact } from '@/server/services/compacting'
 import { resolveMCPTools, getMCPToolsSummary } from '@/server/services/mcp'
 import { resolveCustomTools } from '@/server/services/custom-tools'
-import type { KinToolConfig, KinThinkingConfig, ContextTokenBreakdown, ContextPipelineStatus } from '@/shared/types'
+import type { KinToolConfig, KinThinkingConfig, KinThinkingEffort, ContextTokenBreakdown, ContextPipelineStatus } from '@/shared/types'
 import { listAvailableKins } from '@/server/services/inter-kin'
 import { listContactsForPrompt, findContactByLinkedUserId } from '@/server/services/contacts'
 import { contactNotes as contactNotesTable } from '@/server/db/schema'
@@ -2751,6 +2751,44 @@ export function resolveThinkingConfig(rawJson: string | null | undefined): KinTh
 }
 
 /**
+ * Effort → budget mapping per provider family.
+ * Anthropic/Gemini accept a token budget. OpenAI reasoning models use a string enum.
+ * Opus 4.7 ignores the `thinking` param silently (handles thinking internally).
+ */
+const ANTHROPIC_EFFORT_BUDGETS: Record<KinThinkingEffort, number> = {
+  low: 2048,
+  medium: 8192,
+  high: 24576,
+  max: 32000,
+}
+const GEMINI_EFFORT_BUDGETS: Record<KinThinkingEffort, number> = {
+  low: 2048,
+  medium: 8192,
+  high: 24576,
+  max: -1, // unlimited per Google convention
+}
+const OPENAI_EFFORT_LEVELS: Record<KinThinkingEffort, 'low' | 'medium' | 'high'> = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  max: 'high', // OpenAI caps at 'high'
+}
+
+/** Resolve a config to a concrete budget for Anthropic-style providers. */
+function resolveAnthropicBudget(config: KinThinkingConfig): number {
+  if (config.effort) return ANTHROPIC_EFFORT_BUDGETS[config.effort]
+  if (config.budgetTokens != null) return config.budgetTokens
+  return ANTHROPIC_EFFORT_BUDGETS.medium
+}
+
+/** Resolve a config to a concrete budget for Gemini. */
+function resolveGeminiBudget(config: KinThinkingConfig): number {
+  if (config.effort) return GEMINI_EFFORT_BUDGETS[config.effort]
+  if (config.budgetTokens != null) return config.budgetTokens
+  return GEMINI_EFFORT_BUDGETS.medium
+}
+
+/**
  * Build provider-specific options to enable thinking/reasoning on the LLM call.
  * Returns undefined when thinking is disabled or the provider doesn't support it.
  */
@@ -2759,18 +2797,16 @@ export function buildThinkingProviderOptions(
   config: KinThinkingConfig | null,
 ): Record<string, Record<string, unknown>> | undefined {
   if (!config?.enabled) return undefined
-  const budget = config.budgetTokens
 
   if (providerType === 'anthropic' || providerType === 'anthropic-oauth') {
     return {
       anthropic: {
-        thinking: budget != null
-          ? { type: 'enabled', budgetTokens: budget }
-          : { type: 'adaptive' },
+        thinking: { type: 'enabled', budgetTokens: resolveAnthropicBudget(config) },
       },
     }
   }
   if (providerType === 'gemini') {
+    const budget = resolveGeminiBudget(config)
     return {
       google: {
         thinkingConfig: {
@@ -2780,7 +2816,12 @@ export function buildThinkingProviderOptions(
       },
     }
   }
-  // OpenAI o1/o3/o4: reasoning is native, no providerOptions needed
+  if (providerType === 'openai' || providerType === 'openai-codex') {
+    const effort = config.effort ?? 'medium'
+    return {
+      openai: { reasoningEffort: OPENAI_EFFORT_LEVELS[effort] },
+    }
+  }
   // Other providers: thinking not supported, silently ignored
   return undefined
 }
@@ -2882,15 +2923,6 @@ async function tryCreateModel(
           if (init?.body && typeof init.body === 'string') {
             try {
               const body = JSON.parse(init.body)
-              // TEMP diagnostic: dump thinking field shape on every OAuth request
-              if (process.env.DEBUG_THINKING_WIRE) {
-                log.info({
-                  provider: 'anthropic-oauth',
-                  thinking: body.thinking ?? null,
-                  model: body.model,
-                  hasThinking: 'thinking' in body,
-                }, 'wire body thinking field')
-              }
               const billingBlock = {
                 type: 'text' as const,
                 text: buildBillingHeaderText(body.messages),

@@ -28,7 +28,7 @@ import { useFileUpload } from '@/client/hooks/useFileUpload'
 import { useExportConversation } from '@/client/hooks/useExportConversation'
 const ConversationSearch = lazy(() => import('@/client/components/chat/ConversationSearch').then(m => ({ default: m.ConversationSearch })))
 import { QueuePreview } from '@/client/components/chat/QueuePreview'
-import type { ContextTokenBreakdown, ContextPipelineStatus } from '@/shared/types'
+import type { ContextTokenBreakdown, ContextPipelineStatus, KinThinkingEffort } from '@/shared/types'
 import { ChatEmptyState } from '@/client/components/chat/ChatEmptyState'
 import { DateSeparator } from '@/client/components/chat/DateSeparator'
 import { TimeGapIndicator } from '@/client/components/chat/TimeGapIndicator'
@@ -49,6 +49,7 @@ interface KinInfo {
   providerId: string | null
   avatarUrl: string | null
   thinkingEnabled?: boolean
+  thinkingEffort?: KinThinkingEffort | null
 }
 
 interface LLMModel {
@@ -107,20 +108,32 @@ export function ChatPanel({ kin, llmModels, modelUnavailable = false, queueState
     }
   })
 
+  const [thinkingEffort, setThinkingEffort] = useState<KinThinkingEffort | null>(kin.thinkingEffort ?? null)
+
   // Sync thinking state from prop when kin changes
   useEffect(() => {
     setThinkingEnabled(kin.thinkingEnabled ?? false)
-  }, [kin.id, kin.thinkingEnabled])
+    setThinkingEffort(kin.thinkingEffort ?? null)
+  }, [kin.id, kin.thinkingEnabled, kin.thinkingEffort])
 
-  const toggleThinking = useCallback(async () => {
-    const next = !thinkingEnabled
-    setThinkingEnabled(next) // optimistic
+  const updateThinking = useCallback(async (next: { enabled: boolean; effort: KinThinkingEffort | null }) => {
+    const prevEnabled = thinkingEnabled
+    const prevEffort = thinkingEffort
+    setThinkingEnabled(next.enabled)
+    setThinkingEffort(next.effort)
     try {
-      await api.patch(`/kins/${kin.id}`, { thinkingConfig: { enabled: next } })
+      await api.patch(`/kins/${kin.id}`, { thinkingConfig: { enabled: next.enabled, effort: next.effort } })
     } catch {
-      setThinkingEnabled(!next) // revert on error
+      setThinkingEnabled(prevEnabled)
+      setThinkingEffort(prevEffort)
     }
-  }, [thinkingEnabled, kin.id])
+  }, [thinkingEnabled, thinkingEffort, kin.id])
+
+  // Slash command + keyboard shortcut: simple toggle (defaults to medium when enabling)
+  const toggleThinking = useCallback(() => {
+    if (thinkingEnabled) updateThinking({ enabled: false, effort: null })
+    else updateThinking({ enabled: true, effort: thinkingEffort ?? 'medium' })
+  }, [thinkingEnabled, thinkingEffort, updateThinking])
 
   const toggleAutoScroll = useCallback(() => {
     setAutoScroll((prev) => {
@@ -766,7 +779,8 @@ export function ChatPanel({ kin, llmModels, modelUnavailable = false, queueState
         messages={messages}
         scrollViewportRef={scrollAreaRef}
         thinkingEnabled={thinkingEnabled}
-        onToggleThinking={toggleThinking}
+        thinkingEffort={thinkingEffort}
+        onChangeThinking={updateThinking}
         onViewUsage={onOpenSettings ? () => onOpenSettings('tokenUsage', { kinId: kin.id }) : undefined}
       />
 

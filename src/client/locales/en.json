@@ -692,6 +692,17 @@
     "memoriesUsed": "{{count}} memories",
     "memoriesUsedSingular": "1 memory",
     "thinking": "Thinking...",
+    "thinkingPicker": {
+      "title": "Reasoning effort",
+      "opus47Note": "Opus 4.7 manages thinking internally — this setting has no visible effect.",
+      "effort": {
+        "off": "Off",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High",
+        "max": "Max"
+      }
+    },
     "thinkingToggle": "Thinking",
     "thinkingEnable": "Enable extended thinking for this Kin",
     "thinkingDisable": "Disable extended thinking for this Kin",

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { api } from '@/client/lib/api'
 import { useSSE, useSSEStatus } from '@/client/hooks/useSSE'
 import { useModels, type ProviderModel } from '@/client/hooks/useModels'
-import type { KinToolConfig, KinCompactingConfig, KinThinkingConfig, ContextTokenBreakdown, ContextPipelineStatus } from '@/shared/types'
+import type { KinToolConfig, KinCompactingConfig, KinThinkingConfig, KinThinkingEffort, ContextTokenBreakdown, ContextPipelineStatus } from '@/shared/types'
 
 interface KinSummary {
   id: string
@@ -15,6 +15,7 @@ interface KinSummary {
   createdAt: string
   isHub: boolean
   thinkingEnabled: boolean
+  thinkingEffort: KinThinkingEffort | null
 }
 
 interface KinDetail extends KinSummary {
@@ -149,6 +150,7 @@ export function useKins() {
         createdAt: data.createdAt as string,
         isHub: false,
         thinkingEnabled: (data.thinkingEnabled as boolean) ?? false,
+        thinkingEffort: (data.thinkingEffort as KinThinkingEffort | null) ?? null,
       }
       setKins((prev) => {
         // Avoid duplicates (e.g. if this client also called createKin via the UI)
