@@ -2660,7 +2660,53 @@ async function buildMessageHistory(kinId: string): Promise<{ messages: ModelMess
   if (oversizedTrimmedCount > 0) {
     log.debug({ kinId, count: oversizedTrimmedCount, totalOriginalTokens: oversizedTrimmedTokens, capTokens: SIZE_CAP_TOKENS }, 'Tool results above keep-window size cap trimmed')
   }
-  const maskedHistory = sizedHistory
+
+  // Per-tool-call args size cap (symmetric to the tool-result cap above).
+  // Assistant messages with write_file/edit_file/multi_edit etc. carry the
+  // file content inside the call arguments — these are kept verbatim for
+  // the entire keep-window. A single 5k-line file edit becomes a 20-30k
+  // token assistant message that dominates the keep budget for hours.
+  //
+  // Trim per-field on string values (path/name fields stay tiny, only the
+  // bulk content/old_string/new_string get a placeholder). The toolCallId
+  // and toolName are preserved so subsequent tool-result blocks still
+  // match correctly. Cache-safe: deterministic per message.
+  const ARGS_CAP_TOKENS = config.toolCallArgsSizeCapTokens
+  let trimmedArgsCount = 0
+  let trimmedArgsTokens = 0
+  const argsCappedHistory = ARGS_CAP_TOKENS > 0 ? sizedHistory.map((msg) => {
+    if (msg.role !== 'assistant' || !Array.isArray(msg.content)) return msg
+    let modified = false
+    const content = (msg.content as Array<{ type: string; toolCallId?: string; toolName?: string; input?: unknown }>).map((part) => {
+      if (part.type !== 'tool-call' || !part.input || typeof part.input !== 'object') return part
+      const trimmedInput: Record<string, unknown> = {}
+      let partModified = false
+      for (const [key, value] of Object.entries(part.input as Record<string, unknown>)) {
+        if (typeof value !== 'string') {
+          trimmedInput[key] = value
+          continue
+        }
+        const tokens = estimateTokens(value)
+        if (tokens <= ARGS_CAP_TOKENS) {
+          trimmedInput[key] = value
+          continue
+        }
+        partModified = true
+        trimmedArgsCount++
+        trimmedArgsTokens += tokens
+        const preview = value.slice(0, 200).replace(/\s+/g, ' ').trim()
+        trimmedInput[key] = `[Truncated arg "${key}": ~${tokens.toLocaleString()} tokens, ${value.length.toLocaleString()} chars. Preview: ${preview}…]`
+      }
+      if (!partModified) return part
+      modified = true
+      return { ...part, input: trimmedInput }
+    })
+    return modified ? { ...msg, content } as ModelMessage : msg
+  }) : sizedHistory
+  if (trimmedArgsCount > 0) {
+    log.debug({ kinId, count: trimmedArgsCount, totalOriginalTokens: trimmedArgsTokens, capTokens: ARGS_CAP_TOKENS }, 'Tool call args above per-field cap trimmed')
+  }
+  const maskedHistory = argsCappedHistory
   if (maskResult.maskedGroupCount > 0 || maskResult.observationCompactedCount > 0) {
     log.debug({ kinId, maskedGroups: maskResult.maskedGroupCount, observationCompacted: maskResult.observationCompactedCount, tokensSaved: maskResult.estimatedTokensSaved }, 'Context compaction pipeline applied')
   }

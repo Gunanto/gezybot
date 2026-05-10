@@ -239,6 +239,17 @@ export const config = {
    *  trimmed. Default 30000 tokens. Set 0 to disable. */
   toolResultSizeCapTokens: Number(process.env.TOOL_RESULT_SIZE_CAP_TOKENS ?? 30000),
 
+  /** Per-tool-call args size cap (per string field) when sending old assistant
+   *  messages to the LLM. Symmetric to toolResultSizeCapTokens — write_file /
+   *  edit / multi_edit calls carry file content inside their args, which can
+   *  reach 20-80k tokens per call and dominate the keep-window. Each string
+   *  field above this cap is replaced by a short placeholder mentioning the
+   *  original size. Field names like path/name stay intact (they're tiny).
+   *  toolCallId and toolName are preserved so subsequent tool-result blocks
+   *  still match. DB content unchanged. Default 8000 tokens (~32k chars,
+   *  ~600 lines of code). Set 0 to disable. */
+  toolCallArgsSizeCapTokens: Number(process.env.TOOL_CALL_ARGS_SIZE_CAP_TOKENS ?? 8000),
+
   memory: (() => {
     const extraction = parseModelEnv(process.env.MEMORY_EXTRACTION_MODEL)
     const embedding = parseModelEnv(process.env.MEMORY_EMBEDDING_MODEL || 'text-embedding-3-small')
