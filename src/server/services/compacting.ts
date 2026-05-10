@@ -268,7 +268,20 @@ export async function runCompacting(kinId: string, contextWindow?: number): Prom
 
   // Messages to summarize = everything before the keep window
   const messagesToSummarize = nonCompacted.slice(0, keepStartIndex)
-  if (messagesToSummarize.length < 2) return null // need at least a couple messages
+  if (messagesToSummarize.length === 0) return null
+
+  // Skip when the summarizable batch is tiny (not worth a summarization LLM
+  // call). Token-based threshold instead of message count: a single 100k+
+  // tool-result message MUST be compactable on its own — refusing it because
+  // "only 1 message" is the bug that left users stuck at 343k of non-compacted
+  // history forever (the oldest non-compacted message can be huge enough that
+  // the keep-window walk leaves a single-message slice).
+  const summarizeTokens = messagesToSummarize.reduce(
+    (sum, m) => sum + estimateTokens(m.content ?? '') + estimateTokens((m.toolCalls as string | null) ?? ''),
+    0,
+  )
+  const MIN_SUMMARIZE_TOKENS = 2000
+  if (summarizeTokens < MIN_SUMMARIZE_TOKENS) return null
 
   const lastSummarizedMessage = messagesToSummarize[messagesToSummarize.length - 1]!
   const firstSummarizedMessage = messagesToSummarize[0]!
