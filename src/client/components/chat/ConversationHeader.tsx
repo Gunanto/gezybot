@@ -169,7 +169,7 @@ export const ConversationHeader = memo(function ConversationHeader({
   const cacheMultipliers = getCacheMultipliers(currentProviderType)
 
   return (
-    <div className="flex items-center gap-3 border-b px-4 py-2.5">
+    <div className="flex min-w-0 items-center gap-3 border-b px-4 py-2.5">
       {/* Avatar */}
       <ChatAvatar
         avatarUrl={avatarUrl}
@@ -305,13 +305,13 @@ export const ConversationHeader = memo(function ConversationHeader({
       </div>
 
       {/* Right side: model picker + context bar (desktop only) */}
-      <div className="hidden shrink-0 items-center gap-3 sm:flex">
+      <div className="hidden min-w-0 items-center gap-3 sm:flex">
         {/* Model picker (compact) */}
         <ModelPicker
           models={llmModels}
           value={modelPickerValue(model, providerId ?? '')}
           onValueChange={onModelChange}
-          className="h-7 w-auto max-w-[280px] text-xs"
+          className="h-7 w-auto min-w-0 max-w-[280px] shrink text-xs"
         />
 
         {/* Thinking effort picker */}
