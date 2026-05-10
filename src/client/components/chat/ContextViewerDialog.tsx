@@ -165,21 +165,38 @@ function LastTurnCachePanel({ cache }: { cache: LastTurnCache }) {
   const readPct = (cache.cacheReadTokens / total) * 100
   const writePct = (cache.cacheWriteTokens / total) * 100
   const freshPct = (cache.freshInputTokens / total) * 100
-  const turnAgo = useMemo(() => {
-    const ms = Date.now() - new Date(cache.turnAt).getTime()
-    const min = Math.round(ms / 60000)
-    if (min < 1) return t('chat.contextViewer.cache.justNow')
-    if (min < 60) return t('chat.contextViewer.cache.minAgo', { min })
-    const h = Math.round(min / 60)
-    return t('chat.contextViewer.cache.hAgo', { h })
-  }, [cache.turnAt, t])
+  const ANTHROPIC_TTL_MS = 5 * 60 * 1000
+  const ttl = useMemo(() => {
+    const ageMs = Date.now() - new Date(cache.turnAt).getTime()
+    const remainMs = ANTHROPIC_TTL_MS - ageMs
+    const fmt = (ms: number) => {
+      const s = Math.max(0, Math.round(ms / 1000))
+      const m = Math.floor(s / 60)
+      return `${m}:${String(s % 60).padStart(2, '0')}`
+    }
+    if (remainMs > 0) {
+      const warmth = remainMs > 2 * 60 * 1000 ? 'warm' : 'cooling'
+      return { state: warmth as 'warm' | 'cooling', label: fmt(remainMs), expired: false }
+    }
+    return { state: 'cold' as const, label: fmt(-remainMs), expired: true }
+  }, [cache.turnAt])
+  const ttlColor = ttl.state === 'warm' ? 'text-chart-2' : ttl.state === 'cooling' ? 'text-warning' : 'text-muted-foreground/60'
   return (
     <div className="mb-4 rounded-lg border border-border/50 bg-card/50 p-3">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Layers className="size-3.5 text-chart-2" />
           <span className="text-xs font-medium">{t('chat.contextViewer.cache.title')}</span>
-          <span className="text-[10px] text-muted-foreground">· {turnAgo}</span>
+          <span
+            className={`text-[10px] tabular-nums ${ttlColor}`}
+            title={t('chat.contextViewer.cache.ttlHint', {
+              defaultValue: 'Anthropic ephemeral cache TTL is ~5 minutes from the last turn. After that, the next request pays a full cache write again.',
+            })}
+          >
+            · {ttl.expired
+              ? t('chat.contextViewer.cache.cold', { defaultValue: 'cold (expired {{ago}} ago)', ago: ttl.label })
+              : t(`chat.contextViewer.cache.${ttl.state}`, { defaultValue: '{{state}} {{ttl}} left', state: ttl.state, ttl: ttl.label })}
+          </span>
         </div>
         <div className="flex items-center gap-3 text-[11px]">
           <span className="font-semibold text-chart-2">{hitPct}% {t('chat.contextViewer.cache.hit')}</span>

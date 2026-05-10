@@ -645,7 +645,11 @@
         "fresh": "Input frais",
         "justNow": "à l'instant",
         "minAgo": "il y a {{min}}min",
-        "hAgo": "il y a {{h}}h"
+        "hAgo": "il y a {{h}}h",
+        "warm": "chaud · {{ttl}} restant",
+        "cooling": "tiède · {{ttl}} restant",
+        "cold": "froid (expiré il y a {{ago}})",
+        "ttlHint": "Le cache éphémère Anthropic dure ~5 min depuis le dernier tour. Après, la requête suivante repaye une écriture complète."
       },
       "summariesTitle": "Résumés de conversation ({{count}})",
       "cronRunsTitle": "Exécutions précédentes ({{count}})",

@@ -645,7 +645,11 @@
         "fresh": "Fresh input",
         "justNow": "just now",
         "minAgo": "{{min}}min ago",
-        "hAgo": "{{h}}h ago"
+        "hAgo": "{{h}}h ago",
+        "warm": "warm · {{ttl}} left",
+        "cooling": "cooling · {{ttl}} left",
+        "cold": "cold (expired {{ago}} ago)",
+        "ttlHint": "Anthropic ephemeral cache lasts ~5 min from the last turn. After that, the next request pays a full cache write again."
       },
       "summariesTitle": "Conversation summaries ({{count}})",
       "cronRunsTitle": "Previous runs ({{count}})",
