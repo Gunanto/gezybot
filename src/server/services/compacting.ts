@@ -231,12 +231,23 @@ export interface CompactingResult {
  * 3. Run memory extraction on compacted messages
  * 4. Check if telescopic merge is needed
  */
-export async function runCompacting(kinId: string, contextWindow?: number): Promise<CompactingResult | null> {
+export async function runCompacting(
+  kinId: string,
+  contextWindow?: number,
+  options?: { aggressive?: boolean },
+): Promise<CompactingResult | null> {
   const kin = await db.select().from(kins).where(eq(kins.id, kinId)).get()
   if (!kin) return null
 
   const effectiveConfig = await getEffectiveCompactingConfig(kinId)
   const ctxWindow = contextWindow ?? getModelContextWindow(kin.model)
+  // When the user explicitly clicks force-compact, halve the keep budget so
+  // we summarize more aggressively. Without this, the user gets "nothing to
+  // compact" anytime recent messages already fit the regular keep window —
+  // even though they wanted relief from a bloated context.
+  const keepPercent = options?.aggressive
+    ? Math.max(5, effectiveConfig.keepPercent / 2)
+    : effectiveConfig.keepPercent
 
   // Get the latest summary to determine the cutoff point
   const activeSummaries = await getActiveSummaries(kinId)
@@ -255,7 +266,7 @@ export async function runCompacting(kinId: string, contextWindow?: number): Prom
   // empty, every message fits in the keep window, messagesToSummarize ends
   // up empty, and runCompacting silently returns null every time. The Kin
   // then accumulates context unboundedly until the main turn itself crashes.
-  const keepBudget = Math.floor((effectiveConfig.keepPercent / 100) * ctxWindow)
+  const keepBudget = Math.floor((keepPercent / 100) * ctxWindow)
   let keepTokens = 0
   let keepStartIndex = nonCompacted.length
   for (let i = nonCompacted.length - 1; i >= 0; i--) {

@@ -923,7 +923,7 @@ kinRoutes.post('/:id/compacting/run', async (c) => {
   compactingKins.add(existing.id)
   let result: Awaited<ReturnType<typeof runCompacting>>
   try {
-    result = await runCompacting(existing.id)
+    result = await runCompacting(existing.id, undefined, { aggressive: true })
   } catch (err) {
     // runCompacting already emits compacting:error via SSE and persists the error message
     return c.json({ error: { code: 'COMPACTING_FAILED', message: err instanceof Error ? err.message : 'Compacting failed' } }, 500)
