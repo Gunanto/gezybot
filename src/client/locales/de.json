@@ -1774,6 +1774,7 @@
       "delete_mini_app_file": "App-Datei löschen",
       "list_mini_app_files": "App-Dateien auflisten",
       "get_platform_config": "Plattform-Konfiguration",
+      "list_platform_config_options": "Konfigurationskatalog",
       "restart_platform": "Plattform neustarten",
       "update_platform_config": "Konfiguration ändern"
     },

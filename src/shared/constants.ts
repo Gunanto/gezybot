@@ -273,6 +273,7 @@ export const TOOL_DOMAIN_MAP: Record<string, ToolDomain> = {
   // System
   get_platform_logs: 'system',
   get_platform_config: 'system',
+  list_platform_config_options: 'system',
   update_platform_config: 'system',
   restart_platform: 'system',
   get_system_info: 'system',

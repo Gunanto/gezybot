@@ -2006,6 +2006,7 @@
       "get_cron_journal": "Cron Journal",
       "get_platform_logs": "Platform Logs",
       "get_platform_config": "Platform Config",
+      "list_platform_config_options": "Config Catalog",
       "update_platform_config": "Update Config",
       "restart_platform": "Restart Platform",
       "list_users": "List Users",
