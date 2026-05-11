@@ -144,7 +144,7 @@ export const ConversationHeader = memo(function ConversationHeader({
   // This gives the user a confidence signal before sending the next message:
   // if the previous turn read a lot from cache, the prefix is likely still
   // warm (Anthropic's 5-min ephemeral cache) and the next turn will be cheap.
-  const lastTurnCache = useMemo<{ usage: MessageTokenUsage; hitRate: number; fresh: number } | null>(() => {
+  const lastTurnCache = useMemo<{ usage: MessageTokenUsage; hitRate: number; fresh: number; turnAt: string } | null>(() => {
     if (!messages || messages.length === 0) return null
     for (let i = messages.length - 1; i >= 0; i--) {
       const m = messages[i]
@@ -157,11 +157,27 @@ export const ConversationHeader = memo(function ConversationHeader({
           usage: m.tokenUsage,
           hitRate: computeCacheHitRate(m.tokenUsage),
           fresh: computeFreshInput(m.tokenUsage),
+          turnAt: m.createdAt,
         }
       }
     }
     return null
   }, [messages])
+
+  // Anthropic's default ephemeral cache TTL is 5 minutes from the last hit.
+  // After that, the prefix has to be re-written on the next request, which
+  // costs ×1.25 instead of ×0.1 — the exact opposite of "still cheap". The
+  // chip would otherwise lie when the last turn is hours old.
+  const ANTHROPIC_CACHE_TTL_MS = 5 * 60 * 1000
+  const cacheAgeMs = lastTurnCache ? Date.now() - new Date(lastTurnCache.turnAt).getTime() : 0
+  const cacheExpired = lastTurnCache != null && cacheAgeMs > ANTHROPIC_CACHE_TTL_MS
+  const cacheAgeLabel = (() => {
+    if (!lastTurnCache) return ''
+    const min = Math.floor(cacheAgeMs / 60_000)
+    if (min < 60) return `${min}min`
+    const h = Math.floor(min / 60)
+    return min % 60 === 0 ? `${h}h` : `${h}h${min % 60}min`
+  })()
 
   const selectedModel = llmModels.find((m) => m.id === model)
   const selectedModelName = selectedModel?.name ?? model
@@ -209,9 +225,10 @@ export const ConversationHeader = memo(function ConversationHeader({
                 <span
                   className={cn(
                     'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums cursor-default',
-                    lastTurnCache.hitRate >= 0.7 && 'bg-success/15 text-success',
-                    lastTurnCache.hitRate >= 0.3 && lastTurnCache.hitRate < 0.7 && 'bg-warning/15 text-warning',
-                    lastTurnCache.hitRate < 0.3 && 'bg-muted text-muted-foreground',
+                    cacheExpired && 'bg-muted text-muted-foreground/70',
+                    !cacheExpired && lastTurnCache.hitRate >= 0.7 && 'bg-success/15 text-success',
+                    !cacheExpired && lastTurnCache.hitRate >= 0.3 && lastTurnCache.hitRate < 0.7 && 'bg-warning/15 text-warning',
+                    !cacheExpired && lastTurnCache.hitRate < 0.3 && 'bg-muted text-muted-foreground',
                   )}
                   aria-label={t('chat.cacheChip.aria', 'Cache state from last turn')}
                 >
@@ -225,11 +242,19 @@ export const ConversationHeader = memo(function ConversationHeader({
                     {t('chat.cacheChip.title', 'Last turn cache')}
                   </div>
                   <p className="text-muted-foreground leading-snug">
-                    {t('chat.cacheChip.hintDynamic', {
-                      defaultValue: '{{hit}}% of input was served from cache (×{{readMult}} cost on this provider). The cache is warm — your next message should be cheap unless the prefix changes significantly.',
-                      hit: Math.round(lastTurnCache.hitRate * 100),
-                      readMult: cacheMultipliers.read,
-                    })}
+                    {cacheExpired
+                      ? t('chat.cacheChip.hintColdDynamic', {
+                          defaultValue: '{{hit}}% of input was served from cache (×{{readMult}}) on the last turn — but that was {{ago}} ago, past Anthropic\'s ~5min ephemeral TTL. The prefix is cold; the next request pays a full cache write (×{{writeMult}}).',
+                          hit: Math.round(lastTurnCache.hitRate * 100),
+                          readMult: cacheMultipliers.read,
+                          writeMult: cacheMultipliers.write,
+                          ago: cacheAgeLabel,
+                        })
+                      : t('chat.cacheChip.hintDynamic', {
+                          defaultValue: '{{hit}}% of input was served from cache (×{{readMult}} cost on this provider). The cache is warm — your next message should be cheap unless the prefix changes significantly.',
+                          hit: Math.round(lastTurnCache.hitRate * 100),
+                          readMult: cacheMultipliers.read,
+                        })}
                   </p>
                 </div>
               </TooltipContent>

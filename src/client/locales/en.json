@@ -587,7 +587,8 @@
       "aria": "Cache state from last turn",
       "title": "Last turn cache",
       "hint": "{{hit}}% of input was served from cache (×0.1 cost). The cache is warm — your next message should be cheap unless the prefix changes significantly.",
-      "hintDynamic": "{{hit}}% of input was served from cache (×{{readMult}} cost on this provider). The cache is warm — your next message should be cheap unless the prefix changes significantly."
+      "hintDynamic": "{{hit}}% of input was served from cache (×{{readMult}} cost on this provider). The cache is warm — your next message should be cheap unless the prefix changes significantly.",
+      "hintColdDynamic": "{{hit}}% of input was served from cache (×{{readMult}}) on the last turn — but that was {{ago}} ago, past Anthropic's ~5min ephemeral TTL. The prefix is cold; the next request pays a full cache write (×{{writeMult}})."
     },
     "forceCompact": "Force compaction",
     "tooltipContext": "Context window",

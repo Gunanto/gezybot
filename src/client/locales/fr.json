@@ -587,7 +587,8 @@
       "aria": "État du cache au dernier tour",
       "title": "Cache (dernier tour)",
       "hint": "{{hit}}% de l'input venait du cache (×0.1). Le cache est encore chaud — ta prochaine requête devrait être peu chère sauf si le préfixe change beaucoup.",
-      "hintDynamic": "{{hit}}% de l'input venait du cache (×{{readMult}} sur ce provider). Le cache est encore chaud — ta prochaine requête devrait être peu chère sauf si le préfixe change beaucoup."
+      "hintDynamic": "{{hit}}% de l'input venait du cache (×{{readMult}} sur ce provider). Le cache est encore chaud — ta prochaine requête devrait être peu chère sauf si le préfixe change beaucoup.",
+      "hintColdDynamic": "{{hit}}% de l'input venait du cache (×{{readMult}}) au dernier tour — mais c'était il y a {{ago}}, au-delà du TTL éphémère de ~5min d'Anthropic. Le préfixe est froid ; ta prochaine requête paiera une écriture cache complète (×{{writeMult}})."
     },
     "forceCompact": "Forcer la compaction",
     "tooltipContext": "Fenêtre de contexte",
