@@ -5,8 +5,8 @@
  *   - outbound: POST to https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json
  *   - inbound: signed webhook at /api/channels/plugin/twilio-sms/webhook/{channelId}
  *
- * This file is the scaffold. Real outbound and inbound logic land in the
- * following commits; sendMessage and handleInboundWebhook here are stubs.
+ * Inbound webhooks are authenticated with strict HMAC-SHA1 against the Auth
+ * Token (see webhookSecurity.ts). Missing or invalid signature -> HTTP 403.
  */
 
 import type {
@@ -18,6 +18,7 @@ import type {
 } from '@/server/channels/adapter'
 import { getSecretValue } from '@/server/services/vault'
 import { getAccount, sendSms, TwilioApiException, type TwilioAuth } from './twilioApi'
+import { validateTwilioSignature } from './webhookSecurity'
 
 // ─── Plugin context (loose typing, mirrors the teamspeak plugin) ────────────
 
@@ -79,6 +80,10 @@ function requireFromNumber(config: Record<string, unknown>): string {
 }
 
 const E164_RE = /^\+[1-9]\d{1,14}$/
+
+// Empty TwiML response: tells Twilio "received, no auto-reply". The Kin
+// owns the reply path via sendMessage; we never let Twilio auto-respond.
+const EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>'
 
 // ─── Plugin entry point ─────────────────────────────────────────────────────
 
@@ -176,10 +181,75 @@ export default function twilioSmsPlugin(ctx: PluginCtx): {
 
     async handleInboundWebhook(
       _channelId: string,
-      _config: Record<string, unknown>,
-      _req: Request,
+      config: Record<string, unknown>,
+      req: Request,
     ): Promise<{ incoming: IncomingMessage | null; response: Response }> {
-      throw new Error('twilio-sms handleInboundWebhook not implemented yet')
+      const auth = await resolveAuth(config)
+
+      // Reconstruct the canonical URL Twilio used to sign. Twilio always
+      // signs the public URL configured in the console, so we prefer
+      // PUBLIC_URL (joined to the request path) over req.url, which inside
+      // KinBot would resolve to a localhost host behind a reverse proxy.
+      const reqUrl = new URL(req.url)
+      const publicBase = (process.env.PUBLIC_URL ?? reqUrl.origin).replace(/\/$/, '')
+      const fullUrl = `${publicBase}${reqUrl.pathname}${reqUrl.search}`
+
+      const rawBody = await req.text()
+      const params = new URLSearchParams(rawBody)
+      const signature = req.headers.get('x-twilio-signature')
+
+      if (!validateTwilioSignature(auth.authToken, signature, fullUrl, params)) {
+        ctx.log.warn(
+          { fullUrl, hasSig: signature !== null },
+          'twilio-sms rejected webhook: invalid signature',
+        )
+        return {
+          incoming: null,
+          response: new Response('Forbidden: invalid Twilio signature', { status: 403 }),
+        }
+      }
+
+      const from = params.get('From') ?? ''
+      const to = params.get('To') ?? ''
+      const body = params.get('Body') ?? ''
+      const messageSid = params.get('MessageSid') ?? params.get('SmsSid') ?? ''
+      const accountSid = params.get('AccountSid') ?? auth.accountSid
+      const numMedia = Number.parseInt(params.get('NumMedia') ?? '0', 10) || 0
+
+      if (!from || !messageSid) {
+        ctx.log.warn(
+          { from, messageSid, hasBody: body.length > 0 },
+          'twilio-sms received signed webhook with missing required fields; acking without injecting',
+        )
+        // Still 200 so Twilio does not retry; we just don't enqueue garbage.
+        return {
+          incoming: null,
+          response: new Response(EMPTY_TWIML, {
+            status: 200,
+            headers: { 'Content-Type': 'application/xml' },
+          }),
+        }
+      }
+
+      const incoming: IncomingMessage = {
+        platformUserId: from,
+        platformUsername: from,
+        platformDisplayName: from,
+        platformMessageId: messageSid,
+        platformChatId: from,
+        content: body,
+        metadata: {
+          twilio: { accountSid, toNumber: to, numMedia },
+        },
+      }
+
+      return {
+        incoming,
+        response: new Response(EMPTY_TWIML, {
+          status: 200,
+          headers: { 'Content-Type': 'application/xml' },
+        }),
+      }
     },
   }
 
