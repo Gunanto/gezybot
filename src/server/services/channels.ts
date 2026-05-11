@@ -41,6 +41,41 @@ export function popChannelQueueMeta(queueItemId: string): ChannelQueueMeta | und
   return meta
 }
 
+// ─── Channel transfer hints (one-shot, consumed by the next inbound) ────────
+//
+// When a Kin calls transfer_channel(channelId, targetKinSlug, reason?), the
+// channel binding mutates (channels.kinId is updated). The next inbound on
+// the channel should carry transfer context so the new Kin understands it
+// just inherited the conversation. We stash the hint here keyed by channelId.
+// The hint is popped (consumed) by handleIncomingChannelMessage when the
+// next inbound arrives, and merged into the user message metadata under
+// `channelTransfer`. The kin-engine then surfaces it in <channel-context>.
+//
+// In-memory only, lost on restart. Acceptable trade-off: a stale hint after
+// a restart is harmless (the Kin will simply miss the one-shot transfer
+// note; the conversation history and the audit-trail system messages
+// remain).
+
+export interface ChannelTransferHint {
+  fromKinId: string
+  fromKinSlug: string
+  fromKinName: string
+  reason?: string
+  at: number
+}
+
+const channelTransferHints = new Map<string, ChannelTransferHint>()
+
+export function setChannelTransferHint(channelId: string, hint: ChannelTransferHint): void {
+  channelTransferHints.set(channelId, hint)
+}
+
+export function popChannelTransferHint(channelId: string): ChannelTransferHint | undefined {
+  const hint = channelTransferHints.get(channelId)
+  if (hint) channelTransferHints.delete(channelId)
+  return hint
+}
+
 // ─── Channel origin store (causal chain tracking for follow-up delivery) ─────
 
 export interface ChannelOriginMeta {
@@ -482,6 +517,12 @@ export async function handleIncomingChannelMessage(channelId: string, incoming: 
     }
   }
 
+  // One-shot transfer hint: when a transfer_channel call was made before
+  // this inbound, surface the handoff context to the new Kin via the same
+  // <channel-context> block. Consumed (popped) on first inbound after the
+  // transfer; subsequent inbounds carry no hint.
+  const transferHint = popChannelTransferHint(channelId)
+
   // Enqueue message to Kin's queue.
   // Channel adapters can attach free-form structured context via incoming.metadata
   // (modality, presence, channel info, etc.). It is stored under the `channel`
@@ -489,10 +530,11 @@ export async function handleIncomingChannelMessage(channelId: string, incoming: 
   // <channel-context> block in the prompt.
   const messageMetadata: Record<string, unknown> | undefined = (() => {
     const hasChannelMeta = incoming.metadata && Object.keys(incoming.metadata).length > 0
-    if (!hasChannelMeta && !inboundContextLine) return undefined
+    if (!hasChannelMeta && !inboundContextLine && !transferHint) return undefined
     const out: Record<string, unknown> = {}
     if (hasChannelMeta) out.channel = incoming.metadata
     if (inboundContextLine) out.channelContextLine = inboundContextLine
+    if (transferHint) out.channelTransfer = transferHint
     return out
   })()
 
