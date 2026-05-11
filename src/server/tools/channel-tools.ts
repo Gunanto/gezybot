@@ -17,8 +17,10 @@ import {
 import { db } from '@/server/db/index'
 import { channels, kins, messages } from '@/server/db/schema'
 import { resolveKinId } from '@/server/services/kin-resolver'
+import { kinAvatarUrl } from '@/server/services/field-validator'
 import { channelAdapters } from '@/server/channels/index'
 import { sseManager } from '@/server/sse/index'
+import { config } from '@/server/config'
 import { createLogger } from '@/server/logger'
 import type { ToolRegistration } from '@/server/tools/types'
 import type { OutboundAttachment } from '@/server/channels/adapter'
@@ -376,7 +378,7 @@ export const transferChannelTool: ToolRegistration = {
           return { error: `Source Kin "${channel.kinId}" not found; refusing to transfer from a dangling binding.` }
         }
         const toKinRow = db
-          .select({ id: kins.id, slug: kins.slug, name: kins.name })
+          .select({ id: kins.id, slug: kins.slug, name: kins.name, avatarPath: kins.avatarPath, updatedAt: kins.updatedAt })
           .from(kins)
           .where(eq(kins.id, toKinId))
           .get()
@@ -388,6 +390,8 @@ export const transferChannelTool: ToolRegistration = {
         const fromKinName = fromKinRow.name
         const toKinSlug = toKinRow.slug ?? toKinRow.id
         const toKinName = toKinRow.name
+        const toKinAvatarPath = toKinRow.avatarPath
+        const toKinUpdatedAt = toKinRow.updatedAt
 
         const at = Date.now()
         const now = new Date(at)
@@ -468,6 +472,37 @@ export const transferChannelTool: ToolRegistration = {
             at,
           },
         })
+
+        // 10. Best-effort native identity switch on the external platform.
+        //     Adapters that declare identitySwitchMode: 'native' implement
+        //     onIdentityChange and update their bot's display name and
+        //     avatar on the platform. Errors are non-fatal: the binding is
+        //     already mutated, and adapters with mode 'prefix' (or no
+        //     declared mode) rely on the deliverChannelResponse prefix
+        //     fallback added in the previous commit, so the user-visible
+        //     side stays correct either way.
+        const adapter = channelAdapters.get(channel.platform)
+        if (adapter && typeof adapter.onIdentityChange === 'function') {
+          try {
+            const cfg = JSON.parse(channel.platformConfig) as Record<string, unknown>
+            // Build an absolute avatar URL when the target Kin has one.
+            // kinAvatarUrl returns a relative '/api/uploads/...' path; we
+            // prefix it with config.publicUrl so external platforms (Discord
+            // CDN fetch, Matrix media upload, etc.) can resolve it.
+            const relAvatar = kinAvatarUrl(toKinId, toKinAvatarPath, toKinUpdatedAt)
+            const avatarUrl = relAvatar ? `${config.publicUrl}${relAvatar}` : undefined
+            await adapter.onIdentityChange(channel.id, cfg, {
+              kinSlug: toKinSlug,
+              kinName: toKinName,
+              avatarUrl,
+            })
+          } catch (err) {
+            log.warn(
+              { err: err instanceof Error ? err.message : String(err), channelId: channel.id, newKinSlug: toKinSlug },
+              'onIdentityChange failed (non-fatal); the prefix fallback (if any) still applies',
+            )
+          }
+        }
 
         log.info(
           { calledByKinId: ctx.kinId, channelId: channel.id, fromKinId, toKinId, reason: reason ?? null },

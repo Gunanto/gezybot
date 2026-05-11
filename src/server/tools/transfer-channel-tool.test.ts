@@ -102,11 +102,14 @@ mock.module('@/server/db/schema', () => ({
   channels: { id: 'id', kinId: 'kinId', updatedAt: 'updatedAt' },
 }))
 
+// Controllable adapter registry. Tests assign `mockAdapterByPlatform.set(...)`
+// to inject an adapter with an onIdentityChange spy and assert it was called.
+const mockAdapterByPlatform = new Map<string, any>()
 mock.module('@/server/channels/index', () => ({
   channelAdapters: {
-    get: () => undefined,
-    has: () => false,
-    list: () => [],
+    get: (platform: string) => mockAdapterByPlatform.get(platform),
+    has: (platform: string) => mockAdapterByPlatform.has(platform),
+    list: () => Array.from(mockAdapterByPlatform.keys()),
   },
 }))
 
@@ -159,6 +162,7 @@ beforeEach(() => {
   insertedRows.length = 0
   updates.length = 0
   dbSelectQueue = []
+  mockAdapterByPlatform.clear()
 })
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -316,5 +320,77 @@ describe('transferChannelTool', () => {
     const t = transferChannelTool.create({ kinId: 'caller-kin', isSubKin: false })
     const parsed = t.inputSchema.safeParse({ channelId: 'ch-1', targetKinSlug: 's', reason: tooLong })
     expect(parsed.success).toBe(false)
+  })
+
+  itMocked('calls adapter.onIdentityChange with the new Kin identity when declared on the adapter', async () => {
+    const onIdentityChange = mock(() => Promise.resolve())
+    mockAdapterByPlatform.set('telegram', {
+      platform: 'telegram',
+      identitySwitchMode: 'native',
+      onIdentityChange,
+    })
+    mockGetChannel.mockResolvedValue({
+      id: 'ch-1',
+      name: 'Telegram main',
+      platform: 'telegram',
+      platformConfig: '{"botTokenVaultKey":"k"}',
+      kinId: 'kin-source',
+    })
+    mockResolveKinId.mockReturnValue('kin-target')
+    dbSelectQueue = [
+      { id: 'kin-source', slug: 'kinbot-master', name: 'KinBot Master', avatarPath: null, updatedAt: null },
+      { id: 'kin-target', slug: 'kube-master', name: 'Kube Master', avatarPath: 'kube.png', updatedAt: new Date(1234567890) },
+    ]
+
+    const result = await executeTool(transferChannelTool, {
+      channelId: 'ch-1',
+      targetKinSlug: 'kube-master',
+    })
+
+    expect(result.ok).toBe(true)
+    expect(onIdentityChange).toHaveBeenCalledTimes(1)
+    const [calledChannelId, calledCfg, calledIdentity] = (onIdentityChange.mock.calls as any[])[0]
+    expect(calledChannelId).toBe('ch-1')
+    expect(calledCfg).toEqual({ botTokenVaultKey: 'k' })
+    expect(calledIdentity.kinSlug).toBe('kube-master')
+    expect(calledIdentity.kinName).toBe('Kube Master')
+    // Avatar URL is absolute (publicUrl + relative /api/uploads/... built by
+    // kinAvatarUrl). We only assert structure, not the env-dependent host.
+    expect(typeof calledIdentity.avatarUrl).toBe('string')
+    expect(calledIdentity.avatarUrl).toContain('/api/uploads/kins/kin-target/avatar.png')
+  })
+
+  itMocked('swallows onIdentityChange errors so the transfer itself still succeeds', async () => {
+    const onIdentityChange = mock(() => Promise.reject(new Error('platform timed out')))
+    mockAdapterByPlatform.set('discord', {
+      platform: 'discord',
+      identitySwitchMode: 'native',
+      onIdentityChange,
+    })
+    mockGetChannel.mockResolvedValue({
+      id: 'ch-1',
+      name: 'Discord main',
+      platform: 'discord',
+      platformConfig: '{}',
+      kinId: 'kin-source',
+    })
+    mockResolveKinId.mockReturnValue('kin-target')
+    dbSelectQueue = [
+      { id: 'kin-source', slug: 'kinbot-master', name: 'KinBot Master', avatarPath: null, updatedAt: null },
+      { id: 'kin-target', slug: 'kube-master', name: 'Kube Master', avatarPath: null, updatedAt: null },
+    ]
+
+    const result = await executeTool(transferChannelTool, {
+      channelId: 'ch-1',
+      targetKinSlug: 'kube-master',
+    })
+
+    expect(result.ok).toBe(true)
+    expect(result.newKinSlug).toBe('kube-master')
+    expect(onIdentityChange).toHaveBeenCalledTimes(1)
+    // Binding mutation, SSE broadcast, and audit rows still happened.
+    expect(updates).toHaveLength(1)
+    expect(mockBroadcast).toHaveBeenCalledTimes(1)
+    expect(insertedRows).toHaveLength(2)
   })
 })
