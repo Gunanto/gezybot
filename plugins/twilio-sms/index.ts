@@ -16,6 +16,8 @@ import type {
   OutboundMessageParams,
   OutboundMessageResult,
 } from '@/server/channels/adapter'
+import { getSecretValue } from '@/server/services/vault'
+import { getAccount, sendSms, TwilioApiException, type TwilioAuth } from './twilioApi'
 
 // ─── Plugin context (loose typing, mirrors the teamspeak plugin) ────────────
 
@@ -49,6 +51,35 @@ export interface TwilioChannelConfig {
   fromNumber: string
 }
 
+async function resolveAuth(config: Record<string, unknown>): Promise<TwilioAuth> {
+  const cfg = config as Partial<TwilioChannelConfig>
+  if (!cfg.accountSid || typeof cfg.accountSid !== 'string') {
+    throw new Error('Twilio channel config missing accountSid')
+  }
+  let token = typeof cfg.authToken === 'string' ? cfg.authToken : ''
+  if (!token && typeof cfg.authTokenVaultKey === 'string') {
+    const fromVault = await getSecretValue(cfg.authTokenVaultKey)
+    if (!fromVault) {
+      throw new Error(`Twilio Auth Token vault key "${cfg.authTokenVaultKey}" not found`)
+    }
+    token = fromVault
+  }
+  if (!token) {
+    throw new Error('Twilio channel config missing authToken (or authTokenVaultKey)')
+  }
+  return { accountSid: cfg.accountSid, authToken: token }
+}
+
+function requireFromNumber(config: Record<string, unknown>): string {
+  const cfg = config as Partial<TwilioChannelConfig>
+  if (!cfg.fromNumber || typeof cfg.fromNumber !== 'string') {
+    throw new Error('Twilio channel config missing fromNumber')
+  }
+  return cfg.fromNumber
+}
+
+const E164_RE = /^\+[1-9]\d{1,14}$/
+
 // ─── Plugin entry point ─────────────────────────────────────────────────────
 
 export default function twilioSmsPlugin(ctx: PluginCtx): {
@@ -77,25 +108,70 @@ export default function twilioSmsPlugin(ctx: PluginCtx): {
       ctx.log.info({ channelId }, 'twilio-sms channel stopped')
     },
 
-    async validateConfig(_config: Record<string, unknown>): Promise<{ valid: boolean; error?: string }> {
-      // Real implementation lands in commit 2 (pings Accounts/{sid}.json).
-      return { valid: true }
+    async validateConfig(config: Record<string, unknown>): Promise<{ valid: boolean; error?: string }> {
+      try {
+        const auth = await resolveAuth(config)
+        const fromNumber = (config as Partial<TwilioChannelConfig>).fromNumber
+        if (!fromNumber || !E164_RE.test(fromNumber)) {
+          return { valid: false, error: 'fromNumber must be E.164 (e.g. +15551234567)' }
+        }
+        const account = await getAccount(auth)
+        if (account.status && account.status !== 'active') {
+          return { valid: false, error: `Twilio account is not active (status: ${account.status})` }
+        }
+        return { valid: true }
+      } catch (err) {
+        if (err instanceof TwilioApiException) {
+          return { valid: false, error: err.message }
+        }
+        return { valid: false, error: err instanceof Error ? err.message : String(err) }
+      }
     },
 
     async getBotInfo(config: Record<string, unknown>): Promise<{ name: string; username?: string } | null> {
       const cfg = config as Partial<TwilioChannelConfig>
-      return {
-        name: 'Twilio SMS',
-        username: cfg.fromNumber ?? undefined,
+      try {
+        const auth = await resolveAuth(config)
+        const account = await getAccount(auth)
+        return {
+          name: account.friendly_name || 'Twilio SMS',
+          username: cfg.fromNumber ?? undefined,
+        }
+      } catch (err) {
+        ctx.log.warn(
+          { err: err instanceof Error ? err.message : String(err) },
+          'twilio-sms getBotInfo failed; returning fallback',
+        )
+        return { name: 'Twilio SMS', username: cfg.fromNumber ?? undefined }
       }
     },
 
     async sendMessage(
       _channelId: string,
-      _config: Record<string, unknown>,
-      _params: OutboundMessageParams,
+      config: Record<string, unknown>,
+      params: OutboundMessageParams,
     ): Promise<OutboundMessageResult> {
-      throw new Error('twilio-sms sendMessage not implemented yet')
+      const auth = await resolveAuth(config)
+      const from = requireFromNumber(config)
+      const to = params.chatId
+      if (!E164_RE.test(to)) {
+        throw new Error(`Recipient ${to} is not in E.164 format (must start with + and 8-15 digits)`)
+      }
+      const body = (params.content ?? '').trim()
+      if (!body) {
+        throw new Error('Cannot send empty SMS body')
+      }
+      const result = await sendSms({ auth, from, to, body })
+      ctx.log.info(
+        { sid: result.sid, status: result.status, to, from },
+        'twilio-sms message sent',
+      )
+      return {
+        platformMessageId: result.sid,
+        deliveryMeta: {
+          twilio: { status: result.status, to, from },
+        },
+      }
     },
 
     async handleInboundWebhook(
