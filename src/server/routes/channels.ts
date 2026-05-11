@@ -15,6 +15,7 @@ import {
   approveChannelUser,
   countPendingApprovals,
   countPendingApprovalsForChannel,
+  handleIncomingChannelMessage,
 } from '@/server/services/channels'
 import type { AppVariables } from '@/server/app'
 import { channelAdapters } from '@/server/channels/index'
@@ -89,6 +90,61 @@ channelRoutes.get('/platforms', async (c) => {
 channelRoutes.get('/pending-count', async (c) => {
   const count = await countPendingApprovals()
   return c.json({ count })
+})
+
+// POST /api/channels/plugin/:platform/webhook/:channelId
+//
+// Built-in dispatcher for inbound webhooks from external platforms that drive
+// plugin channels (Twilio, future SMS or voice providers). Loads the channel,
+// validates the platform matches, then hands the raw Request to the adapter's
+// optional handleWebhook(). The adapter parses, authenticates (signature
+// validation etc.), and returns the IncomingMessage to inject plus the HTTP
+// Response to send back. The channelId in the URL is a v4 UUID, so the path
+// is unpredictable; cryptographic signature validation is still the adapter's
+// responsibility.
+channelRoutes.post('/plugin/:platform/webhook/:channelId', async (c) => {
+  const platform = c.req.param('platform')
+  const channelId = c.req.param('channelId')
+
+  const channel = await getChannel(channelId)
+  if (!channel || channel.platform !== platform) {
+    return c.json({ error: { code: 'NOT_FOUND', message: 'Channel not found' } }, 404)
+  }
+  if (channel.status !== 'active') {
+    return c.json({ error: { code: 'CHANNEL_INACTIVE', message: 'Channel inactive' } }, 410)
+  }
+
+  const adapter = channelAdapters.get(platform)
+  if (!adapter || typeof adapter.handleInboundWebhook !== 'function') {
+    return c.json(
+      { error: { code: 'WEBHOOK_NOT_SUPPORTED', message: 'Webhook not supported for this platform' } },
+      404,
+    )
+  }
+
+  let cfg: Record<string, unknown>
+  try {
+    cfg = JSON.parse(channel.platformConfig) as Record<string, unknown>
+  } catch {
+    return c.json(
+      { error: { code: 'INVALID_CHANNEL_CONFIG', message: 'Invalid channel config' } },
+      500,
+    )
+  }
+
+  try {
+    const result = await adapter.handleInboundWebhook(channelId, cfg, c.req.raw)
+    if (result.incoming) {
+      await handleIncomingChannelMessage(channelId, result.incoming)
+    }
+    return result.response
+  } catch (err) {
+    log.error({ err: err instanceof Error ? err.message : String(err), platform, channelId }, 'webhook dispatch failed')
+    return c.json(
+      { error: { code: 'WEBHOOK_DISPATCH_ERROR', message: 'Webhook dispatch failed' } },
+      500,
+    )
+  }
 })
 
 // POST /api/channels — create a channel

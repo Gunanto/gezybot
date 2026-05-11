@@ -177,6 +177,30 @@ export interface ChannelAdapter {
    * Platforms that don't support it can leave this unimplemented.
    */
   sendTypingIndicator?(channelId: string, config: Record<string, unknown>, chatId: string): Promise<void>
+
+  /**
+   * Optional. Handle an inbound HTTP webhook from the external platform.
+   * Called by the built-in dispatcher route
+   * POST /api/channels/plugin/:platform/webhook/:channelId.
+   *
+   * The adapter is responsible for parsing the request, validating its
+   * authenticity (signature, etc.), and returning either an IncomingMessage
+   * to inject into the Kin queue, or null to ignore the event, along with
+   * the HTTP Response to send back to the platform.
+   *
+   * Adapters that use a long-lived connection (Telegram polling, Discord
+   * WebSocket, Matrix sync) do not need this. Adapters that are webhook
+   * driven (Twilio, future SMS or voice providers) implement it.
+   *
+   * Distinct from any platform-specific `handleWebhook` helper an adapter
+   * may carry internally (e.g. Signal's post-parsing helper). This one is
+   * the transport-level entry point: raw Request in, raw Response out.
+   */
+  handleInboundWebhook?(
+    channelId: string,
+    config: Record<string, unknown>,
+    req: Request,
+  ): Promise<{ incoming: IncomingMessage | null; response: Response }>
 }
 
 // ─── Outbound attachment helpers ────────────────────────────────────────────
