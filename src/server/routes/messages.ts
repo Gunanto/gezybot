@@ -271,7 +271,16 @@ messageRoutes.get('/', async (c) => {
       // Resolve the transfer system-event blob (if any). The card needs the
       // OTHER Kin's name/slug/avatar, plus the channel's current platform
       // info so we can paint the platform icon next to the channel name.
+      // For plugin-card system rows the pluginCard blob is self-contained
+      // in metadata, so we just pass it through under the same systemEvent
+      // field with a discriminating `type` so MessageBubble can route it.
       let systemEvent: Record<string, unknown> | null = null
+      if (meta && (meta as Record<string, unknown>).systemEvent === 'plugin-card') {
+        const pluginCard = (meta as Record<string, unknown>).pluginCard
+        if (pluginCard && typeof pluginCard === 'object') {
+          systemEvent = { type: 'plugin-card', pluginCard }
+        }
+      }
       const transferMeta = transferMetaByMessageId.get(m.id)
       if (transferMeta) {
         const evType = transferMeta.systemEvent as 'channel_transferred_out' | 'channel_transferred_in'

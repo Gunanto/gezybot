@@ -1,0 +1,70 @@
+// ─── Plugin Card primitives ─────────────────────────────────────────────────
+//
+// A plugin card is a declarative tree of primitives plus a state object.
+// The plugin emits a card once (layout + initial state) and then pushes state
+// patches to update the view in place. The client interpolates `{{key}}`
+// placeholders in the layout from the current state before rendering.
+//
+// Cards persist as system messages on the conversation (role='system',
+// sourceType='system', metadata.systemEvent='plugin-card') so they survive
+// reloads and are part of the normal message timeline. Live updates ride on
+// the SSE `card:updated` event.
+
+export type PluginCardVariant =
+  | 'default'
+  | 'success'
+  | 'warning'
+  | 'destructive'
+  | 'primary'
+  | 'muted'
+
+export interface PluginCardActionInput {
+  type: 'text' | 'textarea'
+  placeholder?: string
+}
+
+export interface PluginCardAction {
+  id: string
+  label: string
+  variant?: PluginCardVariant
+  input?: PluginCardActionInput
+  /** If true, the UI confirms with the user before firing the action. */
+  confirm?: boolean
+}
+
+export interface PluginCardStatItem {
+  label: string
+  value: string
+  variant?: PluginCardVariant
+}
+
+export type PluginCardPrimitive =
+  | { type: 'header'; title: string; icon?: string; accent?: PluginCardVariant }
+  | { type: 'stat-row'; items: PluginCardStatItem[] }
+  | { type: 'progress'; value?: number; max?: number; indeterminate?: boolean; label?: string }
+  | { type: 'collapsible'; label: string; defaultOpen?: boolean; content: PluginCardPrimitive | PluginCardPrimitive[] }
+  | { type: 'log-stream'; lines: string[]; autoscroll?: boolean; maxHeight?: number }
+  | { type: 'action-row'; actions: PluginCardAction[] }
+  | { type: 'markdown'; content: string }
+  | { type: 'spinner'; label?: string }
+  | { type: 'badge'; text: string; variant?: PluginCardVariant }
+  | { type: 'divider'; label?: string }
+
+export interface PluginCard {
+  /** Name of the plugin that owns this card (matches manifest.name). */
+  pluginId: string
+  /** Plugin-defined identifier for the kind of card (e.g. 'task-run'). */
+  cardType: string
+  /** Stable UUID used to target this card with live updates. */
+  cardInstanceId: string
+  /** Declarative layout. Strings may contain `{{key}}` placeholders. */
+  layout: PluginCardPrimitive[]
+  /** Values interpolated into the layout at render time. */
+  state: Record<string, unknown>
+}
+
+/** Shape of the `systemEvent` payload surfaced for plugin-card system rows. */
+export interface PluginCardSystemEvent {
+  type: 'plugin-card'
+  pluginCard: PluginCard
+}

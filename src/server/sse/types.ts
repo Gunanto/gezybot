@@ -73,6 +73,7 @@ export type SSEEventType =
   | 'settings:hub-changed'
   | 'version:update-available'
   | 'log:entry'
+  | 'card:updated'
   | 'connected'
 
 export interface SSEEvent {

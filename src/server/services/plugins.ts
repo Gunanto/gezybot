@@ -17,6 +17,8 @@ import type { ProviderDefinition } from '@/server/providers/types'
 import type { ChannelAdapter } from '@/server/channels/adapter'
 import { registerPluginProvider, unregisterPluginProvider } from '@/server/providers/index'
 import { channelAdapters } from '@/server/channels/index'
+import { emitPluginCard, updatePluginCard } from '@/server/services/plugin-cards'
+import type { PluginCardPrimitive } from '@/shared/types/plugin-cards'
 
 const log = createLogger('plugins')
 
@@ -45,12 +47,31 @@ interface PluginHTTPClient {
   fetch(url: string, init?: RequestInit): Promise<Response>
 }
 
+/**
+ * Card APIs exposed to plugins. The plugin name is captured at context
+ * creation time so plugins cannot accidentally emit cards under another
+ * plugin's identity.
+ */
+export interface PluginCardsAPI {
+  emit(params: {
+    kinId: string
+    cardType: string
+    layout: PluginCardPrimitive[]
+    initialState: Record<string, unknown>
+  }): Promise<{ messageId: string; cardInstanceId: string }>
+  update(params: {
+    cardInstanceId: string
+    state: Record<string, unknown>
+  }): Promise<void>
+}
+
 interface PluginContext {
   config: Record<string, any>
   log: PluginLogger
   storage: PluginStorageAPI
   http: PluginHTTPClient
   manifest: PluginManifest
+  cards: PluginCardsAPI
 }
 
 interface PluginProviderRegistration {
@@ -61,11 +82,23 @@ interface PluginProviderRegistration {
   apiKeyUrl?: string
 }
 
+/** Payload delivered to a plugin when a user clicks an action on its card. */
+export interface PluginCardActionContext {
+  cardInstanceId: string
+  actionId: string
+  input?: string
+  kinId: string
+}
+
+export type PluginCardActionResult = { ok: true } | { ok: false; error: string }
+
 interface PluginExports {
   tools?: Record<string, ToolRegistration>
   providers?: Record<string, PluginProviderRegistration>
   channels?: Record<string, ChannelAdapter>
   hooks?: Partial<Record<HookName, HookHandler>>
+  /** Handle user clicks on action-row buttons emitted by this plugin's cards. */
+  onCardAction?(ctx: PluginCardActionContext): Promise<PluginCardActionResult>
   activate?(): Promise<void>
   deactivate?(): Promise<void>
 }
@@ -449,9 +482,12 @@ export function validatePluginExports(
   if (ex.deactivate !== undefined && typeof ex.deactivate !== 'function') {
     errors.push('"deactivate" must be a function or undefined')
   }
+  if (ex.onCardAction !== undefined && typeof ex.onCardAction !== 'function') {
+    errors.push('"onCardAction" must be a function or undefined')
+  }
 
   // Warn about unknown top-level keys
-  const knownKeys = new Set(['tools', 'hooks', 'providers', 'channels', 'activate', 'deactivate'])
+  const knownKeys = new Set(['tools', 'hooks', 'providers', 'channels', 'activate', 'deactivate', 'onCardAction'])
   for (const key of Object.keys(ex)) {
     if (!knownKeys.has(key)) {
       warnings.push(`Unknown export key "${key}" — will be ignored`)
@@ -977,12 +1013,24 @@ class PluginManager {
       },
     }
 
+    const cards: PluginCardsAPI = {
+      emit: (params) => emitPluginCard({
+        kinId: params.kinId,
+        pluginId: manifest.name,
+        cardType: params.cardType,
+        layout: params.layout,
+        initialState: params.initialState,
+      }),
+      update: (params) => updatePluginCard(params),
+    }
+
     return {
       config,
       log: pluginLog as unknown as PluginLogger,
       storage,
       http,
       manifest,
+      cards,
     }
   }
 
