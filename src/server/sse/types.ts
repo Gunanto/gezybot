@@ -1,5 +1,6 @@
 export type SSEEventType =
   | 'chat:token'
+  | 'chat:text-strip'
   | 'chat:done'
   | 'chat:message'
   | 'chat:tool-call-start'
