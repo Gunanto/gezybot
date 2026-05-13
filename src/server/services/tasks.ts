@@ -680,6 +680,11 @@ async function executeSubKin(taskId: string, isNudge = false) {
 
       // Collect tool call intents from this step
       const stepToolCalls: Array<{ id: string; name: string; args: unknown; offset: number }> = []
+      // Per-step text. fullContent keeps accumulating across steps for
+      // persistence, offset math, and UI rendering, but only stepText is
+      // pushed into the assistant history block so the model never sees
+      // its own prior-step narration repeated back to it.
+      let stepText = ''
 
       try {
         for await (const part of result.fullStream) {
@@ -731,6 +736,7 @@ async function executeSubKin(taskId: string, isNudge = false) {
           switch (part.type) {
             case 'text-delta': {
               fullContent += part.text
+              stepText += part.text
               streamSnapshot.content = fullContent
               sseManager.sendToKin(task.parentKinId, {
                 type: 'chat:token',
@@ -794,7 +800,7 @@ async function executeSubKin(taskId: string, isNudge = false) {
         | { type: 'text'; text: string }
         | { type: 'tool-call'; toolCallId: string; toolName: string; input: unknown }
       > = []
-      if (fullContent) assistantContent.push({ type: 'text', text: fullContent })
+      if (stepText) assistantContent.push({ type: 'text', text: stepText })
       for (const tc of stepToolCalls) {
         assistantContent.push({ type: 'tool-call', toolCallId: tc.id, toolName: tc.name, input: tc.args })
       }
