@@ -72,8 +72,24 @@ function renderPrimitive(prim: unknown, cardInstanceId: string, key: number | st
       return <Divider key={key} label={p.label} />
     case 'collapsible': {
       const inner = Array.isArray(p.content) ? p.content : [p.content]
+      // When the collapsible wraps a log-stream, surface the line count
+      // in the trigger badge so the user does not need to open the
+      // section to know whether anything is there.
+      const logChild = inner.find((c) =>
+        c && typeof c === 'object' && (c as { type?: unknown }).type === 'log-stream',
+      ) as { lines?: unknown } | undefined
+      const countBadge = logChild
+        ? Array.isArray(logChild.lines)
+          ? logChild.lines.length
+          : 0
+        : null
       return (
-        <CollapsibleSection key={key} label={p.label ?? ''} defaultOpen={p.defaultOpen}>
+        <CollapsibleSection
+          key={key}
+          label={p.label ?? ''}
+          defaultOpen={p.defaultOpen}
+          countBadge={countBadge}
+        >
           <div className="flex flex-col gap-2">
             {inner.map((child, idx) => renderPrimitive(child, cardInstanceId, idx))}
           </div>
