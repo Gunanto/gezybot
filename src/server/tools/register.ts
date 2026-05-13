@@ -64,6 +64,7 @@ import {
   listTasksTool,
   listActiveQueuesTool,
   getTaskDetailTool,
+  getTaskMessagesTool,
 } from '@/server/tools/task-tools'
 import {
   reportToParentTool,
@@ -281,6 +282,7 @@ export function registerAllTools(): void {
   toolRegistry.register('list_tasks', listTasksTool)
   toolRegistry.register('list_active_queues', listActiveQueuesTool)
   toolRegistry.register('get_task_detail', getTaskDetailTool)
+  toolRegistry.register('get_task_messages', getTaskMessagesTool)
 
   // Phase 15: Sub-Kin tools (sub-kin only)
   toolRegistry.register('report_to_parent', reportToParentTool)

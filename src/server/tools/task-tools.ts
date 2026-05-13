@@ -7,6 +7,8 @@ import {
   cancelTask,
   getTask,
   listTasksFiltered,
+  getTaskMessages,
+  TaskNotFoundError,
   type ListTasksFilters,
 } from '@/server/services/tasks'
 import { resolveKinId } from '@/server/services/kin-resolver'
@@ -370,6 +372,79 @@ export const getTaskDetailTool: ToolRegistration = {
             sourceType: m.sourceType,
             createdAt: m.createdAt.toISOString(),
           })),
+        }
+      },
+    }),
+}
+
+/**
+ * get_task_messages — paginated view of a task's message history with previews.
+ * Use this to inspect long-running tasks without loading every message body
+ * into the calling Kin's context.
+ */
+export const getTaskMessagesTool: ToolRegistration = {
+  availability: ['main', 'sub-kin'],
+  readOnly: true,
+  concurrencySafe: true,
+  create: (ctx) =>
+    tool({
+      description:
+        'Get a paginated view of a task\'s message history with content previews. ' +
+        'Useful to inspect long-running task progress without loading full bodies into context. ' +
+        'Each message returns a 200-char preview, the full content length, and tool call counts.',
+      inputSchema: z.object({
+        task_id: z.string().describe('The task to fetch messages from.'),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(50)
+          .default(20)
+          .describe('Number of messages to return (max 50).'),
+        offset: z
+          .number()
+          .int()
+          .default(0)
+          .describe('Pagination offset. Use a negative value to fetch from the end (e.g. -20 returns the last 20 messages).'),
+        order: z
+          .enum(['asc', 'desc'])
+          .default('desc')
+          .describe('asc = oldest first, desc = newest first.'),
+      }),
+      execute: async ({ task_id, limit, offset, order }) => {
+        // Verify the calling Kin is related to the task (parent or source).
+        const task = await getTask(task_id)
+        if (!task) return { error: 'Task not found' }
+        if (task.parentKinId !== ctx.kinId && task.sourceKinId !== ctx.kinId) {
+          return { error: 'Access denied — you are not related to this task' }
+        }
+
+        try {
+          const result = await getTaskMessages(task_id, limit, offset, order)
+          return {
+            task_id: result.taskId,
+            task_title: result.taskTitle,
+            task_status: result.taskStatus,
+            messages: result.messages.map((m) => ({
+              id: m.id,
+              role: m.role,
+              source_type: m.sourceType,
+              created_at: m.createdAt,
+              content_preview: m.contentPreview,
+              content_length: m.contentLength,
+              has_tool_calls: m.hasToolCalls,
+              tool_call_count: m.toolCallCount,
+            })),
+            pagination: {
+              total: result.total,
+              offset,
+              limit,
+              hasMore: offset >= 0 ? offset + result.messages.length < result.total : false,
+            },
+          }
+        } catch (err) {
+          if (err instanceof TaskNotFoundError) return { error: 'Task not found' }
+          throw err
         }
       },
     }),

@@ -11,7 +11,7 @@ const mockTasks = {
   listKinTasks: mock(() => Promise.resolve([] as any[])),
   listSourceKinTasks: mock(() => Promise.resolve([] as any[])),
   listTasksFiltered: mock(() => Promise.resolve({ tasks: [] as any[], total: 0 })),
-  getTaskMessages: mock(() => Promise.resolve({ taskId: '', taskTitle: null, taskStatus: '', total: 0, messages: [] as any[] })),
+  getTaskMessages: mock(() => Promise.resolve({ taskId: '', taskTitle: null as string | null, taskStatus: '', total: 0, messages: [] as any[] })),
   getTask: mock(() => Promise.resolve(null as any)),
   fetchPreviousCronRuns: mock(() => Promise.resolve([] as any[])),
   listAllTasks: mock(() => Promise.resolve([])),
@@ -63,7 +63,8 @@ mock.module('drizzle-orm', () => ({
 // than crashing the whole file with a SyntaxError on module load.)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let spawnSelfTool: any, spawnKinTool: any, respondToTaskTool: any, cancelTaskTool: any,
-  listTasksTool: any, listActiveQueuesTool: any, getTaskDetailTool: any
+  listTasksTool: any, listActiveQueuesTool: any, getTaskDetailTool: any,
+  getTaskMessagesTool: any
 let _mocksWorking = false
 try {
   const mod = await import('@/server/tools/task-tools')
@@ -74,6 +75,7 @@ try {
   listTasksTool = mod.listTasksTool
   listActiveQueuesTool = mod.listActiveQueuesTool
   getTaskDetailTool = mod.getTaskDetailTool
+  getTaskMessagesTool = mod.getTaskMessagesTool
   _mocksWorking = true
 } catch {
   _mocksWorking = false
@@ -452,6 +454,81 @@ describe('task-tools', () => {
 
       expect(result.task.id).toBe('task-assigned')
       expect(result.messages).toEqual([])
+    })
+  })
+
+  // ── getTaskMessagesTool ───────────────────────────────────────────────────
+
+  describe('getTaskMessagesTool', () => {
+    itMocked('availability and flags', () => {
+      expect(getTaskMessagesTool.availability).toEqual(['main', 'sub-kin'])
+      expect(getTaskMessagesTool.readOnly).toBe(true)
+      expect(getTaskMessagesTool.concurrencySafe).toBe(true)
+    })
+
+    itMocked('returns access denied when caller is not related to the task', async () => {
+      mockTasks.getTask.mockResolvedValue({
+        id: 'task-x',
+        parentKinId: 'kin-other',
+        sourceKinId: 'kin-another',
+      })
+
+      const result = await execute(getTaskMessagesTool, {
+        task_id: 'task-x',
+        limit: 20,
+        offset: 0,
+        order: 'desc',
+      })
+
+      expect(result).toEqual({ error: 'Access denied — you are not related to this task' })
+    })
+
+    itMocked('returns paginated previews when caller is parent', async () => {
+      mockTasks.getTask.mockResolvedValue({
+        id: 'task-y',
+        parentKinId: 'kin-abc',
+        sourceKinId: null,
+      })
+      mockTasks.getTaskMessages.mockResolvedValue({
+        taskId: 'task-y',
+        taskTitle: 'Y',
+        taskStatus: 'completed',
+        total: 30,
+        messages: [
+          {
+            id: 'm1',
+            role: 'assistant',
+            sourceType: 'task',
+            createdAt: 1000,
+            contentPreview: 'hello',
+            contentLength: 5,
+            hasToolCalls: false,
+            toolCallCount: 0,
+          },
+        ],
+      })
+
+      const result = await execute(getTaskMessagesTool, {
+        task_id: 'task-y',
+        limit: 20,
+        offset: 0,
+        order: 'desc',
+      })
+
+      expect(result.task_id).toBe('task-y')
+      expect(result.task_status).toBe('completed')
+      expect(result.messages).toHaveLength(1)
+      expect(result.messages[0]).toEqual({
+        id: 'm1',
+        role: 'assistant',
+        source_type: 'task',
+        created_at: 1000,
+        content_preview: 'hello',
+        content_length: 5,
+        has_tool_calls: false,
+        tool_call_count: 0,
+      })
+      expect(result.pagination).toEqual({ total: 30, offset: 0, limit: 20, hasMore: true })
     })
   })
 })
