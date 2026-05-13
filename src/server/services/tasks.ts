@@ -1,5 +1,5 @@
 import { streamText, type Tool, type ModelMessage } from 'ai'
-import { eq, and, desc, asc, inArray, like, or, sql } from 'drizzle-orm'
+import { eq, and, desc, asc, inArray, like, or, sql, gte, lte, isNull, isNotNull } from 'drizzle-orm'
 import { v4 as uuid } from 'uuid'
 import { db, sqlite } from '@/server/db/index'
 import { createLogger } from '@/server/logger'
@@ -1378,6 +1378,343 @@ export async function listTasksPaginated(params: ListTasksPaginatedParams) {
     .all()
 
   return { tasks: rows, total }
+}
+
+// ─── Filtered + paginated listing (for tools) ────────────────────────────────
+
+export type TaskKind = 'spawn_self' | 'spawn_kin' | 'webhook' | 'cron' | 'unknown'
+
+export interface ListTasksFilters {
+  status?: TaskStatus | 'all'
+  parentKinSlug?: string
+  childKinSlug?: string
+  kind?: TaskKind | 'all'
+  since?: number
+  until?: number
+  relatedToKinId?: string
+  limit?: number
+  offset?: number
+}
+
+export interface ListTasksRow {
+  id: string
+  title: string | null
+  status: string
+  kind: TaskKind
+  parentKinSlug: string | null
+  childKinSlug: string | null
+  depth: number
+  createdAt: number
+  updatedAt: number
+  durationMs: number | null
+}
+
+export interface ListTasksResult {
+  tasks: ListTasksRow[]
+  total: number
+}
+
+const LIST_TASKS_DEFAULT_LIMIT = 20
+const LIST_TASKS_MAX_LIMIT = 100
+const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled'])
+
+export function computeTaskKind(row: {
+  spawnType: string
+  webhookId: string | null
+  cronId: string | null
+}): TaskKind {
+  if (row.cronId) return 'cron'
+  if (row.webhookId) return 'webhook'
+  if (row.spawnType === 'self') return 'spawn_self'
+  if (row.spawnType === 'other') return 'spawn_kin'
+  return 'unknown'
+}
+
+export function computeTaskDurationMs(row: {
+  status: string
+  createdAt: Date
+  updatedAt: Date
+}): number | null {
+  if (!TERMINAL_STATUSES.has(row.status)) return null
+  return row.updatedAt.getTime() - row.createdAt.getTime()
+}
+
+function clampLimit(limit: number | undefined): number {
+  if (limit === undefined) return LIST_TASKS_DEFAULT_LIMIT
+  if (limit < 1) return 1
+  if (limit > LIST_TASKS_MAX_LIMIT) return LIST_TASKS_MAX_LIMIT
+  return Math.floor(limit)
+}
+
+function clampOffset(offset: number | undefined): number {
+  if (offset === undefined || offset < 0) return 0
+  return Math.floor(offset)
+}
+
+async function resolveKinIdBySlug(slug: string): Promise<string | null> {
+  const row = await db
+    .select({ id: kins.id })
+    .from(kins)
+    .where(eq(kins.slug, slug))
+    .get()
+  return row?.id ?? null
+}
+
+export async function listTasksFiltered(filters: ListTasksFilters): Promise<ListTasksResult> {
+  const limit = clampLimit(filters.limit)
+  const offset = clampOffset(filters.offset)
+
+  let parentKinId: string | undefined
+  let childKinId: string | undefined
+  if (filters.parentKinSlug) {
+    const resolved = await resolveKinIdBySlug(filters.parentKinSlug)
+    if (!resolved) return { tasks: [], total: 0 }
+    parentKinId = resolved
+  }
+  if (filters.childKinSlug) {
+    const resolved = await resolveKinIdBySlug(filters.childKinSlug)
+    if (!resolved) return { tasks: [], total: 0 }
+    childKinId = resolved
+  }
+
+  const conditions: ReturnType<typeof eq>[] = []
+
+  if (filters.status && filters.status !== 'all') {
+    conditions.push(eq(tasks.status, filters.status))
+  }
+  if (parentKinId) conditions.push(eq(tasks.parentKinId, parentKinId))
+  if (childKinId) conditions.push(eq(tasks.sourceKinId, childKinId))
+
+  if (filters.kind && filters.kind !== 'all') {
+    switch (filters.kind) {
+      case 'spawn_self':
+        conditions.push(eq(tasks.spawnType, 'self'))
+        conditions.push(isNull(tasks.webhookId))
+        conditions.push(isNull(tasks.cronId))
+        break
+      case 'spawn_kin':
+        conditions.push(eq(tasks.spawnType, 'other'))
+        conditions.push(isNull(tasks.webhookId))
+        conditions.push(isNull(tasks.cronId))
+        break
+      case 'webhook':
+        conditions.push(isNotNull(tasks.webhookId))
+        break
+      case 'cron':
+        conditions.push(isNotNull(tasks.cronId))
+        break
+    }
+  }
+
+  if (typeof filters.since === 'number') {
+    conditions.push(gte(tasks.createdAt, new Date(filters.since)))
+  }
+  if (typeof filters.until === 'number') {
+    conditions.push(lte(tasks.createdAt, new Date(filters.until)))
+  }
+
+  if (filters.relatedToKinId) {
+    conditions.push(
+      or(
+        eq(tasks.parentKinId, filters.relatedToKinId),
+        eq(tasks.sourceKinId, filters.relatedToKinId),
+      )!,
+    )
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined
+
+  const countResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(tasks)
+    .where(whereClause)
+    .all()
+  const total = countResult[0]?.count ?? 0
+
+  if (total === 0) return { tasks: [], total: 0 }
+
+  const rows = await db
+    .select()
+    .from(tasks)
+    .where(whereClause)
+    .orderBy(desc(tasks.createdAt))
+    .limit(limit)
+    .offset(offset)
+    .all()
+
+  const relatedKinIds = Array.from(
+    new Set(
+      rows.flatMap((r) => [r.parentKinId, r.sourceKinId].filter((id): id is string => !!id)),
+    ),
+  )
+  const slugMap = new Map<string, string>()
+  if (relatedKinIds.length > 0) {
+    const kinRows = await db
+      .select({ id: kins.id, slug: kins.slug, name: kins.name })
+      .from(kins)
+      .where(inArray(kins.id, relatedKinIds))
+      .all()
+    for (const k of kinRows) slugMap.set(k.id, k.slug ?? k.name)
+  }
+
+  return {
+    total,
+    tasks: rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      status: r.status,
+      kind: computeTaskKind(r),
+      parentKinSlug: slugMap.get(r.parentKinId) ?? null,
+      childKinSlug: r.sourceKinId ? slugMap.get(r.sourceKinId) ?? null : null,
+      depth: r.depth,
+      createdAt: r.createdAt.getTime(),
+      updatedAt: r.updatedAt.getTime(),
+      durationMs: computeTaskDurationMs(r),
+    })),
+  }
+}
+
+// ─── Task messages (paginated previews) ──────────────────────────────────────
+
+const TASK_MESSAGES_DEFAULT_LIMIT = 20
+const TASK_MESSAGES_MAX_LIMIT = 50
+const MESSAGE_PREVIEW_MAX_CHARS = 200
+
+export interface TaskMessageRow {
+  id: string
+  role: string
+  sourceType: string
+  createdAt: number
+  contentPreview: string
+  contentLength: number
+  hasToolCalls: boolean
+  toolCallCount: number
+}
+
+export interface GetTaskMessagesResult {
+  taskId: string
+  taskTitle: string | null
+  taskStatus: string
+  total: number
+  messages: TaskMessageRow[]
+}
+
+export function buildMessagePreview(content: string | null): {
+  preview: string
+  length: number
+} {
+  if (!content) return { preview: '', length: 0 }
+  const length = content.length
+  if (length <= MESSAGE_PREVIEW_MAX_CHARS) return { preview: content, length }
+  return { preview: content.slice(0, MESSAGE_PREVIEW_MAX_CHARS) + '...', length }
+}
+
+function countToolCalls(toolCallsJson: string | null): number {
+  if (!toolCallsJson) return 0
+  try {
+    const parsed = JSON.parse(toolCallsJson)
+    return Array.isArray(parsed) ? parsed.length : 0
+  } catch {
+    return 0
+  }
+}
+
+export class TaskNotFoundError extends Error {
+  constructor(taskId: string) {
+    super(`Task not found: ${taskId}`)
+    this.name = 'TaskNotFoundError'
+  }
+}
+
+export async function getTaskMessages(
+  taskId: string,
+  rawLimit: number | undefined,
+  rawOffset: number | undefined,
+  order: 'asc' | 'desc' = 'desc',
+): Promise<GetTaskMessagesResult> {
+  const task = await db
+    .select({ id: tasks.id, title: tasks.title, status: tasks.status, parentKinId: tasks.parentKinId })
+    .from(tasks)
+    .where(eq(tasks.id, taskId))
+    .get()
+  if (!task) throw new TaskNotFoundError(taskId)
+
+  const limit = Math.min(
+    Math.max(1, Math.floor(rawLimit ?? TASK_MESSAGES_DEFAULT_LIMIT)),
+    TASK_MESSAGES_MAX_LIMIT,
+  )
+
+  const totalResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(messages)
+    .where(eq(messages.taskId, taskId))
+    .all()
+  const total = totalResult[0]?.count ?? 0
+
+  if (total === 0) {
+    return { taskId, taskTitle: task.title, taskStatus: task.status, total: 0, messages: [] }
+  }
+
+  if (typeof rawOffset === 'number' && rawOffset < 0) {
+    const tail = Math.min(Math.abs(Math.floor(rawOffset)), total)
+    const fetchCount = Math.min(tail, limit)
+    const rows = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.taskId, taskId))
+      .orderBy(desc(messages.createdAt))
+      .limit(fetchCount)
+      .all()
+    const mapped = rows.map(rowToMessagePreview)
+    if (order === 'asc') mapped.reverse()
+    return {
+      taskId,
+      taskTitle: task.title,
+      taskStatus: task.status,
+      total,
+      messages: mapped,
+    }
+  }
+
+  const effectiveOffset = clampOffset(rawOffset)
+  const rows = await db
+    .select()
+    .from(messages)
+    .where(eq(messages.taskId, taskId))
+    .orderBy(order === 'asc' ? asc(messages.createdAt) : desc(messages.createdAt))
+    .limit(limit)
+    .offset(effectiveOffset)
+    .all()
+
+  return {
+    taskId,
+    taskTitle: task.title,
+    taskStatus: task.status,
+    total,
+    messages: rows.map(rowToMessagePreview),
+  }
+}
+
+function rowToMessagePreview(row: {
+  id: string
+  role: string
+  content: string | null
+  sourceType: string
+  toolCalls: string | null
+  createdAt: Date
+}): TaskMessageRow {
+  const { preview, length } = buildMessagePreview(row.content)
+  const toolCallCount = countToolCalls(row.toolCalls)
+  return {
+    id: row.id,
+    role: row.role,
+    sourceType: row.sourceType,
+    createdAt: row.createdAt.getTime(),
+    contentPreview: preview,
+    contentLength: length,
+    hasToolCalls: toolCallCount > 0,
+    toolCallCount,
+  }
 }
 
 // ─── Cron Journal ────────────────────────────────────────────────────────────
