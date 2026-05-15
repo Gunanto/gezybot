@@ -581,10 +581,37 @@ async function executeSubKin(taskId: string, isNudge = false) {
     const mcpTools = await resolveMCPTools(kinIdentity.id, kinToolConfig)
     const customToolDefs = await resolveCustomTools(kinIdentity.id)
 
+    // Right-size the native-tool surface via a preset (mandatory core +
+    // task-flavored extras). Ticket tasks default to `code`. Cron/spawn
+    // tasks keep the full surface for now (`undefined` → backward-compat).
+    // MCP and per-Kin custom tools are intentionally excluded from the
+    // preset filter — those have already been curated at the Kin level.
+    const { applyPreset, defaultPresetForTask } = await import('@/server/services/tool-presets')
+    const preset = defaultPresetForTask({
+      ticketId: task.ticketId ?? null,
+      cronId: task.cronId ?? null,
+    })
+    const filteredNative = applyPreset(nativeTools, preset)
+    const filteredSubKin = applyPreset(subKinTools, preset)
+
     const tools = wrapToolsWithSpill(
-      { ...nativeTools, ...subKinTools, ...mcpTools, ...customToolDefs },
+      { ...filteredNative, ...filteredSubKin, ...mcpTools, ...customToolDefs },
       kinIdentity.workspacePath,
     )
+
+    if (preset) {
+      log.info(
+        {
+          taskId,
+          preset,
+          nativeCount: Object.keys(filteredNative).length,
+          subKinCount: Object.keys(filteredSubKin).length,
+          mcpCount: Object.keys(mcpTools).length,
+          customCount: Object.keys(customToolDefs).length,
+        },
+        'Sub-Kin tool preset applied',
+      )
+    }
 
     // Build task message history (only messages for this task)
     const taskMessages = await db
