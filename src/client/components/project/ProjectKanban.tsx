@@ -18,7 +18,8 @@ import { TicketCard } from './TicketCard'
 import { useTickets } from '@/client/hooks/useTickets'
 import { TICKET_STATUSES } from '@/shared/constants'
 import { Button } from '@/client/components/ui/button'
-import { Plus } from 'lucide-react'
+import { Input } from '@/client/components/ui/input'
+import { Plus, Search, X } from 'lucide-react'
 import { useSidePanel } from '@/client/contexts/SidePanelContext'
 import type { TicketStatus, TicketSummary } from '@/shared/types'
 
@@ -49,6 +50,7 @@ export function ProjectKanban({ projectId, onNewTicket }: ProjectKanbanProps) {
 
   const [displayTickets, setDisplayTickets] = useState<TicketSummary[]>(tickets)
   const [activeTicket, setActiveTicket] = useState<TicketSummary | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Sync local state with server truth whenever the upstream list changes
   // (SSE events, refetch, etc.). During a drag this is fine — useTickets debounces
@@ -68,6 +70,10 @@ export function ProjectKanban({ projectId, onNewTicket }: ProjectKanbanProps) {
   }
 
   // Group tickets by status, sorted by position (rebuilds on every drag tick — keep cheap)
+  // We keep ALL tickets in displayTickets (used by dnd-kit). The filter only
+  // affects what gets rendered per column, so search and drag-drop don't
+  // interfere with each other.
+  const normalizedQuery = searchQuery.trim().toLowerCase()
   const byStatus = useMemo(() => {
     const map: Record<TicketStatus, TicketSummary[]> = {
       backlog: [],
@@ -77,6 +83,11 @@ export function ProjectKanban({ projectId, onNewTicket }: ProjectKanbanProps) {
       done: [],
     }
     for (const ticket of displayTickets) {
+      if (normalizedQuery) {
+        const titleMatch = ticket.title.toLowerCase().includes(normalizedQuery)
+        const tagMatch = ticket.tags.some((tg) => tg.label.toLowerCase().includes(normalizedQuery))
+        if (!titleMatch && !tagMatch) continue
+      }
       const s = ticket.status as TicketStatus
       if (map[s]) map[s].push(ticket)
     }
@@ -84,7 +95,12 @@ export function ProjectKanban({ projectId, onNewTicket }: ProjectKanbanProps) {
       map[status].sort((a, b) => a.position - b.position)
     }
     return map
-  }, [displayTickets])
+  }, [displayTickets, normalizedQuery])
+
+  const totalMatches = useMemo(
+    () => Object.values(byStatus).reduce((acc, list) => acc + list.length, 0),
+    [byStatus],
+  )
 
   function resolveTargetStatus(overId: string | number): TicketStatus | null {
     if (typeof overId === 'string' && overId.startsWith('column:')) {
@@ -187,7 +203,35 @@ export function ProjectKanban({ projectId, onNewTicket }: ProjectKanbanProps) {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center justify-end border-b border-border px-4 py-2">
+      <header className="flex items-center gap-2 border-b border-border px-4 py-2">
+        {/* Search — filters TicketCard rendering by title or tag, case-insensitive */}
+        <div className="relative max-w-xs flex-1">
+          <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t('projects.kanban.searchPlaceholder')}
+            className="h-8 pl-7 pr-7 text-sm"
+            aria-label={t('projects.kanban.searchPlaceholder')}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-1 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+              aria-label={t('projects.kanban.searchClear')}
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
+        {normalizedQuery && (
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {t('projects.kanban.searchResults', { count: totalMatches })}
+          </span>
+        )}
+        <div className="flex-1" />
         <Button size="sm" onClick={onNewTicket}>
           <Plus className="mr-1 size-4" />
           {t('projects.kanban.newTicket')}

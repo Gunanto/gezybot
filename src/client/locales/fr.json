@@ -2378,7 +2378,11 @@
       "description": "Crée un projet depuis la sidebar pour commencer à suivre du travail."
     },
     "kanban": {
-      "newTicket": "Nouveau ticket"
+      "newTicket": "Nouveau ticket",
+      "searchPlaceholder": "Filtrer par titre ou tag…",
+      "searchClear": "Effacer la recherche",
+      "searchResults_one": "{{count}} résultat",
+      "searchResults_other": "{{count}} résultats"
     },
     "status": {
       "backlog": "Backlog",

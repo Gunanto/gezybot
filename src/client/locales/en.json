@@ -2377,7 +2377,11 @@
       "description": "Create a project from the sidebar to start tracking work."
     },
     "kanban": {
-      "newTicket": "New ticket"
+      "newTicket": "New ticket",
+      "searchPlaceholder": "Filter tickets by title or tag…",
+      "searchClear": "Clear search",
+      "searchResults_one": "{{count}} match",
+      "searchResults_other": "{{count}} matches"
     },
     "status": {
       "backlog": "Backlog",
