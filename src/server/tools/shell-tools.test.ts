@@ -24,7 +24,7 @@ mock.module('@/server/logger', () => ({
 }))
 
 // Import after mocks
-const { runShellTool } = await import('./shell-tools')
+const { runShellTool, detectShellWrapper } = await import('./shell-tools')
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -200,6 +200,82 @@ describe('runShellTool', () => {
       const result = await execute({ command: 'X=$(echo nested); echo $X' })
       expect(result.success).toBe(true)
       expect(result.output).toBe('nested')
+    })
+  })
+
+  describe('bash-wrapper detection', () => {
+    it('refuses bare cat with a useful suggestion', async () => {
+      const result = await execute({ command: 'cat package.json' })
+      expect(result.success).toBe(false)
+      expect(result.exitCode).toBe(-1)
+      expect(result.error).toContain('read_file')
+      expect(result.error).toContain('cat')
+    })
+
+    it('refuses head, tail, less, more', async () => {
+      for (const bin of ['head', 'tail', 'less', 'more']) {
+        const result = await execute({ command: `${bin} src/index.ts` })
+        expect(result.success).toBe(false)
+        expect(result.error).toContain('read_file')
+      }
+    })
+
+    it('refuses ls', async () => {
+      const result = await execute({ command: 'ls -la src' })
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('list_directory')
+    })
+
+    it('refuses bare grep/rg', async () => {
+      for (const bin of ['grep', 'rg', 'ripgrep']) {
+        const result = await execute({ command: `${bin} -n foo src/` })
+        expect(result.success).toBe(false)
+        expect(result.error).toContain('grep')
+      }
+    })
+
+    it('refuses wc/sed/awk', async () => {
+      for (const bin of ['wc', 'sed', 'awk']) {
+        const result = await execute({ command: `${bin} src/index.ts` })
+        expect(result.success).toBe(false)
+      }
+    })
+
+    it('strips a leading `cd ... &&` before detection', async () => {
+      const result = await execute({ command: 'cd kinbot-dev && cat src/index.ts' })
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('read_file')
+    })
+
+    it('allows the binary when it is part of a pipeline', async () => {
+      // `bun test | grep error` is a legit composition — bun-test output piped through grep.
+      // Detector should not refuse it (it only fires on standalone wrappers).
+      expect(detectShellWrapper('bun test | grep error')).toBeNull()
+      expect(detectShellWrapper('echo hi | wc -l')).toBeNull()
+      expect(detectShellWrapper('git diff | head -5')).toBeNull()
+    })
+
+    it('allows redirections and command substitution', async () => {
+      expect(detectShellWrapper('cat <(diff a b)')).toBeNull()
+      expect(detectShellWrapper('cat > out.txt')).toBeNull()
+      expect(detectShellWrapper('head $(ls -t | head -1)')).toBeNull()
+    })
+
+    it('allows chained commands', async () => {
+      expect(detectShellWrapper('bun build && cat dist/index.js')).toBeNull()
+      expect(detectShellWrapper('rm tmp.txt || ls tmp.txt')).toBeNull()
+    })
+
+    it('does not fire on unrelated commands', async () => {
+      expect(detectShellWrapper('bun test')).toBeNull()
+      expect(detectShellWrapper('git status')).toBeNull()
+      expect(detectShellWrapper('npm install')).toBeNull()
+      expect(detectShellWrapper('cd kinbot-dev && bun run build')).toBeNull()
+    })
+
+    it('detects regardless of leading whitespace and case', async () => {
+      expect(detectShellWrapper('   CAT file.ts')).toEqual({ binary: 'cat', suggestion: expect.stringContaining('read_file') })
+      expect(detectShellWrapper('LS')).toEqual({ binary: 'ls', suggestion: expect.stringContaining('list_directory') })
     })
   })
 })
