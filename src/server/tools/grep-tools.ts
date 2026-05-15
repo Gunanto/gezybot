@@ -5,6 +5,7 @@ import { existsSync, statSync } from 'fs'
 import { config } from '@/server/config'
 import { createLogger } from '@/server/logger'
 import { resolveAndValidate } from '@/server/tools/filesystem-tools'
+import { noteCall, grepSignature } from '@/server/services/tool-call-tracker'
 import type { ToolRegistration } from '@/server/tools/types'
 
 const log = createLogger('grep-tools')
@@ -337,15 +338,37 @@ export const grepTool: ToolRegistration = {
 
           const { stdout, stderr, exitCode } = result
 
+          const dup = noteCall(
+            ctx.taskId,
+            'grep',
+            grepSignature({
+              pattern,
+              path: searchPath,
+              glob,
+              output_mode: outputMode,
+              context,
+              context_before,
+              context_after,
+              multiline,
+            }),
+          )
+          const dupFields = dup.previousCallCount > 0
+            ? {
+                duplicate: true as const,
+                previousCallCount: dup.previousCallCount,
+                hint: `You already ran grep with this exact (pattern, path, glob, output_mode, context) ${dup.previousCallCount} time(s) earlier in this task — the results are upstream. If you need a different angle, broaden the pattern or change the output_mode rather than repeating the same query.`,
+              }
+            : {}
+
           // Exit code 1 = no matches (normal for grep/rg)
           if (exitCode === 1) {
             if (outputMode === 'content') {
-              return { success: true, matches: [], matchCount: 0, truncated: false }
+              return { success: true, matches: [], matchCount: 0, truncated: false, ...dupFields }
             }
             if (outputMode === 'files_with_matches') {
-              return { success: true, files: [], fileCount: 0 }
+              return { success: true, files: [], fileCount: 0, ...dupFields }
             }
-            return { success: true, counts: [], totalCount: 0 }
+            return { success: true, counts: [], totalCount: 0, ...dupFields }
           }
 
           // Exit code >= 2 = error
@@ -360,7 +383,7 @@ export const grepTool: ToolRegistration = {
               { kinId: ctx.kinId, pattern, matchCount: matches.length },
               'Grep search completed',
             )
-            return { success: true, matches, matchCount: matches.length, truncated }
+            return { success: true, matches, matchCount: matches.length, truncated, ...dupFields }
           }
 
           if (outputMode === 'files_with_matches') {
@@ -369,7 +392,7 @@ export const grepTool: ToolRegistration = {
               { kinId: ctx.kinId, pattern, fileCount: files.length },
               'Grep search completed',
             )
-            return { success: true, files, fileCount: files.length }
+            return { success: true, files, fileCount: files.length, ...dupFields }
           }
 
           // count mode
@@ -379,7 +402,7 @@ export const grepTool: ToolRegistration = {
             { kinId: ctx.kinId, pattern, totalCount },
             'Grep search completed',
           )
-          return { success: true, counts, totalCount }
+          return { success: true, counts, totalCount, ...dupFields }
         } catch (err: any) {
           log.error({ kinId: ctx.kinId, pattern, err }, 'Grep search failed')
           return { success: false, error: err.message }

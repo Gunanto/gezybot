@@ -5,6 +5,7 @@ import { existsSync, statSync, readdirSync } from 'fs'
 import { readFile, writeFile, mkdir } from 'fs/promises'
 import { config } from '@/server/config'
 import { createLogger } from '@/server/logger'
+import { noteCall, readFileSignature } from '@/server/services/tool-call-tracker'
 import type { ToolRegistration } from '@/server/tools/types'
 
 const log = createLogger('filesystem-tools')
@@ -124,6 +125,7 @@ export const readFileTool: ToolRegistration = {
 
                 log.info({ kinId: ctx.kinId, path: filePath, totalLines, startLine, endLine, pages: pdf.numpages }, 'PDF text extracted')
 
+                const dup = noteCall(ctx.taskId, 'read_file', readFileSignature({ path: filePath, offset, limit }))
                 return {
                   success: true,
                   content,
@@ -133,6 +135,13 @@ export const readFileTool: ToolRegistration = {
                   endLine,
                   language: 'text',
                   note: `Extracted text from PDF (${pdf.numpages} pages)`,
+                  ...(dup.previousCallCount > 0
+                    ? {
+                        duplicate: true as const,
+                        previousCallCount: dup.previousCallCount,
+                        hint: `You already called read_file for this PDF with the same offset/limit ${dup.previousCallCount} time(s) earlier in this task — the content is still upstream in your context. Re-read only if you've edited it since.`,
+                      }
+                    : {}),
                 }
               } catch (e) {
                 return {
@@ -162,6 +171,7 @@ export const readFileTool: ToolRegistration = {
 
           log.info({ kinId: ctx.kinId, path: filePath, totalLines, startLine, endLine }, 'File read')
 
+          const dup = noteCall(ctx.taskId, 'read_file', readFileSignature({ path: filePath, offset, limit }))
           return {
             success: true,
             path: filePath,
@@ -171,6 +181,13 @@ export const readFileTool: ToolRegistration = {
             endLine,
             language: language ?? null,
             truncated: endLine < totalLines,
+            ...(dup.previousCallCount > 0
+              ? {
+                  duplicate: true as const,
+                  previousCallCount: dup.previousCallCount,
+                  hint: `You already called read_file for this exact (path, offset, limit) ${dup.previousCallCount} time(s) earlier in this task — the content is still upstream in your context. Re-read only if you've edited it since, otherwise reuse the previous result.`,
+                }
+              : {}),
           }
         } catch (err: any) {
           if (err.code === 'ENOENT') {

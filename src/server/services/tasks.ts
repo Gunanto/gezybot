@@ -1068,6 +1068,11 @@ export async function resolveTask(
 
   log.info({ taskId, status, mode: task.mode }, 'Task resolved')
 
+  // Drop per-task tool-call tracker state — the read_file/grep duplicate
+  // detector only cares about repeats inside an active task.
+  const { forgetTask } = await import('@/server/services/tool-call-tracker')
+  forgetTask(taskId)
+
   // Close any browser sessions opened by this task (best-effort, non-blocking)
   import('@/server/services/playwright-manager')
     .then(({ playwrightManager }) => playwrightManager.closeSessionsForTask(taskId))
@@ -1249,6 +1254,10 @@ export async function cancelTask(taskId: string, kinId: string) {
   // Cancel any pending human prompts for this task
   const { cancelPendingPromptsForTask } = await import('@/server/services/human-prompts')
   await cancelPendingPromptsForTask(taskId)
+
+  // Drop per-task tool-call tracker state.
+  const { forgetTask: forgetTaskCancel } = await import('@/server/services/tool-call-tracker')
+  forgetTaskCancel(taskId)
 
   // Clear any pending inter-Kin timeout timer
   const interKinTimer = interKinTimeouts.get(taskId)
