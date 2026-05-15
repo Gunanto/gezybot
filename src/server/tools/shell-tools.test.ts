@@ -274,8 +274,80 @@ describe('runShellTool', () => {
     })
 
     it('detects regardless of leading whitespace and case', async () => {
-      expect(detectShellWrapper('   CAT file.ts')).toEqual({ binary: 'cat', suggestion: expect.stringContaining('read_file') })
-      expect(detectShellWrapper('LS')).toEqual({ binary: 'ls', suggestion: expect.stringContaining('list_directory') })
+      expect(detectShellWrapper('   CAT file.ts')).toEqual({ binary: 'cat', suggestion: expect.stringContaining('read_file'), reason: 'wrapper' })
+      expect(detectShellWrapper('LS')).toEqual({ binary: 'ls', suggestion: expect.stringContaining('list_directory'), reason: 'wrapper' })
+    })
+  })
+
+  describe('banned commands (network / browser)', () => {
+    it('refuses curl, wget, httpie, xh — pointing at http_request', async () => {
+      for (const bin of ['curl', 'wget', 'httpie', 'xh', 'aria2c']) {
+        const result = await execute({ command: `${bin} https://example.com` })
+        expect(result.success).toBe(false)
+        expect(result.exitCode).toBe(-1)
+        expect(result.error).toContain('http_request')
+        expect(result.error).toContain('banned')
+      }
+    })
+
+    it('refuses lynx, w3m, links — pointing at browse_url', async () => {
+      for (const bin of ['lynx', 'w3m', 'links']) {
+        const result = await execute({ command: `${bin} https://example.com` })
+        expect(result.success).toBe(false)
+        expect(result.error).toContain('browse_url')
+      }
+    })
+
+    it('refuses GUI browsers as a symbolic ban', async () => {
+      for (const bin of ['chrome', 'firefox', 'chromium']) {
+        const result = await execute({ command: `${bin} https://example.com` })
+        expect(result.success).toBe(false)
+      }
+    })
+
+    it('refuses nc and telnet — pointing at http_request or asking', async () => {
+      for (const bin of ['nc', 'telnet']) {
+        const result = await execute({ command: `${bin} localhost 80` })
+        expect(result.success).toBe(false)
+      }
+    })
+
+    it('allows banned commands when used in a pipeline', async () => {
+      // Same carve-out as for wrappers: pipelines / redirects are real
+      // composition, not entrypoints. Don't refuse them — let the user
+      // pipe whatever they need.
+      expect(detectShellWrapper('echo hi | curl -d @- example.com')).toBeNull()
+      expect(detectShellWrapper('git diff | wc -l')).toBeNull()
+    })
+
+    it('reports reason: "banned" vs "wrapper" in the violation', () => {
+      const banned = detectShellWrapper('curl example.com')
+      const wrapper = detectShellWrapper('cat file.ts')
+      expect(banned?.reason).toBe('banned')
+      expect(wrapper?.reason).toBe('wrapper')
+    })
+  })
+
+  describe('output truncation', () => {
+    it('returns small outputs unchanged', async () => {
+      const result = await execute({ command: 'echo hello' })
+      expect(result.success).toBe(true)
+      expect(result.output).toBe('hello')
+      expect((result as Record<string, unknown>).truncated).toBeUndefined()
+    })
+
+    it('caps very large stdout and reports truncation in the response', async () => {
+      // Produce ~120 KB of output with one line at the end the model is
+      // most likely to care about. Truncation keeps the tail.
+      const result = await execute({
+        command: "printf 'x%.0s' $(seq 1 120000); printf '\\nMARKER_END\\n'",
+        timeout: 60000,
+      })
+      expect(result.success).toBe(true)
+      expect(result.output.length).toBeLessThanOrEqual(40_000) // 30k cap + truncation header
+      expect(result.output).toContain('MARKER_END')
+      expect(result.output).toContain('truncated')
+      expect((result as Record<string, unknown>).truncated).toBe(true)
     })
   })
 })
