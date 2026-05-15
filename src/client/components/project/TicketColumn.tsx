@@ -11,6 +11,8 @@ interface TicketColumnProps {
   label: string
   tickets: TicketSummary[]
   onTicketClick: (ticket: TicketSummary) => void
+  /** Lowercased search query forwarded to ticket cards for match highlighting. */
+  highlightQuery?: string
 }
 
 /**
@@ -61,7 +63,7 @@ const STATUS_ACCENT: Record<
   },
 }
 
-export function TicketColumn({ status, label, tickets, onTicketClick }: TicketColumnProps) {
+export function TicketColumn({ status, label, tickets, onTicketClick, highlightQuery }: TicketColumnProps) {
   const { t } = useTranslation()
   // Column-level droppable so empty columns still accept drops
   const { setNodeRef, isOver } = useDroppable({
@@ -97,6 +99,7 @@ export function TicketColumn({ status, label, tickets, onTicketClick }: TicketCo
               key={ticket.id}
               ticket={ticket}
               onClick={() => onTicketClick(ticket)}
+              highlightQuery={highlightQuery}
             />
           ))}
         </SortableContext>

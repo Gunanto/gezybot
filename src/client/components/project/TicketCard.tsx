@@ -14,9 +14,46 @@ interface TicketCardProps {
   ticket: TicketSummary
   onClick?: () => void
   isOverlay?: boolean
+  /** Lowercased, trimmed search query. When non-empty, matching substrings in
+   *  the title and tag labels are wrapped in a `<mark>` for visual feedback. */
+  highlightQuery?: string
 }
 
-export function TicketCard({ ticket, onClick, isOverlay = false }: TicketCardProps) {
+/**
+ * Split a string around case-insensitive occurrences of `query` and wrap matches
+ * in `<mark>`. Returns the raw string when `query` is empty or has no match,
+ * keeping the call cheap on the common (unfiltered) render path.
+ */
+function highlightMatches(text: string, query: string) {
+  if (!query) return text
+  const lowerText = text.toLowerCase()
+  const idx = lowerText.indexOf(query)
+  if (idx < 0) return text
+  const parts: Array<string | { match: string }> = []
+  let cursor = 0
+  let next = idx
+  while (next >= 0) {
+    if (next > cursor) parts.push(text.slice(cursor, next))
+    parts.push({ match: text.slice(next, next + query.length) })
+    cursor = next + query.length
+    next = lowerText.indexOf(query, cursor)
+  }
+  if (cursor < text.length) parts.push(text.slice(cursor))
+  return parts.map((part, i) =>
+    typeof part === 'string' ? (
+      <span key={i}>{part}</span>
+    ) : (
+      <mark
+        key={i}
+        className="rounded-sm bg-primary/25 px-0.5 text-foreground"
+      >
+        {part.match}
+      </mark>
+    ),
+  )
+}
+
+export function TicketCard({ ticket, onClick, isOverlay = false, highlightQuery }: TicketCardProps) {
   const { t } = useTranslation()
   const {
     attributes,
@@ -38,6 +75,7 @@ export function TicketCard({ ticket, onClick, isOverlay = false }: TicketCardPro
   const hasRunning = ticket.runningKins.length > 0
   const visibleRunning = ticket.runningKins.slice(0, 3)
   const overflowRunning = ticket.runningKins.length - visibleRunning.length
+  const normalizedQuery = (highlightQuery ?? '').trim().toLowerCase()
 
   // Distinguish created vs. updated: if updated more than 1 minute after creation
   // we treat it as a meaningful edit and prefer surfacing that timestamp.
@@ -70,7 +108,9 @@ export function TicketCard({ ticket, onClick, isOverlay = false }: TicketCardPro
         className="block w-full text-left"
       >
         <div className="flex items-start gap-1.5">
-          <h3 className="line-clamp-2 flex-1 text-sm font-medium leading-snug">{ticket.title}</h3>
+          <h3 className="line-clamp-2 flex-1 text-sm font-medium leading-snug">
+            {highlightMatches(ticket.title, normalizedQuery)}
+          </h3>
           {ticket.reporter && (
             <TicketReporterBadge reporter={ticket.reporter} variant="compact" size="size-4" />
           )}

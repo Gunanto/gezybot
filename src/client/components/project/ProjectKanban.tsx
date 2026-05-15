@@ -253,6 +253,7 @@ export function ProjectKanban({ projectId, onNewTicket }: ProjectKanbanProps) {
                 label={t(`projects.status.${status}`)}
                 tickets={byStatus[status]}
                 onTicketClick={handleTicketClick}
+                highlightQuery={normalizedQuery}
               />
             ))}
           </div>
