@@ -773,6 +773,8 @@ export async function getTicket(ticketId: string): Promise<Ticket | null> {
         id: tasks.id,
         parentKinId: tasks.parentKinId,
         parentKinName: kins.name,
+        parentKinAvatarPath: kins.avatarPath,
+        parentKinUpdatedAt: kins.updatedAt,
         status: tasks.status,
         mode: tasks.mode,
         kind: tasks.kind,
@@ -798,6 +800,9 @@ export async function getTicket(ticketId: string): Promise<Ticket | null> {
     id: t.id,
     parentKinId: t.parentKinId,
     parentKinName: t.parentKinName,
+    parentKinAvatarUrl: t.parentKinAvatarPath
+      ? `/api/uploads/kins/${t.parentKinId}/avatar.${t.parentKinAvatarPath.split('.').pop() ?? 'png'}?v=${toMillis(t.parentKinUpdatedAt)}`
+      : null,
     status: t.status as TicketTaskSummary['status'],
     mode: t.mode as TicketTaskSummary['mode'],
     kind: (t.kind as TicketTaskSummary['kind']) ?? 'execute',

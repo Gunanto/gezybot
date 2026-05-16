@@ -731,6 +731,9 @@ export interface TicketTaskSummary {
   id: string
   parentKinId: string
   parentKinName: string
+  /** Avatar URL of the parent Kin (so the side panel can display the right
+   *  avatar when opened from a ticket). Null if the Kin has no avatar. */
+  parentKinAvatarUrl: string | null
   status: TaskStatus
   mode: TaskMode
   /** Task variant. 'execute' is a regular ticket task; 'enrich' is a

@@ -9,7 +9,6 @@ import { TypingIndicator } from '@/client/components/chat/TypingIndicator'
 import { ConversationHeader } from '@/client/components/chat/ConversationHeader'
 import { ActiveProjectChip } from '@/client/components/project/ActiveProjectChip'
 import { ToolCallsViewer } from '@/client/components/chat/ToolCallsViewer'
-const MiniAppViewer = lazy(() => import('@/client/components/mini-app/MiniAppViewer').then(m => ({ default: m.MiniAppViewer })))
 import { TaskResultCard } from '@/client/components/chat/TaskResultCard'
 import { CompactingCard } from '@/client/components/chat/CompactingCard'
 import { HumanPromptCard } from '@/client/components/chat/HumanPromptCard'
@@ -1043,10 +1042,9 @@ export function ChatPanel({ kin, llmModels, modelUnavailable = false, queueState
           />
         </div>
 
-        {/* Mini-app side panel */}
-        <Suspense fallback={null}>
-          <MiniAppViewer />
-        </Suspense>
+        {/* Mini-app / task / ticket side panel is mounted at ChatPage level
+            so it works even when no Kin is selected (an empty Kins page can
+            still preview a task or open a mini-app from the sidebar). */}
       </div>
 
       {/* Queue preview */}

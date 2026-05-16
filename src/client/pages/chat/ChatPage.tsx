@@ -8,6 +8,7 @@ import { ChatPanel } from '@/client/components/chat/ChatPanel'
 
 // Lazy-load modals — not needed on initial render
 const KinFormModal = lazy(() => import('@/client/components/kin/KinFormModal').then(m => ({ default: m.KinFormModal })))
+const MiniAppViewer = lazy(() => import('@/client/components/mini-app/MiniAppViewer').then(m => ({ default: m.MiniAppViewer })))
 import { useKins } from '@/client/hooks/useKins'
 import { ConnectionBanner } from '@/client/components/common/ConnectionBanner'
 import { CommandPalette } from '@/client/components/common/CommandPalette'
@@ -38,6 +39,7 @@ export function ChatPage({ onOpenSettings, onOpenAccount }: ChatPageProps) {
     kins,
     llmModels,
     imageModels,
+    isLoading: kinsLoading,
     kinQueueState,
     getKin,
     createKin,
@@ -56,6 +58,25 @@ export function ChatPage({ onOpenSettings, onOpenAccount }: ChatPageProps) {
 
   // Derive selected kin from URL (/kin/:slug)
   const selectedKinSlug = location.pathname.match(/^\/kin\/([^/]+)/)?.[1] ?? null
+
+  // Persist the last selected kin so navigating away (Projects, etc.) and back
+  // doesn't drop the selection. Restored once on first visit to "/" when we
+  // have a stored slug matching an existing kin.
+  useEffect(() => {
+    if (selectedKinSlug) {
+      try { localStorage.setItem('kinbot:lastSelectedKinSlug', selectedKinSlug) } catch { /* ignore */ }
+    }
+  }, [selectedKinSlug])
+
+  useEffect(() => {
+    if (selectedKinSlug || kinsLoading || kins.length === 0) return
+    if (location.pathname !== '/') return
+    let stored: string | null = null
+    try { stored = localStorage.getItem('kinbot:lastSelectedKinSlug') } catch { /* ignore */ }
+    if (!stored) return
+    if (!kins.some((k) => k.slug === stored)) return
+    navigate(`/kin/${stored}`, { replace: true })
+  }, [selectedKinSlug, kinsLoading, kins, location.pathname, navigate])
 
   // Detect kins whose model is no longer served by any provider
   const unavailableKinIds = useMemo(() => {
@@ -97,6 +118,13 @@ export function ChatPage({ onOpenSettings, onOpenAccount }: ChatPageProps) {
   // Onboarding is complete when we have providers + hub + at least one specialist kin
   const specialistKinCount = useMemo(() => kins.filter((k) => !k.isHub).length, [kins])
   const onboardingComplete = llmModels.length > 0 && !!hubKinId && specialistKinCount > 0
+
+  // Suppress the onboarding checklist while initial data is still loading.
+  // Without this, the chat momentarily renders the checklist when arriving
+  // on "/" before kins/models have been fetched, then flips to the
+  // "Select a kin" placeholder once data lands. Showing nothing during
+  // load is much calmer than the flash.
+  const initialDataLoaded = !kinsLoading && (llmModels.length > 0 || kins.length > 0)
 
   // Create a Hub kin and auto-designate it
   const handleCreateHubKin = useCallback(async (data: Parameters<typeof createKin>[0]) => {
@@ -221,7 +249,8 @@ export function ChatPage({ onOpenSettings, onOpenAccount }: ChatPageProps) {
       />
 
       <SidebarInset className="min-h-0">
-        <div className="flex h-full min-h-0 flex-col">
+        <div className="flex h-full min-h-0">
+        <div className="flex h-full min-w-0 min-h-0 flex-1 flex-col">
           {/* Thin local bar — only hosts the SidebarTrigger which depends on
               SidebarProvider context (scoped to this page). Global actions
               (brand, SSE, palette, theme, notifications, user menu) live in
@@ -286,7 +315,11 @@ export function ChatPage({ onOpenSettings, onOpenAccount }: ChatPageProps) {
                   />
                 ) : (
                   <div className="surface-chat flex flex-1 flex-col items-center justify-center p-6">
-                    {!onboardingComplete ? (
+                    {!initialDataLoaded ? (
+                      /* Still loading kins/models — render nothing rather than
+                         flashing the onboarding checklist for a few hundred ms. */
+                      null
+                    ) : !onboardingComplete ? (
                       /* ── Onboarding not finished: show checklist ── */
                       <GettingStartedChecklist
                         specialistKinCount={specialistKinCount}
@@ -325,6 +358,13 @@ export function ChatPage({ onOpenSettings, onOpenAccount }: ChatPageProps) {
               }
             />
           </Routes>
+        </div>
+        {/* Side panel (task / ticket / mini-app) — mounted at page level so
+            it works even when no Kin is selected (selecting a task from the
+            sidebar still opens its detail view). */}
+        <Suspense fallback={null}>
+          <MiniAppViewer />
+        </Suspense>
         </div>
       </SidebarInset>
 

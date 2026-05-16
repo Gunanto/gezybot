@@ -79,6 +79,7 @@ export function TicketPanelContent({ ticketId }: TicketPanelContentProps) {
     openTask({
       taskId: task.id,
       kinName: task.parentKinName,
+      kinAvatarUrl: task.parentKinAvatarUrl,
       parent: { type: 'ticket', id: ticket!.id },
     })
   }
