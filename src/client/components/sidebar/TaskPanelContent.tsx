@@ -511,12 +511,16 @@ export function TaskPanelContent({
         )}
       </div>
 
+      {/* Plan banner — collapsed single-line by default, expandable in place
+          above the conversation so it never competes with the tool-calls
+          column for horizontal width. */}
+      {todos.length > 0 && (
+        <TaskTodoList todos={todos} />
+      )}
+
       {/* Middle: messages + optional tool calls panel */}
       <div className="flex min-h-0 flex-1">
         {/* Conversation */}
-        {todos.length > 0 && (
-          <TaskTodoList todos={todos} />
-        )}
         <div className="relative flex-1 min-h-0 overflow-y-auto py-3" ref={scrollContainerRef}>
           {isLoading && !task ? (
             <div className="flex items-center justify-center py-8">

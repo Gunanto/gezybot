@@ -928,7 +928,8 @@
   "taskDetail": {
     "todos": {
       "title": "Plan",
-      "progress": "{{completed}}/{{total}} faits"
+      "progress": "{{completed}}/{{total}} faits",
+      "toggle": "Afficher / masquer le plan complet"
     },
     "description": "Description",
     "mode": "Mode",

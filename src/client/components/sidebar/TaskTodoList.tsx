@@ -1,6 +1,6 @@
 import { memo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, ChevronRight, ChevronDown, Loader2, Square, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, Loader2, Square, X, ListChecks } from 'lucide-react'
 import { cn } from '@/client/lib/utils'
 import type { TaskTodo, TaskTodoStatus } from '@/shared/types'
 
@@ -35,42 +35,57 @@ function rowClasses(status: TaskTodoStatus): string {
 }
 
 /**
- * Renders the structured plan a sub-Kin maintains via the `task_todos` tool.
- * Header is always visible; details collapse so the list doesn't push the
- * message log off-screen on long plans.
+ * Compact banner the sub-Kin's `task_todos` plan: a single line by default
+ * showing `(done/total) <current step>`. Clicking expands into a full
+ * checklist in-place — no inner side panel — so it stays inside the task
+ * panel's existing horizontal real estate.
  */
 export const TaskTodoList = memo(function TaskTodoList({ todos }: TaskTodoListProps) {
   const { t } = useTranslation()
   const completed = todos.filter((t) => t.status === 'completed').length
   const inProgress = todos.find((t) => t.status === 'in_progress')
+  const fallback = todos.find((t) => t.status === 'pending') ?? todos[todos.length - 1]
+  const currentLine = inProgress ?? fallback
   const total = todos.length
-  const [expanded, setExpanded] = useState(true)
+  const [expanded, setExpanded] = useState(false)
+  const allDone = total > 0 && completed === total
 
   return (
     <section className="shrink-0 border-b border-border bg-muted/20">
       <button
         type="button"
         onClick={() => setExpanded((x) => !x)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-expanded={expanded}
+        aria-label={t('taskDetail.todos.toggle')}
       >
-        {expanded ? <ChevronDown className="size-3.5 text-muted-foreground" /> : <ChevronRight className="size-3.5 text-muted-foreground" />}
-        <span className="font-medium text-foreground">
-          {t('taskDetail.todos.title')}
+        <ListChecks className="size-3.5 shrink-0 text-muted-foreground" />
+        <span className="shrink-0 tabular-nums text-muted-foreground">
+          ({completed}/{total})
         </span>
-        <span className="text-muted-foreground">
-          {t('taskDetail.todos.progress', { completed, total })}
-        </span>
-        {inProgress && !expanded && (
-          <span className="ml-auto inline-flex items-center gap-1 text-primary truncate max-w-[60%]">
-            <Loader2 className="size-3 animate-spin shrink-0" />
-            <span className="truncate">{inProgress.subject}</span>
+        {currentLine ? (
+          <span className="flex flex-1 min-w-0 items-center gap-1.5">
+            {inProgress ? (
+              <Loader2 className="size-3 shrink-0 animate-spin text-primary" />
+            ) : allDone ? (
+              <Check className="size-3 shrink-0 text-success" />
+            ) : (
+              <Square className="size-3 shrink-0 text-muted-foreground" />
+            )}
+            <span className={cn('truncate', inProgress ? 'text-foreground' : 'text-muted-foreground')}>
+              {currentLine.subject}
+            </span>
           </span>
+        ) : (
+          <span className="flex-1" />
         )}
+        {expanded
+          ? <ChevronUp className="size-3.5 shrink-0 text-muted-foreground" />
+          : <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />}
       </button>
 
       {expanded && (
-        <ol className="px-3 pb-2 space-y-1">
+        <ol className="max-h-[40vh] overflow-y-auto px-3 pb-2 pt-0.5 space-y-1">
           {todos.map((todo) => (
             <li
               key={todo.id}
