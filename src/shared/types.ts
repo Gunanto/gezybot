@@ -639,6 +639,24 @@ export interface MessageTokenUsage {
   stepCount?: number
 }
 
+/** Task-level roll-up of every LLM call attributed to a task (call_site='task'
+ *  plus any side-channels like compacting that pass the taskId). Returned by
+ *  GET /api/tasks/:id and pushed live via the `task:token-usage` SSE event so
+ *  the task panel can surface a running total without polling.
+ *
+ *  The shape extends `MessageTokenUsage` so the existing `TokenUsageIndicator`
+ *  popover can render it without changes; `billableInputTokens` and
+ *  `callCount` are task-specific extras (the indicator ignores them when
+ *  unused). */
+export interface TaskTokenUsage extends MessageTokenUsage {
+  /** Provider-aware billable input equivalent (cache reads / writes weighted
+   *  by `PROVIDER_CACHE_MULTIPLIERS`). Mirrors what the dashboard surfaces. */
+  billableInputTokens: number
+  /** Number of `llm_usage` rows aggregated. Useful when the user wants to know
+   *  "how many LLM round-trips did this task make?". */
+  callCount: number
+}
+
 export interface UsageSummaryRow {
   group: string
   inputTokens: number

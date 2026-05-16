@@ -8,13 +8,21 @@ import {
   PopoverContent,
 } from '@/client/components/ui/popover'
 import { computeBillableInput, computeCacheHitRate, computeFreshInput, getCacheMultipliers } from '@/shared/billing'
-import type { MessageTokenUsage } from '@/shared/types'
+import type { MessageTokenUsage, TaskTokenUsage } from '@/shared/types'
 
 interface TokenUsageIndicatorProps {
-  tokenUsage: MessageTokenUsage
+  tokenUsage: MessageTokenUsage | TaskTokenUsage
   /** Provider type ("anthropic", "openai", ...) to pick the right cache
    *  multipliers. Falls back to Anthropic if absent. */
   providerType?: string | null
+  /** Optional popover title override. Defaults to "Billable equivalent" — the
+   *  task-level reading uses "Task total" instead so the user can tell apart a
+   *  per-message badge from the running task total when both surface in the
+   *  task panel. */
+  title?: string
+  /** Optional one-line hint under the popover title (e.g. "X LLM calls").
+   *  Skipped when absent. */
+  subtitle?: string
 }
 
 function formatTokenCount(n: number): string {
@@ -27,12 +35,18 @@ function formatPercent(ratio: number): string {
   return `${Math.round(ratio * 100)}%`
 }
 
-export const TokenUsageIndicator = memo(function TokenUsageIndicator({ tokenUsage, providerType }: TokenUsageIndicatorProps) {
+export const TokenUsageIndicator = memo(function TokenUsageIndicator({ tokenUsage, providerType, title, subtitle }: TokenUsageIndicatorProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
 
   const multipliers = getCacheMultipliers(providerType)
-  const billableInput = computeBillableInput(tokenUsage, providerType)
+  // Prefer the server-computed billable total when the caller passes a
+  // `TaskTokenUsage` (provider-aware across rows). Falls back to the local
+  // approximation for plain `MessageTokenUsage` (single message).
+  const serverBillable = (tokenUsage as Partial<TaskTokenUsage>).billableInputTokens
+  const billableInput = typeof serverBillable === 'number'
+    ? serverBillable
+    : computeBillableInput(tokenUsage, providerType)
   const fresh = computeFreshInput(tokenUsage)
   const cacheRead = tokenUsage.cacheReadTokens ?? 0
   const cacheWrite = tokenUsage.cacheWriteTokens ?? 0
@@ -72,8 +86,11 @@ export const TokenUsageIndicator = memo(function TokenUsageIndicator({ tokenUsag
           <div className="space-y-1">
             <div className="flex items-center gap-1.5 font-medium text-foreground">
               <Zap className="size-3 text-primary" />
-              {t('chat.tokenUsage.billableTitle', 'Billable equivalent')}
+              {title ?? t('chat.tokenUsage.billableTitle', 'Billable equivalent')}
             </div>
+            {subtitle && (
+              <div className="text-[10px] text-muted-foreground leading-snug">{subtitle}</div>
+            )}
             <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 tabular-nums">
               <span className="text-muted-foreground">{t('chat.tokenUsage.input')}</span>
               <span className="text-right font-semibold text-primary">≈ {formatTokenCount(billableInput)}</span>

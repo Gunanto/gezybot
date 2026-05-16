@@ -931,6 +931,11 @@
       "progress": "{{completed}}/{{total}} faits",
       "toggle": "Afficher / masquer le plan complet"
     },
+    "tokenUsage": {
+      "title": "Total de la tâche",
+      "callCount": "{{count}} appel LLM",
+      "callCount_other": "{{count}} appels LLM"
+    },
     "description": "Description",
     "mode": "Mode",
     "modeAwait": "Attente",

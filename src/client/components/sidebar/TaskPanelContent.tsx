@@ -6,6 +6,7 @@ import { Badge } from '@/client/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/client/components/ui/avatar'
 import { Popover, PopoverTrigger, PopoverContent } from '@/client/components/ui/popover'
 import { MessageBubble } from '@/client/components/chat/MessageBubble'
+import { TokenUsageIndicator } from '@/client/components/chat/TokenUsageIndicator'
 import { ToolCallsViewer } from '@/client/components/chat/ToolCallsViewer'
 import { TypingIndicator } from '@/client/components/chat/TypingIndicator'
 import { MarkdownContent } from '@/client/components/chat/MarkdownContent'
@@ -374,6 +375,23 @@ export function TaskPanelContent({
                 </TooltipTrigger>
                 <TooltipContent>{resolvedModel?.name ?? task.model}</TooltipContent>
               </Tooltip>
+            )}
+
+            {/* Token usage — running total for the task, live-updated via SSE.
+                Hidden until the first step records usage (the indicator itself
+                also guards against zeros, but skipping the render is cheaper
+                and avoids a flash for queued/just-spawned tasks). */}
+            {task.tokenUsage && (
+              <TokenUsageIndicator
+                tokenUsage={task.tokenUsage}
+                providerType={task.providerType ?? resolvedModel?.providerType ?? null}
+                title={t('taskDetail.tokenUsage.title', 'Task total')}
+                subtitle={t('taskDetail.tokenUsage.callCount', {
+                  defaultValue: '{{count}} LLM call',
+                  defaultValue_other: '{{count}} LLM calls',
+                  count: task.tokenUsage.callCount,
+                })}
+              />
             )}
 
             {/* Thinking effort */}

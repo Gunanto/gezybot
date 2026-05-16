@@ -811,6 +811,11 @@
     }
   },
   "taskDetail": {
+    "tokenUsage": {
+      "title": "Aufgabensumme",
+      "callCount": "{{count}} LLM-Aufruf",
+      "callCount_other": "{{count}} LLM-Aufrufe"
+    },
     "description": "Beschreibung",
     "mode": "Modus",
     "modeAwait": "Erwarten",

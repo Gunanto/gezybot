@@ -4,7 +4,7 @@ import { llmUsage } from '@/server/db/schema'
 import { and, eq, gte, lte, sql, desc } from 'drizzle-orm'
 import { createLogger } from '@/server/logger'
 import { PROVIDER_CACHE_MULTIPLIERS, DEFAULT_CACHE_MULTIPLIERS } from '@/shared/billing'
-import type { LlmUsageCallSite, LlmUsageCallType, MessageTokenUsage } from '@/shared/types'
+import type { LlmUsageCallSite, LlmUsageCallType, MessageTokenUsage, TaskTokenUsage } from '@/shared/types'
 
 /**
  * SQL fragment that computes the per-row billable-input-equivalent token
@@ -230,6 +230,52 @@ export function getUsageSummary(filters: UsageQueryFilters & { groupBy: UsageGro
     .all()
 
   return rows
+}
+
+// ─── Task roll-up ──────────────────────────────────────────────────────────
+
+/**
+ * Aggregate every `llm_usage` row attributed to a task into a single
+ * `TaskTokenUsage` roll-up. Returns null when the task has not produced any
+ * recorded usage yet (queued task, immediate cancel, etc.) so the UI can
+ * suppress the badge instead of rendering a row of zeros.
+ *
+ * Covers every `callSite` (not just `task`) — `compacting`, `memory-review`,
+ * `embedding`, etc. all flow through `recordUsage` and are tagged with the
+ * `taskId` whenever they run on behalf of a task, which is what the user
+ * wants in the "total task cost" reading.
+ */
+export function getTaskTotals(taskId: string): TaskTokenUsage | null {
+  const billable = buildBillableInputSql()
+  const [row] = db
+    .select({
+      inputTokens: sql<number>`COALESCE(SUM(${llmUsage.inputTokens}), 0)`,
+      outputTokens: sql<number>`COALESCE(SUM(${llmUsage.outputTokens}), 0)`,
+      totalTokens: sql<number>`COALESCE(SUM(${llmUsage.totalTokens}), 0)`,
+      cacheReadTokens: sql<number>`COALESCE(SUM(${llmUsage.cacheReadTokens}), 0)`,
+      cacheWriteTokens: sql<number>`COALESCE(SUM(${llmUsage.cacheWriteTokens}), 0)`,
+      reasoningTokens: sql<number>`COALESCE(SUM(${llmUsage.reasoningTokens}), 0)`,
+      billableInputTokens: sql<number>`COALESCE(ROUND(SUM(${billable})), 0)`,
+      stepCount: sql<number>`COALESCE(SUM(${llmUsage.stepCount}), 0)`,
+      callCount: sql<number>`COUNT(*)`,
+    })
+    .from(llmUsage)
+    .where(eq(llmUsage.taskId, taskId))
+    .all()
+
+  if (!row || row.callCount === 0) return null
+
+  return {
+    inputTokens: row.inputTokens,
+    outputTokens: row.outputTokens,
+    totalTokens: row.totalTokens,
+    ...(row.cacheReadTokens > 0 ? { cacheReadTokens: row.cacheReadTokens } : {}),
+    ...(row.cacheWriteTokens > 0 ? { cacheWriteTokens: row.cacheWriteTokens } : {}),
+    ...(row.reasoningTokens > 0 ? { reasoningTokens: row.reasoningTokens } : {}),
+    stepCount: row.stepCount,
+    billableInputTokens: row.billableInputTokens,
+    callCount: row.callCount,
+  }
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

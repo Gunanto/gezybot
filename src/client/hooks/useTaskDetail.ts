@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { api } from '@/client/lib/api'
 import { useSSE } from '@/client/hooks/useSSE'
 import { getToolDomain as lookupToolDomain } from '@/client/lib/tool-domain-lookup'
-import type { TaskStatus, ToolCallEntry, ToolDomain, MessageTokenUsage, KinThinkingEffort, TaskTodo } from '@/shared/types'
+import type { TaskStatus, ToolCallEntry, ToolDomain, MessageTokenUsage, KinThinkingEffort, TaskTodo, TaskTokenUsage } from '@/shared/types'
 import type { ToolCallViewItem, ToolCallStatus } from '@/client/hooks/useToolCalls'
 
 interface TaskDetail {
@@ -13,6 +13,10 @@ interface TaskDetail {
   status: TaskStatus
   mode: string
   model: string | null
+  /** Provider family ("anthropic", "openai", ...) resolved server-side from
+   *  the effective model. Used by `TokenUsageIndicator` to apply the correct
+   *  cache multipliers in the popover breakdown. */
+  providerType?: string | null
   thinkingEnabled?: boolean
   thinkingEffort?: KinThinkingEffort | null
   depth: number
@@ -25,6 +29,10 @@ interface TaskDetail {
    *  Surfaced in the task panel so the user can audit what scope this run
    *  was given, distinct from the ticket description itself. */
   runPrompt?: string | null
+  /** Roll-up of every LLM call billed to this task. Null until the first step
+   *  records usage. Pushed live via `task:token-usage` SSE so the running
+   *  counter updates without polling. */
+  tokenUsage?: TaskTokenUsage | null
   createdAt: string
   updatedAt: string
 }
@@ -426,6 +434,12 @@ export function useTaskDetail(taskId: string | null) {
         setStreamingToolCalls([])
         fetchDetail()
       }
+    },
+    'task:token-usage': (data) => {
+      if (data.taskId !== taskId) return
+      const next = data.tokenUsage as TaskTokenUsage | null | undefined
+      if (!next) return
+      setTask((prev) => (prev ? { ...prev, tokenUsage: next } : prev))
     },
     'task:done': (data) => {
       if (data.taskId !== taskId) return

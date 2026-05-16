@@ -6,6 +6,8 @@ import { getTask, listTasksPaginated, cancelTask, forcePromoteTask, pauseTask, r
 import { resolveThinkingConfig } from '@/server/services/kin-engine'
 import { fetchCronLearningsByTask } from '@/server/services/cron-learnings'
 import { getTodosForTask } from '@/server/services/task-todos'
+import { getTaskTotals } from '@/server/services/token-usage'
+import { guessProviderType } from '@/shared/model-ref'
 import type { AppVariables } from '@/server/app'
 import type { TaskStatus } from '@/shared/types'
 import { createLogger } from '@/server/logger'
@@ -117,6 +119,11 @@ taskRoutes.get('/:id', async (c) => {
   // with the offsets emitted via SSE.
   const snapshot = getActiveTaskSnapshot(taskId)
 
+  // Roll-up of every LLM call attributed to this task so the panel can show a
+  // running total without polling. Null when nothing has been recorded yet.
+  const tokenUsage = getTaskTotals(taskId)
+  const providerType = effectiveModel ? guessProviderType(effectiveModel) : null
+
   return c.json({
     task: {
       id: task.id,
@@ -126,6 +133,7 @@ taskRoutes.get('/:id', async (c) => {
       status: task.status,
       mode: task.mode,
       model: effectiveModel,
+      providerType,
       thinkingEnabled: effectiveThinking.enabled === true,
       thinkingEffort: effectiveThinking.effort ?? null,
       depth: task.depth,
@@ -135,6 +143,7 @@ taskRoutes.get('/:id', async (c) => {
       concurrencyMax: task.concurrencyMax ?? null,
       cronId: task.cronId ?? null,
       runPrompt: task.runPrompt ?? null,
+      tokenUsage,
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
     },

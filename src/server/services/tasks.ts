@@ -20,7 +20,7 @@ import { config } from '@/server/config'
 import { getGlobalPrompt } from '@/server/services/app-settings'
 import { wrapToolsWithSpill } from '@/server/services/tool-output-spill'
 import { executeToolBatch } from '@/server/services/tool-executor'
-import { recordUsage, aggregateStepUsage } from '@/server/services/token-usage'
+import { recordUsage, aggregateStepUsage, getTaskTotals } from '@/server/services/token-usage'
 import { runStreamStep } from '@/server/services/stream-runner'
 import type { TaskStatus, TaskMode, KinToolConfig, KinThinkingConfig } from '@/shared/types'
 import { guessProviderType } from '@/shared/model-ref'
@@ -1156,6 +1156,18 @@ async function executeSubKin(taskId: string, isNudge = false) {
         },
         stepCount: stepResults.length,
       })
+
+      // Push the fresh task-level total over SSE so the panel can update its
+      // running counter without polling. Read AFTER recordUsage so the new row
+      // is included in the roll-up.
+      const totals = getTaskTotals(taskId)
+      if (totals) {
+        sseManager.sendToKin(task.parentKinId, {
+          type: 'task:token-usage',
+          kinId: task.parentKinId,
+          data: { taskId, tokenUsage: totals },
+        })
+      }
     }
 
     // If the stream was aborted (cancel/pause), persist partial content and stop
