@@ -49,9 +49,11 @@ export const spawnSelfTool: ToolRegistration = {
           .describe('Max concurrent tasks in this group. Required if concurrency_group is set. Default: 1'),
         thinking: z.boolean().optional()
           .describe('Enable extended thinking/reasoning for this task. Omit to inherit from parent Kin config.'),
+        tool_preset: z.enum(['code', 'research', 'ops', 'all']).optional()
+          .describe('Override the auto-picked sub-Kin tool surface. Omit to default (ticket → "code", else full). "code" = file ops + project/ticket + web docs (default for ticket sub-Kins). "research" = web + history + memory. "ops" = secrets + http_request. "all" = full surface (no filtering).'),
       }),
-      execute: async ({ title, task_description, mode, model, provider_id, allow_human_prompt, concurrency_group, concurrency_max, thinking }) => {
-        log.debug({ kinId: ctx.kinId, mode, spawnType: 'self' }, 'Task spawn requested (spawn_self)')
+      execute: async ({ title, task_description, mode, model, provider_id, allow_human_prompt, concurrency_group, concurrency_max, thinking, tool_preset }) => {
+        log.debug({ kinId: ctx.kinId, mode, spawnType: 'self', preset: tool_preset }, 'Task spawn requested (spawn_self)')
         const { taskId, queued } = await spawnTask({
           parentKinId: ctx.kinId,
           title,
@@ -67,6 +69,7 @@ export const spawnSelfTool: ToolRegistration = {
           concurrencyGroup: concurrency_group,
           concurrencyMax: concurrency_max ?? (concurrency_group ? 1 : undefined),
           thinkingConfig: thinking !== undefined ? { enabled: thinking } : undefined,
+          toolPreset: tool_preset,
         })
         return { taskId, status: queued ? 'queued' : 'pending' }
       },
@@ -103,13 +106,15 @@ export const spawnKinTool: ToolRegistration = {
           .describe('Max concurrent tasks in this group. Required if concurrency_group is set. Default: 1'),
         thinking: z.boolean().optional()
           .describe('Enable extended thinking/reasoning for this task. Omit to inherit from parent Kin config.'),
+        tool_preset: z.enum(['code', 'research', 'ops', 'all']).optional()
+          .describe('Override the auto-picked sub-Kin tool surface. Omit to default (ticket → "code", else full). See spawn_self for preset descriptions.'),
       }),
-      execute: async ({ kin_slug, title, task_description, mode, model, provider_id, allow_human_prompt, concurrency_group, concurrency_max, thinking }) => {
+      execute: async ({ kin_slug, title, task_description, mode, model, provider_id, allow_human_prompt, concurrency_group, concurrency_max, thinking, tool_preset }) => {
         const kinId = resolveKinId(kin_slug)
         if (!kinId) {
           return { error: `Kin not found for slug "${kin_slug}"` }
         }
-        log.debug({ kinId: ctx.kinId, targetKinId: kinId, mode, spawnType: 'other' }, 'Task spawn requested (spawn_kin)')
+        log.debug({ kinId: ctx.kinId, targetKinId: kinId, mode, spawnType: 'other', preset: tool_preset }, 'Task spawn requested (spawn_kin)')
         const { taskId, queued } = await spawnTask({
           parentKinId: ctx.kinId,
           title,
@@ -126,6 +131,7 @@ export const spawnKinTool: ToolRegistration = {
           concurrencyGroup: concurrency_group,
           concurrencyMax: concurrency_max ?? (concurrency_group ? 1 : undefined),
           thinkingConfig: thinking !== undefined ? { enabled: thinking } : undefined,
+          toolPreset: tool_preset,
         })
         return { taskId, status: queued ? 'queued' : 'pending' }
       },

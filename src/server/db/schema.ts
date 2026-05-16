@@ -303,6 +303,10 @@ export const tasks = sqliteTable('tasks', {
   ticketId: text('ticket_id').references((): AnySQLiteColumn => tickets.id, { onDelete: 'set null' }),
   allowHumanPrompt: integer('allow_human_prompt', { mode: 'boolean' }).notNull().default(true),
   thinkingConfig: text('thinking_config'), // JSON: KinThinkingConfig — overrides parent Kin if set
+  /** Optional sub-Kin tool preset. When set, overrides the auto-picker
+   *  (defaultPresetForTask). 'all' explicitly disables filtering. Null
+   *  falls back to the auto-picker behaviour (ticket → code, else full). */
+  toolPreset: text('tool_preset'), // 'code' | 'research' | 'ops' | 'all' | null
   concurrencyGroup: text('concurrency_group'),
   concurrencyMax: integer('concurrency_max'),
   queuedAt: integer('queued_at', { mode: 'timestamp_ms' }),

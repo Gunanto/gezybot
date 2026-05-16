@@ -293,6 +293,10 @@ interface SpawnParams {
   thinkingConfig?: KinThinkingConfig
   concurrencyGroup?: string
   concurrencyMax?: number
+  /** Optional sub-Kin tool preset override. When set, replaces the
+   *  auto-picked preset (ticket → 'code', else full surface). Use 'all' to
+   *  explicitly disable filtering on a ticket task. */
+  toolPreset?: 'code' | 'research' | 'ops' | 'all'
 }
 
 export async function spawnTask(params: SpawnParams) {
@@ -354,6 +358,7 @@ export async function spawnTask(params: SpawnParams) {
     ticketId: params.ticketId ?? null,
     allowHumanPrompt: params.allowHumanPrompt ?? true,
     thinkingConfig: params.thinkingConfig ? JSON.stringify(params.thinkingConfig) : null,
+    toolPreset: params.toolPreset ?? null,
     concurrencyGroup,
     concurrencyMax,
     queuedAt: initialStatus === 'queued' ? now : null,
@@ -584,12 +589,13 @@ async function executeSubKin(taskId: string, isNudge = false) {
     const customToolDefs = await resolveCustomTools(kinIdentity.id)
 
     // Right-size the native-tool surface via a preset (mandatory core +
-    // task-flavored extras). Ticket tasks default to `code`. Cron/spawn
-    // tasks keep the full surface for now (`undefined` → backward-compat).
-    // MCP and per-Kin custom tools are intentionally excluded from the
-    // preset filter — those have already been curated at the Kin level.
+    // task-flavored extras). Explicit `toolPreset` on the task row wins;
+    // otherwise the auto-picker (ticket → 'code', else full surface) takes
+    // over. MCP and per-Kin custom tools are intentionally excluded from
+    // the preset filter — those have already been curated at the Kin level.
     const { applyPreset, defaultPresetForTask } = await import('@/server/services/tool-presets')
-    const preset = defaultPresetForTask({
+    const explicitPreset = task.toolPreset as 'code' | 'research' | 'ops' | 'all' | null
+    const preset = explicitPreset ?? defaultPresetForTask({
       ticketId: task.ticketId ?? null,
       cronId: task.cronId ?? null,
     })
