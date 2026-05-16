@@ -764,30 +764,73 @@ export async function buildTaskContextPreview(taskId: string): Promise<ContextPr
     if (sourceKin) kinIdentity = sourceKin
   }
 
-  const globalPrompt = await getGlobalPrompt()
-  const kinDirectory = (await listAvailableKins(kinIdentity.id)).map((k) => ({
+  // Mirror executeSubKin: prefer the spawn-time prompt-context snapshot so the
+  // visualizer renders exactly what the sub-Kin actually sees (frozen identity,
+  // frozen globalPrompt, frozen kinDirectory, frozen cron context). Legacy
+  // tasks without a snapshot fall back to live DB reads.
+  let promptSnapshot: import('@/server/services/tasks').TaskPromptContextSnapshot | null = null
+  if (task.promptContextSnapshot) {
+    try {
+      promptSnapshot = JSON.parse(task.promptContextSnapshot) as import('@/server/services/tasks').TaskPromptContextSnapshot
+    } catch {
+      // Corrupt snapshot — fall through to live reads
+    }
+  }
+  if (promptSnapshot) {
+    kinIdentity = { ...kinIdentity, ...promptSnapshot.kin }
+  }
+
+  const globalPrompt = promptSnapshot?.globalPrompt !== undefined
+    ? promptSnapshot.globalPrompt
+    : await getGlobalPrompt()
+
+  const kinDirectory = (promptSnapshot?.kinDirectory ?? (await listAvailableKins(kinIdentity.id))).map((k) => ({
     slug: k.slug,
     name: k.name,
     role: k.role,
   }))
 
   const previousCronRuns = task.cronId
-    ? await fetchPreviousCronRuns(task.cronId, 5)
+    ? (promptSnapshot?.previousCronRuns
+        ? promptSnapshot.previousCronRuns.map((r) => ({
+            status: r.status,
+            result: r.result,
+            createdAt: new Date(r.createdAt),
+            updatedAt: new Date(r.updatedAt),
+          }))
+        : await fetchPreviousCronRuns(task.cronId, 5))
     : undefined
 
   const cronLearningsData = task.cronId
-    ? fetchCronLearnings(task.cronId)
+    ? (promptSnapshot?.cronLearnings
+        ? promptSnapshot.cronLearnings.map((l) => ({
+            id: l.id,
+            content: l.content,
+            category: l.category,
+            createdAt: new Date(l.createdAt),
+          }))
+        : fetchCronLearnings(task.cronId))
     : undefined
 
-  // Ticket assignment context — mirror executeSubKin so the visualizer shows
-  // the same `## Ticket assignment` block the sub-Kin actually receives
-  // (project context, ticket description, tags, and chronological comments).
-  let ticketAssignment = null
+  // Ticket assignment context — mirror executeSubKin: prefer the spawn-time
+  // snapshot so the visualizer shows exactly what the sub-Kin is actually
+  // seeing (frozen for cache stability), and fall back to a live fetch for
+  // legacy ticket tasks without a snapshot.
+  let ticketAssignment: import('@/server/services/prompt-builder').TicketAssignmentInfo | null = null
   if (task.ticketId) {
-    const { buildTicketAssignmentInfo } = await import('@/server/services/tickets')
-    ticketAssignment = await buildTicketAssignmentInfo(task.ticketId, {
-      runPrompt: task.runPrompt ?? null,
-    })
+    if (task.ticketAssignmentSnapshot) {
+      try {
+        ticketAssignment = JSON.parse(task.ticketAssignmentSnapshot) as import('@/server/services/prompt-builder').TicketAssignmentInfo
+      } catch {
+        // Corrupt snapshot — fall through to live fetch
+      }
+    }
+    if (!ticketAssignment) {
+      const { buildTicketAssignmentInfo } = await import('@/server/services/tickets')
+      ticketAssignment = await buildTicketAssignmentInfo(task.ticketId, {
+        runPrompt: task.runPrompt ?? null,
+      })
+    }
   }
 
   const systemPrompt = joinSystemPrompt(buildSystemPrompt({

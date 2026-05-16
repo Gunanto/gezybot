@@ -306,6 +306,107 @@ interface SpawnParams {
   skipExecute?: boolean
 }
 
+/**
+ * Frozen-at-spawn snapshot of every piece of stable prompt context for a task.
+ * Together with `tasks.ticket_assignment_snapshot`, this captures *all* the
+ * sources of the sub-Kin's stable system prefix so that re-entries (request_input
+ * replies, sub-sub-task completions, human_prompt answers, parent replies,
+ * nudges) reuse a byte-identical prefix → the Anthropic prompt cache stays
+ * warm across the entire lifetime of the task. External DB edits made during
+ * execution (renaming the Kin, editing its character, adding cron learnings,
+ * tweaking the global prompt, registering a new Kin) deliberately do NOT reach
+ * a running task — they will only take effect on subsequent spawns.
+ *
+ * Dates are serialized as ISO strings so the JSON survives a round-trip through
+ * the TEXT column; readers convert them back to `Date` where the prompt-builder
+ * expects them.
+ */
+export interface TaskPromptContextSnapshot {
+  kin: {
+    name: string
+    slug: string | null
+    role: string
+    character: string
+    expertise: string
+    workspacePath: string
+    model: string
+    providerId: string | null
+    thinkingConfig: string | null
+    toolConfig: string | null
+  }
+  globalPrompt: string | null
+  kinDirectory: Array<{ id: string; slug: string | null; name: string; role: string }>
+  previousCronRuns?: Array<{
+    status: string
+    result: string | null
+    createdAt: string
+    updatedAt: string
+  }>
+  cronLearnings?: Array<{
+    id: string
+    content: string
+    category: string | null
+    createdAt: string
+  }>
+}
+
+/** Build the prompt-context snapshot at spawn time. Resolves the identity Kin
+ *  using the same rule as `executeSubKin` (parent unless `spawn_type='other'`
+ *  with a `sourceKinId`). Throws if the identity Kin is missing. */
+async function captureTaskPromptContextSnapshot(params: {
+  parentKinId: string
+  sourceKinId?: string | null
+  spawnType: 'self' | 'other'
+  cronId?: string | null
+}): Promise<TaskPromptContextSnapshot> {
+  const identityKinId = params.spawnType === 'other' && params.sourceKinId
+    ? params.sourceKinId
+    : params.parentKinId
+  const identityKin = await db.select().from(kins).where(eq(kins.id, identityKinId)).get()
+  if (!identityKin) throw new Error('IDENTITY_KIN_NOT_FOUND')
+
+  const [globalPrompt, kinDirectory] = await Promise.all([
+    getGlobalPrompt(),
+    (await import('@/server/services/inter-kin')).listAvailableKins(identityKin.id),
+  ])
+
+  const snapshot: TaskPromptContextSnapshot = {
+    kin: {
+      name: identityKin.name,
+      slug: identityKin.slug,
+      role: identityKin.role,
+      character: identityKin.character,
+      expertise: identityKin.expertise,
+      workspacePath: identityKin.workspacePath,
+      model: identityKin.model,
+      providerId: identityKin.providerId,
+      thinkingConfig: identityKin.thinkingConfig,
+      toolConfig: identityKin.toolConfig,
+    },
+    globalPrompt,
+    kinDirectory,
+  }
+
+  if (params.cronId) {
+    const runs = await fetchPreviousCronRuns(params.cronId, 5)
+    snapshot.previousCronRuns = runs.map((r) => ({
+      status: r.status,
+      result: r.result,
+      createdAt: r.createdAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
+    }))
+    const learnings = (await import('@/server/services/cron-learnings')).fetchCronLearnings(params.cronId)
+    snapshot.cronLearnings = learnings.map((l) => ({
+      id: l.id,
+      content: l.content,
+      category: l.category,
+      createdAt: l.createdAt.toISOString(),
+    }))
+  }
+
+  return snapshot
+}
+
 export async function spawnTask(params: SpawnParams) {
   const depth = params.depth ?? 1
 
@@ -345,6 +446,38 @@ export async function spawnTask(params: SpawnParams) {
     throw new Error('TICKET_TASK_REQUIRES_AWAIT')
   }
 
+  // Freeze the ticket assignment context at spawn time so the sub-Kin's stable
+  // system prefix doesn't change for the lifetime of this task. Without the
+  // freeze, every re-entry (request_input reply, sub-sub-task completion,
+  // human_prompt answer, nudge) rebuilt the block live — and any change to
+  // ticket fields, tags, or comments invalidated the Anthropic prompt cache,
+  // forcing a full prefix recompute on each re-entry.
+  let ticketAssignmentSnapshot: string | null = null
+  if (params.ticketId) {
+    const { buildTicketAssignmentInfo } = await import('@/server/services/tickets')
+    // Pass the spawn-time runPrompt so the per-run sur-prompt block is baked
+    // into the frozen snapshot. Without this, the sub-Kin would see the run
+    // prompt only on the first turn (via the live-fetch path that no longer
+    // runs once the snapshot is present).
+    const info = await buildTicketAssignmentInfo(params.ticketId, {
+      runPrompt: params.runPrompt ?? null,
+    })
+    if (info) ticketAssignmentSnapshot = JSON.stringify(info)
+  }
+
+  // Freeze the rest of the stable system context (Kin identity, global prompt,
+  // Kin directory, cron context). Same motivation as the ticket snapshot above:
+  // make the sub-Kin's stable prefix byte-identical across re-entries so the
+  // Anthropic prompt cache survives.
+  const promptContextSnapshot = JSON.stringify(
+    await captureTaskPromptContextSnapshot({
+      parentKinId: params.parentKinId,
+      sourceKinId: params.sourceKinId ?? null,
+      spawnType: params.spawnType,
+      cronId: params.cronId ?? null,
+    }),
+  )
+
   await db.insert(tasks).values({
     id: taskId,
     parentKinId: params.parentKinId,
@@ -363,6 +496,8 @@ export async function spawnTask(params: SpawnParams) {
     channelOriginId: params.channelOriginId ?? null,
     webhookId: params.webhookId ?? null,
     ticketId: params.ticketId ?? null,
+    ticketAssignmentSnapshot,
+    promptContextSnapshot,
     allowHumanPrompt: params.allowHumanPrompt ?? true,
     thinkingConfig: params.thinkingConfig ? JSON.stringify(params.thinkingConfig) : null,
     toolPreset: params.toolPreset ?? null,
@@ -441,11 +576,32 @@ async function executeSubKin(taskId: string, isNudge = false) {
   const parentKin = await db.select().from(kins).where(eq(kins.id, task.parentKinId)).get()
   if (!parentKin) return
 
-  // Determine which Kin's identity to use
+  // Determine which Kin's identity to use. The DB row gives us the still-live
+  // fields we need outside the prompt (id, avatarPath/updatedAt for SSE). The
+  // prompt-affecting fields are overlaid from the frozen snapshot below so
+  // mid-task edits to the Kin don't reach a running task.
   let kinIdentity = parentKin
   if (task.spawnType === 'other' && task.sourceKinId) {
     const sourceKin = await db.select().from(kins).where(eq(kins.id, task.sourceKinId)).get()
     if (sourceKin) kinIdentity = sourceKin
+  }
+
+  // Parse the spawn-time prompt-context snapshot. Legacy tasks (rows created
+  // before this column existed) carry no snapshot and fall back to live DB
+  // reads — those will keep behaving as before until they finish.
+  let promptSnapshot: TaskPromptContextSnapshot | null = null
+  if (task.promptContextSnapshot) {
+    try {
+      promptSnapshot = JSON.parse(task.promptContextSnapshot) as TaskPromptContextSnapshot
+    } catch (err) {
+      log.warn({ taskId, err }, 'Failed to parse prompt_context_snapshot — falling back to live reads')
+    }
+  }
+  if (promptSnapshot) {
+    // Overlay frozen identity fields onto the live row. Spread keeps the live
+    // id, avatarPath, updatedAt (used for SSE) while the prompt-facing and
+    // model-selection fields come from the snapshot.
+    kinIdentity = { ...kinIdentity, ...promptSnapshot.kin }
   }
 
   // Update status to in_progress
@@ -468,30 +624,58 @@ async function executeSubKin(taskId: string, isNudge = false) {
   })
 
   try {
-    // Fetch previous cron runs for journal continuity
+    // Cron context — prefer the frozen snapshot, fall back to live for legacy
+    // tasks. We revive ISO timestamp strings back into Date objects because
+    // `buildSystemPrompt`/`buildTaskTodosBlock` expect real Date values.
     const previousCronRuns = task.cronId
-      ? await fetchPreviousCronRuns(task.cronId, 5)
+      ? (promptSnapshot?.previousCronRuns
+          ? promptSnapshot.previousCronRuns.map((r) => ({
+              status: r.status,
+              result: r.result,
+              createdAt: new Date(r.createdAt),
+              updatedAt: new Date(r.updatedAt),
+            }))
+          : await fetchPreviousCronRuns(task.cronId, 5))
       : undefined
 
-    // Fetch accumulated cron learnings
     const cronLearnings = task.cronId
-      ? (await import('@/server/services/cron-learnings')).fetchCronLearnings(task.cronId)
+      ? (promptSnapshot?.cronLearnings
+          ? promptSnapshot.cronLearnings.map((l) => ({
+              id: l.id,
+              content: l.content,
+              category: l.category,
+              createdAt: new Date(l.createdAt),
+            }))
+          : (await import('@/server/services/cron-learnings')).fetchCronLearnings(task.cronId))
       : undefined
 
-    // Build sub-Kin system prompt
-    const globalPrompt = await getGlobalPrompt()
-    const { listAvailableKins } = await import('@/server/services/inter-kin')
-    const kinDirectory = await listAvailableKins(kinIdentity.id)
+    // Global prompt + Kin directory — frozen snapshot or live fallback.
+    const globalPrompt = promptSnapshot?.globalPrompt !== undefined
+      ? promptSnapshot.globalPrompt
+      : await getGlobalPrompt()
+    const kinDirectory = promptSnapshot?.kinDirectory
+      ? promptSnapshot.kinDirectory
+      : await (await import('@/server/services/inter-kin')).listAvailableKins(kinIdentity.id)
 
-    // Ticket assignment context — only when the task is linked to a ticket.
-    // Looked up at prompt-build time so the sub-Kin sees the current ticket state
-    // (not a frozen snapshot from spawn).
-    let ticketAssignment = null
+    // Ticket assignment context — read the snapshot frozen at spawn time so
+    // the sub-Kin's stable system prefix doesn't change across re-entries
+    // (which would bust the Anthropic prompt cache). Legacy ticket tasks
+    // without a snapshot fall back to a live fetch.
+    let ticketAssignment: import('@/server/services/prompt-builder').TicketAssignmentInfo | null = null
     if (task.ticketId) {
-      const { buildTicketAssignmentInfo } = await import('@/server/services/tickets')
-      ticketAssignment = await buildTicketAssignmentInfo(task.ticketId, {
-        runPrompt: task.runPrompt ?? null,
-      })
+      if (task.ticketAssignmentSnapshot) {
+        try {
+          ticketAssignment = JSON.parse(task.ticketAssignmentSnapshot) as import('@/server/services/prompt-builder').TicketAssignmentInfo
+        } catch (err) {
+          log.warn({ taskId, err }, 'Failed to parse ticket_assignment_snapshot — falling back to live fetch')
+        }
+      }
+      if (!ticketAssignment) {
+        const { buildTicketAssignmentInfo } = await import('@/server/services/tickets')
+        ticketAssignment = await buildTicketAssignmentInfo(task.ticketId, {
+          runPrompt: task.runPrompt ?? null,
+        })
+      }
     }
 
     const { getTodosForTask } = await import('@/server/services/task-todos')

@@ -301,6 +301,24 @@ export const tasks = sqliteTable('tasks', {
   channelOriginId: text('channel_origin_id'),
   webhookId: text('webhook_id').references(() => webhooks.id, { onDelete: 'set null' }),
   ticketId: text('ticket_id').references((): AnySQLiteColumn => tickets.id, { onDelete: 'set null' }),
+  /** Frozen JSON snapshot of `TicketAssignmentInfo` captured at spawn time.
+   *  Used to keep the sub-Kin's system prompt stable for the lifetime of the
+   *  task — external changes to the ticket (new comments, status flips, tag
+   *  edits) won't invalidate the Anthropic prompt cache mid-execution. Null
+   *  for non-ticket tasks and for legacy ticket tasks spawned before this
+   *  column existed (those fall back to a live fetch). */
+  ticketAssignmentSnapshot: text('ticket_assignment_snapshot'),
+  /** Frozen JSON snapshot of the rest of the prompt context captured at spawn
+   *  time: Kin identity (name/slug/role/character/expertise/workspacePath +
+   *  model/provider/thinkingConfig/toolConfig), global platform prompt, Kin
+   *  directory, and cron context (previous runs + accumulated learnings) when
+   *  the task is cron-bound. Together with `ticketAssignmentSnapshot` this
+   *  freezes the entire stable system prefix for the task's lifetime, so the
+   *  Anthropic prompt cache survives all re-entries (request_input replies,
+   *  sub-sub-task completions, human-prompt answers, nudges, parent replies).
+   *  The shape is `TaskPromptContextSnapshot` in services/tasks.ts. Null on
+   *  legacy tasks → callers fall back to live DB reads. */
+  promptContextSnapshot: text('prompt_context_snapshot'),
   allowHumanPrompt: integer('allow_human_prompt', { mode: 'boolean' }).notNull().default(true),
   thinkingConfig: text('thinking_config'), // JSON: KinThinkingConfig — overrides parent Kin if set
   /** Optional sub-Kin tool preset. When set, overrides the auto-picker
