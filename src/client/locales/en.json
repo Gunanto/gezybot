@@ -926,6 +926,10 @@
     }
   },
   "taskDetail": {
+    "todos": {
+      "title": "Plan",
+      "progress": "{{completed}}/{{total}} done"
+    },
     "description": "Description",
     "mode": "Mode",
     "modeAwait": "Await",

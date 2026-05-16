@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { api } from '@/client/lib/api'
 import { useSSE } from '@/client/hooks/useSSE'
 import { TOOL_DOMAIN_MAP } from '@/shared/constants'
-import type { TaskStatus, ToolCallEntry, ToolDomain, MessageTokenUsage, KinThinkingEffort } from '@/shared/types'
+import type { TaskStatus, ToolCallEntry, ToolDomain, MessageTokenUsage, KinThinkingEffort, TaskTodo } from '@/shared/types'
 import type { ToolCallViewItem, ToolCallStatus } from '@/client/hooks/useToolCalls'
 
 interface TaskDetail {
@@ -50,6 +50,7 @@ interface TaskDetailResponse {
   messages: TaskMessage[]
   streamingMessageId: string | null
   learningsSaved: LearningEntry[]
+  todos: TaskTodo[]
 }
 
 const STREAMING_BATCH_MS = 50
@@ -73,6 +74,7 @@ export function useTaskDetail(taskId: string | null) {
   const [task, setTask] = useState<TaskDetail | null>(null)
   const [messages, setMessages] = useState<TaskMessage[]>([])
   const [learningsSaved, setLearningsSaved] = useState<LearningEntry[]>([])
+  const [todos, setTodos] = useState<TaskTodo[]>([])
   const messagesRef = useRef<TaskMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
 
@@ -138,6 +140,7 @@ export function useTaskDetail(taskId: string | null) {
       const data = await api.get<TaskDetailResponse>(`/tasks/${taskId}`)
       setTask(data.task)
       setLearningsSaved(data.learningsSaved ?? [])
+      setTodos(data.todos ?? [])
       // Smart merge: preserve object references for unchanged messages to
       // avoid unnecessary re-renders (same pattern as useChat.fetchMessages)
       // Smart merge: preserve object references for unchanged messages
@@ -374,10 +377,16 @@ export function useTaskDetail(taskId: string | null) {
   // SSE handlers
   useSSE({
     // Task lifecycle events
+    'task:todos': (data) => {
+      if (data.taskId !== taskId) return
+      const next = Array.isArray(data.todos) ? (data.todos as TaskTodo[]) : []
+      setTodos(next)
+    },
     'task:deleted': (data) => {
       if (data.taskId !== taskId) return
       setTask(null)
       setMessages([])
+      setTodos([])
       setIsStreaming(false)
       setStreamingMessage(null)
       setStreamingReasoning('')
@@ -630,5 +639,6 @@ export function useTaskDetail(taskId: string | null) {
     toolCallCount: allToolCalls.length,
     toolCallsByMessage,
     learningsSaved,
+    todos,
   }
 }

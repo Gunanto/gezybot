@@ -79,6 +79,15 @@ export type TaskStatus = 'queued' | 'pending' | 'in_progress' | 'paused' | 'awai
 
 export type TaskMode = 'await' | 'async'
 
+export type TaskTodoStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
+
+/** Structured plan item maintained by a sub-Kin during a task. */
+export interface TaskTodo {
+  id: string
+  subject: string
+  status: TaskTodoStatus
+}
+
 export type InterKinMessageType = 'request' | 'inform' | 'reply'
 
 export type MemoryCategory = 'fact' | 'preference' | 'decision' | 'knowledge'

@@ -10,6 +10,7 @@ import { ToolCallsViewer } from '@/client/components/chat/ToolCallsViewer'
 import { TypingIndicator } from '@/client/components/chat/TypingIndicator'
 import { MarkdownContent } from '@/client/components/chat/MarkdownContent'
 import { HumanPromptCard } from '@/client/components/chat/HumanPromptCard'
+import { TaskTodoList } from '@/client/components/sidebar/TaskTodoList'
 import { ContextBar } from '@/client/components/chat/ContextBar'
 import { useTaskDetail } from '@/client/hooks/useTaskDetail'
 import { useHumanPrompts } from '@/client/hooks/useHumanPrompts'
@@ -118,6 +119,7 @@ export function TaskPanelContent({
     toolCallCount,
     toolCallsByMessage,
     learningsSaved,
+    todos,
   } = useTaskDetail(taskId)
   const { prompts: pendingPrompts, respond: respondToPrompt, isResponding } = useHumanPrompts(
     task ? task.parentKinId : null,
@@ -494,6 +496,9 @@ export function TaskPanelContent({
       {/* Middle: messages + optional tool calls panel */}
       <div className="flex min-h-0 flex-1">
         {/* Conversation */}
+        {todos.length > 0 && (
+          <TaskTodoList todos={todos} />
+        )}
         <div className="relative flex-1 min-h-0 overflow-y-auto py-3" ref={scrollContainerRef}>
           {isLoading && !task ? (
             <div className="flex items-center justify-center py-8">

@@ -4,6 +4,7 @@ import { db } from '@/server/db/index'
 import { tasks, messages, kins } from '@/server/db/schema'
 import { getTask, listTasksPaginated, cancelTask, forcePromoteTask, pauseTask, resumeTask, injectIntoTask, getActiveTaskSnapshot } from '@/server/services/tasks'
 import { fetchCronLearningsByTask } from '@/server/services/cron-learnings'
+import { getTodosForTask } from '@/server/services/task-todos'
 import type { AppVariables } from '@/server/app'
 import type { TaskStatus } from '@/shared/types'
 import { createLogger } from '@/server/logger'
@@ -161,6 +162,7 @@ taskRoutes.get('/:id', async (c) => {
     }),
     streamingMessageId: snapshot?.messageId ?? null,
     learningsSaved,
+    todos: getTodosForTask(taskId),
   })
 })
 
