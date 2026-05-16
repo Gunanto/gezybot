@@ -3,6 +3,7 @@ import { eq, and, asc } from 'drizzle-orm'
 import { db } from '@/server/db/index'
 import { tasks, messages, kins } from '@/server/db/schema'
 import { getTask, listTasksPaginated, cancelTask, forcePromoteTask, pauseTask, resumeTask, injectIntoTask, getActiveTaskSnapshot, retryTask, TaskNotRetryableError, TaskNotFoundError } from '@/server/services/tasks'
+import { resolveThinkingConfig } from '@/server/services/kin-engine'
 import { fetchCronLearningsByTask } from '@/server/services/cron-learnings'
 import { getTodosForTask } from '@/server/services/task-todos'
 import type { AppVariables } from '@/server/app'
@@ -24,18 +25,19 @@ taskRoutes.get('/', async (c) => {
 
   const { tasks: allTasks, total } = await listTasksPaginated({ status, kinId, cronId, search, limit, offset })
 
-  // Fetch kin info (name + avatar) for display
+  // Fetch kin info (name + avatar + thinking config) for display
   const kinIds = [...new Set(allTasks.flatMap((t) => [t.parentKinId, t.sourceKinId].filter((id): id is string => id != null)))]
-  const kinMap = new Map<string, { name: string; avatarUrl: string | null; model: string }>()
+  const kinMap = new Map<string, { name: string; avatarUrl: string | null; model: string; thinkingConfig: string | null }>()
 
   for (const id of kinIds) {
-    const kin = await db.select({ id: kins.id, name: kins.name, avatarPath: kins.avatarPath, model: kins.model }).from(kins).where(eq(kins.id, id)).get()
+    const kin = await db.select({ id: kins.id, name: kins.name, avatarPath: kins.avatarPath, model: kins.model, thinkingConfig: kins.thinkingConfig }).from(kins).where(eq(kins.id, id)).get()
     if (kin) {
       const ext = kin.avatarPath?.split('.').pop() ?? 'png'
       kinMap.set(kin.id, {
         name: kin.name,
         avatarUrl: kin.avatarPath ? `/api/uploads/kins/${kin.id}/avatar.${ext}` : null,
         model: kin.model,
+        thinkingConfig: kin.thinkingConfig,
       })
     }
   }
@@ -44,6 +46,9 @@ taskRoutes.get('/', async (c) => {
     tasks: allTasks.map((t) => {
       const parentKin = kinMap.get(t.parentKinId)
       const sourceKin = t.sourceKinId ? kinMap.get(t.sourceKinId) : null
+      // Mirror the runtime cascade in tasks.ts: task.thinkingConfig ?? parentKin.thinkingConfig
+      // → resolveThinkingConfig() applies the default (medium) when neither is set.
+      const effectiveThinking = resolveThinkingConfig(t.thinkingConfig ?? parentKin?.thinkingConfig ?? null)
       return {
         id: t.id,
         parentKinId: t.parentKinId,
@@ -60,8 +65,8 @@ taskRoutes.get('/', async (c) => {
         providerId: t.providerId ?? null,
         cronId: t.cronId ?? null,
         depth: t.depth,
-        thinkingEnabled: t.thinkingConfig ? (JSON.parse(t.thinkingConfig)?.enabled ?? false) : false,
-        thinkingEffort: t.thinkingConfig ? (JSON.parse(t.thinkingConfig)?.effort ?? null) : null,
+        thinkingEnabled: effectiveThinking.enabled === true,
+        thinkingEffort: effectiveThinking.effort ?? null,
         concurrencyGroup: t.concurrencyGroup ?? null,
         concurrencyMax: t.concurrencyMax ?? null,
         queuePosition: null, // Computed on-demand for queued tasks
@@ -91,12 +96,10 @@ taskRoutes.get('/:id', async (c) => {
     .orderBy(asc(messages.createdAt))
     .all()
 
-  // Resolve effective model (fall back to parent Kin's model)
-  let effectiveModel = task.model
-  if (!effectiveModel) {
-    const parentKin = await db.select({ model: kins.model }).from(kins).where(eq(kins.id, task.parentKinId)).get()
-    effectiveModel = parentKin?.model ?? null
-  }
+  // Resolve effective model + thinking config (fall back to parent Kin, mirroring tasks.ts runtime cascade)
+  const parentKin = await db.select({ model: kins.model, thinkingConfig: kins.thinkingConfig }).from(kins).where(eq(kins.id, task.parentKinId)).get()
+  const effectiveModel = task.model ?? parentKin?.model ?? null
+  const effectiveThinking = resolveThinkingConfig(task.thinkingConfig ?? parentKin?.thinkingConfig ?? null)
 
   // Fetch learnings saved during this task run (if cron task)
   const learningsSaved = task.cronId
@@ -123,8 +126,8 @@ taskRoutes.get('/:id', async (c) => {
       status: task.status,
       mode: task.mode,
       model: effectiveModel,
-      thinkingEnabled: task.thinkingConfig ? (JSON.parse(task.thinkingConfig)?.enabled ?? false) : false,
-      thinkingEffort: task.thinkingConfig ? (JSON.parse(task.thinkingConfig)?.effort ?? null) : null,
+      thinkingEnabled: effectiveThinking.enabled === true,
+      thinkingEffort: effectiveThinking.effort ?? null,
       depth: task.depth,
       result: task.result,
       error: task.error,
