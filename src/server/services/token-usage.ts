@@ -278,6 +278,53 @@ export function getTaskTotals(taskId: string): TaskTokenUsage | null {
   }
 }
 
+/**
+ * Same roll-up as `getTaskTotals` but for a batch of task IDs in a single
+ * GROUP BY query. Used by the task list route so the sidebar can render
+ * per-task usage chips without firing one query per row.
+ *
+ * Returns a `Map<taskId, TaskTokenUsage>`. Task IDs with no recorded usage
+ * are simply absent from the map (the UI suppresses the chip).
+ */
+export function getTaskTotalsBatch(taskIds: string[]): Map<string, TaskTokenUsage> {
+  const out = new Map<string, TaskTokenUsage>()
+  if (taskIds.length === 0) return out
+  const billable = buildBillableInputSql()
+  const rows = db
+    .select({
+      taskId: llmUsage.taskId,
+      inputTokens: sql<number>`COALESCE(SUM(${llmUsage.inputTokens}), 0)`,
+      outputTokens: sql<number>`COALESCE(SUM(${llmUsage.outputTokens}), 0)`,
+      totalTokens: sql<number>`COALESCE(SUM(${llmUsage.totalTokens}), 0)`,
+      cacheReadTokens: sql<number>`COALESCE(SUM(${llmUsage.cacheReadTokens}), 0)`,
+      cacheWriteTokens: sql<number>`COALESCE(SUM(${llmUsage.cacheWriteTokens}), 0)`,
+      reasoningTokens: sql<number>`COALESCE(SUM(${llmUsage.reasoningTokens}), 0)`,
+      billableInputTokens: sql<number>`COALESCE(ROUND(SUM(${billable})), 0)`,
+      stepCount: sql<number>`COALESCE(SUM(${llmUsage.stepCount}), 0)`,
+      callCount: sql<number>`COUNT(*)`,
+    })
+    .from(llmUsage)
+    .where(sql`${llmUsage.taskId} IN (${sql.join(taskIds.map((id) => sql`${id}`), sql`, `)})`)
+    .groupBy(llmUsage.taskId)
+    .all()
+
+  for (const r of rows) {
+    if (!r.taskId || r.callCount === 0) continue
+    out.set(r.taskId, {
+      inputTokens: r.inputTokens,
+      outputTokens: r.outputTokens,
+      totalTokens: r.totalTokens,
+      ...(r.cacheReadTokens > 0 ? { cacheReadTokens: r.cacheReadTokens } : {}),
+      ...(r.cacheWriteTokens > 0 ? { cacheWriteTokens: r.cacheWriteTokens } : {}),
+      ...(r.reasoningTokens > 0 ? { reasoningTokens: r.reasoningTokens } : {}),
+      stepCount: r.stepCount,
+      billableInputTokens: r.billableInputTokens,
+      callCount: r.callCount,
+    })
+  }
+  return out
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function buildConditions(filters: UsageQueryFilters) {

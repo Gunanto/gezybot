@@ -659,6 +659,18 @@ export function TaskPanelContent({
             </div>
           )}
 
+          {/* Post-mortem token reading — one compact line with billable/output
+              total, LLM call count, and cache hit %. Visible for every terminal
+              status (completed/failed/cancelled) when usage was recorded.
+              Header badge stays visible too; this footer makes the final total
+              scannable next to the result/error block. */}
+          {task && task.tokenUsage && (task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') && (
+            <TaskTokenUsageFooter
+              tokenUsage={task.tokenUsage}
+              providerType={task.providerType ?? resolvedModel?.providerType ?? null}
+            />
+          )}
+
           {task && (task.status === 'failed' || task.status === 'cancelled') && (
             <div className="mx-3 mt-3 flex gap-1.5">
               <Tooltip>
@@ -884,6 +896,81 @@ export function TaskPanelContent({
             </Button>
           </div>
         </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Footer: post-mortem token reading ────────────────────────────────────────
+
+/** Compact post-mortem reading rendered under the result/error block when the
+ *  task reaches a terminal status. Mirrors the header indicator's billable
+ *  total but stretches the breakdown into a readable single line (input/output,
+ *  call count, cache hit %) so the user gets the "what did this task cost?"
+ *  answer without opening the popover. */
+function TaskTokenUsageFooter({
+  tokenUsage,
+  providerType,
+}: {
+  tokenUsage: NonNullable<ReturnType<typeof useTaskDetail>['task']>['tokenUsage']
+  providerType: string | null
+}) {
+  const { t } = useTranslation()
+  if (!tokenUsage) return null
+
+  const billable = tokenUsage.billableInputTokens ?? 0
+  const output = tokenUsage.outputTokens
+  const headline = billable + output
+  const cacheRead = tokenUsage.cacheReadTokens ?? 0
+  const cacheWrite = tokenUsage.cacheWriteTokens ?? 0
+  const hasCache = cacheRead > 0 || cacheWrite > 0
+  const hitRate = tokenUsage.inputTokens > 0
+    ? Math.min(1, cacheRead / tokenUsage.inputTokens)
+    : 0
+
+  const fmt = (n: number) =>
+    n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M`
+    : n >= 1_000 ? `${(n / 1_000).toFixed(1)}k`
+    : n.toLocaleString()
+
+  return (
+    <div className="mx-3 mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground tabular-nums">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex items-center gap-1 text-foreground font-medium">
+            <Sparkles className="size-2.5 text-primary" />
+            ≈ {fmt(headline)}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="text-xs">
+          {t('taskDetail.tokenUsage.title')}
+          {providerType ? ` (${providerType})` : ''}
+        </TooltipContent>
+      </Tooltip>
+      <span>
+        {t('chat.tokenUsage.input')} <span className="text-foreground">{fmt(billable)}</span>
+      </span>
+      <span>
+        {t('chat.tokenUsage.output')} <span className="text-foreground">{fmt(output)}</span>
+      </span>
+      <span>
+        {t('taskDetail.tokenUsage.callCount', {
+          defaultValue: '{{count}} LLM call',
+          defaultValue_other: '{{count}} LLM calls',
+          count: tokenUsage.callCount,
+        })}
+      </span>
+      {hasCache && (
+        <span>
+          {t('chat.tokenUsage.cacheHit', 'Cache hit')}{' '}
+          <span className={
+            hitRate >= 0.7 ? 'text-success font-medium'
+            : hitRate >= 0.3 ? 'text-warning font-medium'
+            : 'text-foreground'
+          }>
+            {Math.round(hitRate * 100)}%
+          </span>
+        </span>
       )}
     </div>
   )

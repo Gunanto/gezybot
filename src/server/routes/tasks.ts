@@ -6,7 +6,7 @@ import { getTask, listTasksPaginated, cancelTask, forcePromoteTask, pauseTask, r
 import { resolveThinkingConfig } from '@/server/services/kin-engine'
 import { fetchCronLearningsByTask } from '@/server/services/cron-learnings'
 import { getTodosForTask } from '@/server/services/task-todos'
-import { getTaskTotals } from '@/server/services/token-usage'
+import { getTaskTotals, getTaskTotalsBatch } from '@/server/services/token-usage'
 import { guessProviderType } from '@/shared/model-ref'
 import type { AppVariables } from '@/server/app'
 import type { TaskStatus } from '@/shared/types'
@@ -44,6 +44,9 @@ taskRoutes.get('/', async (c) => {
     }
   }
 
+  // Per-task token roll-up — one GROUP BY query, then merged into each row.
+  const usageMap = getTaskTotalsBatch(allTasks.map((t) => t.id))
+
   return c.json({
     tasks: allTasks.map((t) => {
       const parentKin = kinMap.get(t.parentKinId)
@@ -51,6 +54,8 @@ taskRoutes.get('/', async (c) => {
       // Mirror the runtime cascade in tasks.ts: task.thinkingConfig ?? parentKin.thinkingConfig
       // → resolveThinkingConfig() applies the default (medium) when neither is set.
       const effectiveThinking = resolveThinkingConfig(t.thinkingConfig ?? parentKin?.thinkingConfig ?? null)
+      const effectiveModel = t.model ?? parentKin?.model ?? null
+      const providerType = effectiveModel ? guessProviderType(effectiveModel) : null
       return {
         id: t.id,
         parentKinId: t.parentKinId,
@@ -63,7 +68,8 @@ taskRoutes.get('/', async (c) => {
         description: t.description,
         status: t.status,
         mode: t.mode,
-        model: t.model ?? parentKin?.model ?? null,
+        model: effectiveModel,
+        providerType,
         providerId: t.providerId ?? null,
         cronId: t.cronId ?? null,
         depth: t.depth,
@@ -72,6 +78,7 @@ taskRoutes.get('/', async (c) => {
         concurrencyGroup: t.concurrencyGroup ?? null,
         concurrencyMax: t.concurrencyMax ?? null,
         queuePosition: null, // Computed on-demand for queued tasks
+        tokenUsage: usageMap.get(t.id) ?? null,
         createdAt: t.createdAt,
         updatedAt: t.updatedAt,
       }

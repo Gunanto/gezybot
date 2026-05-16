@@ -6,7 +6,7 @@ import {
 import { Input } from '@/client/components/ui/input'
 import { cn } from '@/client/lib/utils'
 import { formatDurationBetween, formatElapsed } from '@/client/lib/time'
-import { Loader2, Search, ListTodo, ChevronDown } from 'lucide-react'
+import { Loader2, Search, ListTodo, ChevronDown, Zap } from 'lucide-react'
 import { EmptyState } from '@/client/components/common/EmptyState'
 import { TaskTimelineItem } from '@/client/components/common/TaskTimelineItem'
 import { useSidePanel } from '@/client/contexts/SidePanelContext'
@@ -58,6 +58,24 @@ function formatTime(isoDate: string): string {
   return new Date(isoDate).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }
 
+function formatTokenCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`
+  return n.toLocaleString()
+}
+
+function TokenChip({ headline }: { headline: number }) {
+  return (
+    <span
+      className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 text-primary px-1.5 py-px text-[9px] font-medium tabular-nums"
+      title={`≈ ${headline.toLocaleString()} tokens`}
+    >
+      <Zap className="size-2" />
+      ≈ {formatTokenCount(headline)}
+    </span>
+  )
+}
+
 function TimelineTaskCard({ task, onClick, isLast, queuePosition }: { task: TaskSummary; onClick: () => void; isLast: boolean; queuePosition?: number }) {
   const kinName = task.sourceKinName ?? task.parentKinName
   const isQueued = task.status === 'queued'
@@ -73,6 +91,11 @@ function TimelineTaskCard({ task, onClick, isLast, queuePosition }: { task: Task
   const secondary = isQueued && task.concurrencyGroup ? task.concurrencyGroup : kinName
   const time = isQueued || isActive ? duration : formatTime(task.createdAt)
 
+  // Token chip — billable input + output ≈ what the user actually paid for.
+  // Hidden when no usage has been recorded (queued / immediate cancel).
+  const usage = task.tokenUsage
+  const tokenHeadline = usage ? usage.billableInputTokens + usage.outputTokens : 0
+
   return (
     <TaskTimelineItem
       status={task.status}
@@ -81,6 +104,7 @@ function TimelineTaskCard({ task, onClick, isLast, queuePosition }: { task: Task
       time={time}
       isLast={isLast}
       prefix={isQueued && queuePosition != null ? `#${queuePosition}` : undefined}
+      trailing={tokenHeadline > 0 ? <TokenChip headline={tokenHeadline} /> : undefined}
       onClick={onClick}
     />
   )

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { api } from '@/client/lib/api'
 import { useSSE } from '@/client/hooks/useSSE'
-import type { TaskSummary, TaskStatus } from '@/shared/types'
+import type { TaskSummary, TaskStatus, TaskTokenUsage } from '@/shared/types'
 
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 300
@@ -168,6 +168,20 @@ export function useTasks() {
       setActiveTasks((prev) => prev.filter((t) => t.id !== taskId))
       setQueuedTasks((prev) => prev.filter((t) => t.id !== taskId))
       setHistoryTasks((prev) => prev.filter((t) => t.id !== taskId))
+    },
+    'task:token-usage': (data) => {
+      const taskId = data.taskId as string
+      const tokenUsage = data.tokenUsage as TaskTokenUsage | null | undefined
+      if (!tokenUsage) return
+      // Patch whichever list currently holds the task. The task can only be in
+      // one of the three at a time, so updating all three is safe and cheap.
+      const patch = (prev: TaskSummary[]) =>
+        prev.some((t) => t.id === taskId)
+          ? prev.map((t) => (t.id === taskId ? { ...t, tokenUsage } : t))
+          : prev
+      setActiveTasks(patch)
+      setQueuedTasks(patch)
+      setHistoryTasks(patch)
     },
     'task:done': (data) => {
       const taskId = data.taskId as string

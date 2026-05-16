@@ -192,6 +192,9 @@ export interface TaskSummary {
   status: TaskStatus
   mode: string
   model: string | null
+  /** Provider family resolved from the effective model — needed by the token
+   *  chip to pick the right cache multipliers. */
+  providerType?: string | null
   providerId: string | null
   cronId: string | null
   depth: number
@@ -200,6 +203,10 @@ export interface TaskSummary {
   concurrencyGroup: string | null
   concurrencyMax: number | null
   queuePosition: number | null
+  /** Task-level token roll-up. Null/undefined when no LLM call has been
+   *  recorded yet (queued / just-spawned). Updated live via the
+   *  `task:token-usage` SSE event. */
+  tokenUsage?: TaskTokenUsage | null
   createdAt: string
   updatedAt: string
 }

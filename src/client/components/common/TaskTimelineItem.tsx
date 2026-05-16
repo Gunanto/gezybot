@@ -81,6 +81,10 @@ export interface TaskTimelineItemProps {
   isLast?: boolean
   /** Small prefix in front of primary (e.g. queue position "#3"). */
   prefix?: ReactNode
+  /** Optional inline chip rendered just before the time, used to surface a
+   *  scannable metric on the row (e.g. token consumption). Suppressed when
+   *  absent. */
+  trailing?: ReactNode
   onClick?: () => void
 }
 
@@ -96,6 +100,7 @@ export function TaskTimelineItem({
   time,
   isLast,
   prefix,
+  trailing,
   onClick,
 }: TaskTimelineItemProps) {
   const config = TASK_STATUS_CONFIG[status]
@@ -154,9 +159,12 @@ export function TaskTimelineItem({
           {secondary != null && (
             <span className="text-[10px] text-muted-foreground truncate">{secondary}</span>
           )}
-          <span className="text-[10px] text-muted-foreground ml-auto shrink-0 tabular-nums">
-            {time}
-          </span>
+          <div className="ml-auto flex items-center gap-1.5 shrink-0">
+            {trailing}
+            <span className="text-[10px] text-muted-foreground tabular-nums">
+              {time}
+            </span>
+          </div>
         </div>
       </div>
     </div>
