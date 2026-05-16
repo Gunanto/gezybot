@@ -22,6 +22,28 @@ const mockTasks = {
   reportToParent: mock(() => Promise.resolve()),
   updateTaskStatus: mock(() => Promise.resolve()),
   requestInput: mock(() => Promise.resolve()),
+  retryTask: mock(() => Promise.resolve({ taskId: 'task-stub', queued: false })),
+}
+
+// Error classes live outside `mockTasks` so the `Object.values(mockTasks)
+// .forEach(mockReset)` loop in `resetMocks` keeps working — these aren't
+// mock functions. They're still merged into the module mock below.
+class FakeTaskNotRetryableError extends Error {
+  constructor(public status: string) {
+    super(`Task status "${status}" is not retryable`)
+    this.name = 'TaskNotRetryableError'
+  }
+}
+class FakeTaskNotFoundError extends Error {
+  constructor(id: string) {
+    super(`Task not found: ${id}`)
+    this.name = 'TaskNotFoundError'
+  }
+}
+const mockTasksExports = {
+  ...mockTasks,
+  TaskNotRetryableError: FakeTaskNotRetryableError,
+  TaskNotFoundError: FakeTaskNotFoundError,
 }
 
 const mockKinResolver = {
@@ -38,7 +60,7 @@ const mockDbChain: any = {
   get: mock(() => Promise.resolve(null)),
 }
 
-mock.module('@/server/services/tasks', () => mockTasks)
+mock.module('@/server/services/tasks', () => mockTasksExports)
 mock.module('@/server/services/kin-resolver', () => mockKinResolver)
 mock.module('@/server/db/index', () => ({ db: mockDbChain }))
 mock.module('@/server/db/schema', () => ({

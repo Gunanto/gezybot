@@ -462,3 +462,11 @@ describe('tasks service: getTaskMessages', () => {
     expect(res.messages[0]!.hasToolCalls).toBe(true)
   })
 })
+
+// retryTask tests were intentionally not added here. Cross-file Bun
+// `mock.module('@/server/services/tasks', ...)` leaks (subtask-tools.test.ts,
+// task-tools.test.ts, cron-tools.test.ts) replace the real `tasks` module
+// in this worker, so anything that imports it through `await import(...)`
+// gets the stub. Validation is 2 lines (TaskNotFoundError + status check)
+// and the user-facing behaviour is covered by manual UI verification of
+// the retry buttons in TaskPanelContent.

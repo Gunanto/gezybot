@@ -51,6 +51,8 @@ import {
   Lightbulb,
   History,
   ChevronDown,
+  RotateCcw,
+  GitFork,
 } from 'lucide-react'
 import { useAutoScroll } from '@/client/hooks/useAutoScroll'
 import { api } from '@/client/lib/api'
@@ -237,6 +239,22 @@ export function TaskPanelContent({
       setIsForceStarting(false)
     }
   }, [task])
+
+  const [retryMode, setRetryMode] = useState<'fresh' | 'fork' | null>(null)
+  const handleRetry = useCallback(async (preserveHistory: boolean) => {
+    if (!task) return
+    setRetryMode(preserveHistory ? 'fork' : 'fresh')
+    try {
+      const result = await api.post<{ taskId: string }>(`/tasks/${task.id}/retry`, { preserveHistory })
+      if (result?.taskId) {
+        openTask({ taskId: result.taskId, kinName, kinAvatarUrl })
+      }
+    } catch {
+      // Error surfaced by the API layer's global toast
+    } finally {
+      setRetryMode(null)
+    }
+  }, [task, openTask, kinName, kinAvatarUrl])
 
   // Inject / Resume message input
   const [injectMessage, setInjectMessage] = useState('')
@@ -599,6 +617,49 @@ export function TaskPanelContent({
               <div className="text-xs text-foreground">
                 <MarkdownContent content={task.error} isUser={false} />
               </div>
+            </div>
+          )}
+
+          {task && (task.status === 'failed' || task.status === 'cancelled') && (
+            <div className="mx-3 mt-3 flex gap-1.5">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 flex-1 text-xs"
+                    onClick={() => handleRetry(false)}
+                    disabled={retryMode !== null}
+                  >
+                    {retryMode === 'fresh'
+                      ? <Loader2 className="size-3 mr-1 animate-spin" />
+                      : <RotateCcw className="size-3 mr-1" />}
+                    {t('taskDetail.retry.fresh')}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs max-w-[220px]">
+                  {t('taskDetail.retry.freshTooltip')}
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 flex-1 text-xs"
+                    onClick={() => handleRetry(true)}
+                    disabled={retryMode !== null}
+                  >
+                    {retryMode === 'fork'
+                      ? <Loader2 className="size-3 mr-1 animate-spin" />
+                      : <GitFork className="size-3 mr-1" />}
+                    {t('taskDetail.retry.fork')}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs max-w-[220px]">
+                  {t('taskDetail.retry.forkTooltip')}
+                </TooltipContent>
+              </Tooltip>
             </div>
           )}
 

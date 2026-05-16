@@ -28,6 +28,13 @@ mock.module('@/server/services/tasks', () => ({
   recoverStaleTasks: () => {},
   resumeSubKin: async () => {},
   resolveTask: async () => {},
+  retryTask: async () => ({ taskId: 'stub', queued: false }),
+  TaskNotRetryableError: class TaskNotRetryableError extends Error {
+    constructor(status: string) { super(`Task status "${status}" is not retryable`); this.name = 'TaskNotRetryableError' }
+  },
+  TaskNotFoundError: class TaskNotFoundError extends Error {
+    constructor(id: string) { super(`Task not found: ${id}`); this.name = 'TaskNotFoundError' }
+  },
 }))
 
 mock.module('@/server/logger', () => ({

@@ -297,6 +297,10 @@ interface SpawnParams {
    *  auto-picked preset (ticket → 'code', else full surface). Use 'all' to
    *  explicitly disable filtering on a ticket task. */
   toolPreset?: 'code' | 'research' | 'ops' | 'all'
+  /** When true, insert the task row but do NOT kick off `executeSubKin`. The
+   *  caller is responsible for starting execution (e.g. after seeding cloned
+   *  messages). Used by `retryTask`. */
+  skipExecute?: boolean
 }
 
 export async function spawnTask(params: SpawnParams) {
@@ -407,10 +411,13 @@ export async function spawnTask(params: SpawnParams) {
     ).catch((err) => log.warn({ taskId, sourceKinId: params.sourceKinId, err }, 'Failed to notify source Kin on spawn'))
   }
 
-  // Execute the sub-Kin in the background
-  executeSubKin(taskId).catch((err) =>
-    log.error({ taskId, err }, 'Sub-Kin execution error'),
-  )
+  // Execute the sub-Kin in the background (unless the caller wants to seed
+  // state first — see `skipExecute`, used by `retryTask`).
+  if (!params.skipExecute) {
+    executeSubKin(taskId).catch((err) =>
+      log.error({ taskId, err }, 'Sub-Kin execution error'),
+    )
+  }
 
   return { taskId, queued: false }
 }
@@ -1328,6 +1335,115 @@ export async function cancelTask(taskId: string, kinId: string) {
 
 export async function getTask(taskId: string) {
   return db.select().from(tasks).where(eq(tasks.id, taskId)).get()
+}
+
+export class TaskNotRetryableError extends Error {
+  constructor(public readonly status: string) {
+    super(`Task status "${status}" is not retryable (must be failed or cancelled)`)
+    this.name = 'TaskNotRetryableError'
+  }
+}
+
+/**
+ * Spawn a new task derived from a previously failed or cancelled one.
+ *
+ * Two modes:
+ *   - `preserveHistory: false` — clean retry. The new task starts from the
+ *     same description with no message history; the runner inserts the
+ *     initial user message as usual.
+ *   - `preserveHistory: true` — fork. All messages from the original task
+ *     are cloned onto the new task (new message ids, same content). The
+ *     model picks up whatever context was preserved in DB (note: tool
+ *     results are NOT reconstructed into ModelMessage blocks by the current
+ *     sub-Kin runner — only text content survives across reload).
+ *
+ * The original failed task is left intact for audit. The new task carries
+ * the same parent/source/ticket/cron/webhook/concurrency wiring as the
+ * original. The "retry of" relationship is not persisted yet — callers
+ * should hold the original id client-side if they want to surface it.
+ */
+export async function retryTask(
+  failedTaskId: string,
+  opts: { preserveHistory: boolean },
+): Promise<{ taskId: string; queued: boolean }> {
+  const original = await db.select().from(tasks).where(eq(tasks.id, failedTaskId)).get()
+  if (!original) throw new TaskNotFoundError(failedTaskId)
+  if (original.status !== 'failed' && original.status !== 'cancelled') {
+    throw new TaskNotRetryableError(original.status)
+  }
+
+  let thinkingConfig: KinThinkingConfig | undefined
+  if (original.thinkingConfig) {
+    try {
+      thinkingConfig = JSON.parse(original.thinkingConfig) as KinThinkingConfig
+    } catch {
+      thinkingConfig = undefined
+    }
+  }
+
+  const spawned = await spawnTask({
+    parentKinId: original.parentKinId,
+    sourceKinId: original.sourceKinId ?? undefined,
+    spawnType: original.spawnType as 'self' | 'other',
+    mode: original.mode as 'await' | 'async',
+    title: original.title ?? undefined,
+    description: original.description,
+    depth: original.depth,
+    parentTaskId: original.parentTaskId ?? undefined,
+    cronId: original.cronId ?? undefined,
+    channelOriginId: original.channelOriginId ?? undefined,
+    webhookId: original.webhookId ?? undefined,
+    ticketId: original.ticketId ?? undefined,
+    kind: (original.kind ?? 'execute') as 'execute' | 'enrich',
+    model: original.model ?? undefined,
+    providerId: original.providerId ?? undefined,
+    allowHumanPrompt: original.allowHumanPrompt,
+    thinkingConfig,
+    concurrencyGroup: original.concurrencyGroup ?? undefined,
+    concurrencyMax: original.concurrencyMax ?? undefined,
+    toolPreset: (original.toolPreset ?? undefined) as 'code' | 'research' | 'ops' | 'all' | undefined,
+    // Hold off on the runner so we can seed cloned messages (if asked)
+    // before the first stream reads from the DB.
+    skipExecute: true,
+  })
+
+  if (opts.preserveHistory) {
+    const originalMessages = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.taskId, failedTaskId))
+      .orderBy(asc(messages.createdAt))
+      .all()
+
+    for (const m of originalMessages) {
+      await db.insert(messages).values({
+        ...m,
+        id: uuid(),
+        taskId: spawned.taskId,
+        // `in_reply_to` and `request_id` point at ids from the previous run;
+        // cloning them as-is would create dangling references in the new
+        // task's view. Drop both — the LLM never sees these columns.
+        inReplyTo: null,
+        requestId: null,
+      })
+    }
+  }
+
+  log.info(
+    { originalTaskId: failedTaskId, newTaskId: spawned.taskId, preserveHistory: opts.preserveHistory, queued: spawned.queued },
+    'Task retried',
+  )
+
+  // Kick the runner now that any seeded history is in place. Queued tasks
+  // wait for promotion — the promoter will call executeSubKin when a slot
+  // opens, same as a normal spawn.
+  if (!spawned.queued) {
+    executeSubKin(spawned.taskId).catch((err) =>
+      log.error({ taskId: spawned.taskId, err }, 'Sub-Kin retry execution error'),
+    )
+  }
+
+  return spawned
 }
 
 export async function listKinTasks(kinId: string, statusFilter?: TaskStatus) {

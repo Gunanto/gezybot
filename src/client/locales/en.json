@@ -959,6 +959,12 @@
       "trigger_other": "{{count}} runs",
       "title": "Cron runs",
       "empty": "No other runs"
+    },
+    "retry": {
+      "fresh": "Retry from scratch",
+      "freshTooltip": "Spawn a new task with the same description, no message history. The model starts fresh.",
+      "fork": "Resume with history",
+      "forkTooltip": "Fork: clone the failed task with all its messages. The model picks up the prior context."
     }
   },
   "settings": {

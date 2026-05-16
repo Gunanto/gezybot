@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { eq, and, asc } from 'drizzle-orm'
 import { db } from '@/server/db/index'
 import { tasks, messages, kins } from '@/server/db/schema'
-import { getTask, listTasksPaginated, cancelTask, forcePromoteTask, pauseTask, resumeTask, injectIntoTask, getActiveTaskSnapshot } from '@/server/services/tasks'
+import { getTask, listTasksPaginated, cancelTask, forcePromoteTask, pauseTask, resumeTask, injectIntoTask, getActiveTaskSnapshot, retryTask, TaskNotRetryableError, TaskNotFoundError } from '@/server/services/tasks'
 import { fetchCronLearningsByTask } from '@/server/services/cron-learnings'
 import { getTodosForTask } from '@/server/services/task-todos'
 import type { AppVariables } from '@/server/app'
@@ -167,6 +167,34 @@ taskRoutes.get('/:id', async (c) => {
 })
 
 // POST /api/tasks/:id/cancel — cancel a task
+// POST /api/tasks/:id/retry — spawn a new task derived from a failed/cancelled one.
+// Body: { preserveHistory?: boolean }. Defaults to false (clean retry).
+taskRoutes.post('/:id/retry', async (c) => {
+  const taskId = c.req.param('id')
+  let body: { preserveHistory?: unknown } = {}
+  try {
+    body = await c.req.json()
+  } catch {
+    // empty body is fine — defaults below
+  }
+  const preserveHistory = body.preserveHistory === true
+
+  try {
+    const result = await retryTask(taskId, { preserveHistory })
+    log.info({ originalTaskId: taskId, newTaskId: result.taskId, preserveHistory }, 'Task retried')
+    return c.json({ taskId: result.taskId, queued: result.queued })
+  } catch (err) {
+    if (err instanceof TaskNotFoundError) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404)
+    }
+    if (err instanceof TaskNotRetryableError) {
+      return c.json({ error: { code: 'TASK_NOT_RETRYABLE', message: err.message } }, 409)
+    }
+    log.error({ taskId, err }, 'Failed to retry task')
+    return c.json({ error: { code: 'INTERNAL', message: err instanceof Error ? err.message : 'Retry failed' } }, 500)
+  }
+})
+
 taskRoutes.post('/:id/cancel', async (c) => {
   const taskId = c.req.param('id')
   const task = await getTask(taskId)

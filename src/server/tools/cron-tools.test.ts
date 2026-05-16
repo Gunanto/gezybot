@@ -38,6 +38,13 @@ const mockTasks: Record<string, any> = {
   reportToParent: mock(() => Promise.resolve()),
   updateTaskStatus: mock(() => Promise.resolve()),
   requestInput: mock(() => Promise.resolve()),
+  retryTask: mock(() => Promise.resolve({ taskId: 'task-stub', queued: false })),
+  TaskNotRetryableError: class TaskNotRetryableError extends Error {
+    constructor(status: string) { super(`Task status "${status}" is not retryable`); this.name = 'TaskNotRetryableError' }
+  },
+  TaskNotFoundError: class TaskNotFoundError extends Error {
+    constructor(id: string) { super(`Task not found: ${id}`); this.name = 'TaskNotFoundError' }
+  },
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

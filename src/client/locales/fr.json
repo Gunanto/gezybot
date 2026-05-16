@@ -959,6 +959,12 @@
       "trigger_other": "{{count}} runs",
       "title": "Runs du cron",
       "empty": "Aucun autre run"
+    },
+    "retry": {
+      "fresh": "Recommencer",
+      "freshTooltip": "Lance une nouvelle tâche avec la même description, sans historique. Le modèle repart de zéro.",
+      "fork": "Reprendre l'historique",
+      "forkTooltip": "Fork : clone la tâche échouée avec tous ses messages. Le modèle reprend le contexte précédent."
     }
   },
   "settings": {
