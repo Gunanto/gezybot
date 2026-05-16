@@ -24,7 +24,7 @@ mock.module('@/server/logger', () => ({
 }))
 
 // Import after mocks
-const { runShellTool, detectShellWrapper } = await import('./shell-tools')
+const { runShellTool, detectShellWrapper, detectHookBypass } = await import('./shell-tools')
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -349,5 +349,56 @@ describe('runShellTool', () => {
       expect(result.output).toContain('truncated')
       expect((result as Record<string, unknown>).truncated).toBe(true)
     })
+  })
+})
+
+describe('detectHookBypass', () => {
+  it('flags --no-verify', () => {
+    expect(detectHookBypass('git commit --no-verify -m x')?.pattern).toBe('--no-verify')
+  })
+  it('flags --no-gpg-sign', () => {
+    expect(detectHookBypass('git commit --no-gpg-sign -m x')?.pattern).toBe('--no-gpg-sign')
+  })
+  it('flags HUSKY=0 prefix', () => {
+    expect(detectHookBypass('HUSKY=0 bun test')?.pattern).toBe('HUSKY=0')
+  })
+  it('flags HUSKY=false prefix', () => {
+    expect(detectHookBypass('HUSKY=false ~/.bun/bin/bun test')?.pattern).toBe('HUSKY=0')
+  })
+  it('flags SKIP_HOOKS=1 prefix', () => {
+    expect(detectHookBypass('SKIP_HOOKS=1 git commit -m fix')?.pattern).toBe('SKIP_HOOKS=1')
+  })
+  it('does not flag a clean command', () => {
+    expect(detectHookBypass('git commit -m fix')).toBeNull()
+    expect(detectHookBypass('bun test')).toBeNull()
+    // Substring of a flag without word boundary should not match.
+    expect(detectHookBypass('git status --untracked-files=no')).toBeNull()
+  })
+})
+
+describe('detectShellWrapper — cat-pipeline loophole', () => {
+  it('refuses `cat <project_file> | head` (the prod task #25 case)', () => {
+    const v = detectShellWrapper('cat src/client/pages/chat/ChatPage.tsx | head -90 | tail -50')
+    expect(v?.binary).toBe('cat')
+    expect(v?.reason).toBe('wrapper')
+  })
+  it('refuses `cat <relative_file>` even with one pipe', () => {
+    expect(detectShellWrapper('cat package.json | head')?.binary).toBe('cat')
+  })
+  it('refuses after a leading cd prefix', () => {
+    expect(detectShellWrapper('cd kinbot-dev && cat src/server/index.ts | tail')?.binary).toBe('cat')
+  })
+  it('allows `cat /etc/hostname | head` (system path, read_file blocks it)', () => {
+    expect(detectShellWrapper('cat /etc/hostname | head -1')).toBeNull()
+  })
+  it('allows `cat /proc/cpuinfo`', () => {
+    // Standalone cat of a system path — read_file blocks /proc, so the agent has to use shell here.
+    // Standalone `cat` is refused by the regular wrapper rule, BUT only when there's no pipe.
+    // This case has no pipe so it's caught by the existing standalone rule, returning a refusal:
+    expect(detectShellWrapper('cat /proc/cpuinfo')?.binary).toBe('cat')
+  })
+  it('allows real pipelines that happen to involve cat downstream', () => {
+    // `seq 1 5 | cat -n` — cat is the filter, not the entrypoint.
+    expect(detectShellWrapper('seq 1 5 | cat -n')).toBeNull()
   })
 })

@@ -22,6 +22,11 @@ const log = createLogger('tool-call-tracker')
 
 export type TrackedKind = 'read_file' | 'grep'
 
+interface ReadFileRange {
+  offset?: number
+  limit?: number
+}
+
 interface PerTaskCounts {
   // signature → number of previous calls (0 the first time, >=1 on repeats).
   counts: Map<string, number>
@@ -29,6 +34,14 @@ interface PerTaskCounts {
   // edit/multi-edit "read-before-edit" guard (ported from opencode) to
   // prevent hallucinated edits on files the sub-Kin hasn't actually seen.
   readPaths: Set<string>
+  // path → list of every range the task has read for that path. Used by
+  // the soft `duplicate` hint so the model sees ALL prior windows, not
+  // just whether the exact (path, offset, limit) tuple was repeated.
+  // Real-world failure that motivated this: prod task #e6c9d6f1 read
+  // ChatPanel.tsx 11 times with overlapping offsets — no two calls
+  // shared a signature so the prior tracker fired zero hints despite
+  // ~30 KB of redundant tokens.
+  readRanges: Map<string, ReadFileRange[]>
   // Guard-fire telemetry. Each counter records how often the runtime
   // intervened on the model's behalf during this task. Used to validate
   // whether the iterations actually changed agent behaviour vs the
@@ -48,6 +61,8 @@ export interface TaskGuardStats {
   bashWrapperRefusals: number
   /** run_shell refused for invoking a banned binary (curl, wget, lynx, …). */
   bannedCommandRefusals: number
+  /** run_shell refused for trying to skip hooks (--no-verify / HUSKY=0 / …). */
+  hookBypassRefusals: number
   /** `think` tool invocations (no-op reasoning slot). */
   thinkCalls: number
   /** `task_todos` bulk-set calls. */
@@ -61,6 +76,7 @@ function freshStats(): TaskGuardStats {
     readBeforeEditRefusals: 0,
     bashWrapperRefusals: 0,
     bannedCommandRefusals: 0,
+    hookBypassRefusals: 0,
     thinkCalls: 0,
     todoUpdates: 0,
   }
@@ -71,10 +87,48 @@ const byTask = new Map<string, PerTaskCounts>()
 function bucket(taskId: string): PerTaskCounts {
   let entry = byTask.get(taskId)
   if (!entry) {
-    entry = { counts: new Map(), readPaths: new Set(), stats: freshStats() }
+    entry = { counts: new Map(), readPaths: new Set(), readRanges: new Map(), stats: freshStats() }
     byTask.set(taskId, entry)
   }
   return entry
+}
+
+/**
+ * Record a `read_file` call for a path and return every range the task has
+ * already read for that same path. Strictly more useful than the generic
+ * `noteCall(readFileSignature(...))` form because it captures overlap
+ * regardless of offset/limit drift. The caller surfaces the previous ranges
+ * to the model as a soft hint — the duplicate-reads telemetry counter is
+ * also bumped here when at least one prior range exists.
+ *
+ * No-op (returns empty) outside a task context — same convention as the
+ * other helpers in this module.
+ */
+export function noteReadFile(
+  taskId: string | undefined,
+  path: string,
+  range: ReadFileRange,
+): { previousRanges: ReadFileRange[] } {
+  if (!taskId) return { previousRanges: [] }
+  const entry = bucket(taskId)
+  const prior = entry.readRanges.get(path) ?? []
+  if (prior.length > 0) entry.stats.duplicateReads += 1
+  // Keep the prior snapshot before pushing — the caller wants ranges read
+  // *before* this call.
+  const previousRanges = prior.slice()
+  prior.push({ offset: range.offset, limit: range.limit })
+  entry.readRanges.set(path, prior)
+  return { previousRanges }
+}
+
+/**
+ * Format a range as a 1-indexed line span, e.g. `850-949` or `850-end`.
+ * Used in the duplicate-read hint message.
+ */
+export function formatReadRange(range: ReadFileRange): string {
+  const start = range.offset ?? 1
+  if (range.limit == null) return `${start}-end`
+  return `${start}-${start + range.limit - 1}`
 }
 
 /**
@@ -112,6 +166,7 @@ export function recordGuardFire(
     | 'readBeforeEditRefusal'
     | 'bashWrapperRefusal'
     | 'bannedCommandRefusal'
+    | 'hookBypassRefusal'
     | 'thinkCall'
     | 'todoUpdate',
 ): void {
@@ -126,6 +181,9 @@ export function recordGuardFire(
       break
     case 'bannedCommandRefusal':
       stats.bannedCommandRefusals += 1
+      break
+    case 'hookBypassRefusal':
+      stats.hookBypassRefusals += 1
       break
     case 'thinkCall':
       stats.thinkCalls += 1

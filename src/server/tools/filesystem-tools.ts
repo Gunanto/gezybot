@@ -5,7 +5,7 @@ import { existsSync, statSync, readdirSync } from 'fs'
 import { readFile, writeFile, mkdir } from 'fs/promises'
 import { config } from '@/server/config'
 import { createLogger } from '@/server/logger'
-import { noteCall, readFileSignature, recordReadPath, hasReadPath, recordGuardFire } from '@/server/services/tool-call-tracker'
+import { noteReadFile, formatReadRange, recordReadPath, hasReadPath, recordGuardFire } from '@/server/services/tool-call-tracker'
 import type { ToolRegistration } from '@/server/tools/types'
 
 const log = createLogger('filesystem-tools')
@@ -125,7 +125,7 @@ export const readFileTool: ToolRegistration = {
 
                 log.info({ kinId: ctx.kinId, path: filePath, totalLines, startLine, endLine, pages: pdf.numpages }, 'PDF text extracted')
 
-                const dup = noteCall(ctx.taskId, 'read_file', readFileSignature({ path: filePath, offset, limit }))
+                const dup = noteReadFile(ctx.taskId, filePath, { offset, limit })
                 recordReadPath(ctx.taskId, filePath)
                 return {
                   success: true,
@@ -136,11 +136,12 @@ export const readFileTool: ToolRegistration = {
                   endLine,
                   language: 'text',
                   note: `Extracted text from PDF (${pdf.numpages} pages)`,
-                  ...(dup.previousCallCount > 0
+                  ...(dup.previousRanges.length > 0
                     ? {
                         duplicate: true as const,
-                        previousCallCount: dup.previousCallCount,
-                        hint: `You already called read_file for this PDF with the same offset/limit ${dup.previousCallCount} time(s) earlier in this task — the content is still upstream in your context. Re-read only if you've edited it since.`,
+                        previousReadCount: dup.previousRanges.length,
+                        previousRanges: dup.previousRanges.map(formatReadRange),
+                        hint: `You already read this PDF ${dup.previousRanges.length} time(s) earlier in this task at line ${dup.previousRanges.map(formatReadRange).join(', ')}. The pages are still upstream in your context — re-scan your earlier turns before requesting another window. Re-read only if the file changed since.`,
                       }
                     : {}),
                 }
@@ -172,7 +173,7 @@ export const readFileTool: ToolRegistration = {
 
           log.info({ kinId: ctx.kinId, path: filePath, totalLines, startLine, endLine }, 'File read')
 
-          const dup = noteCall(ctx.taskId, 'read_file', readFileSignature({ path: filePath, offset, limit }))
+          const dup = noteReadFile(ctx.taskId, filePath, { offset, limit })
           recordReadPath(ctx.taskId, filePath)
           return {
             success: true,
@@ -183,11 +184,12 @@ export const readFileTool: ToolRegistration = {
             endLine,
             language: language ?? null,
             truncated: endLine < totalLines,
-            ...(dup.previousCallCount > 0
+            ...(dup.previousRanges.length > 0
               ? {
                   duplicate: true as const,
-                  previousCallCount: dup.previousCallCount,
-                  hint: `You already called read_file for this exact (path, offset, limit) ${dup.previousCallCount} time(s) earlier in this task — the content is still upstream in your context. Re-read only if you've edited it since, otherwise reuse the previous result.`,
+                  previousReadCount: dup.previousRanges.length,
+                  previousRanges: dup.previousRanges.map(formatReadRange),
+                  hint: `You already read this file ${dup.previousRanges.length} time(s) earlier in this task at line ${dup.previousRanges.map(formatReadRange).join(', ')}. The content is still upstream in your context — re-scan your earlier turns before requesting another window. Only request a new range if you need lines outside the prior windows OR the file changed since.`,
                 }
               : {}),
           }

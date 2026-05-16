@@ -6,6 +6,8 @@ mock.module('@/server/logger', () => ({
 
 const {
   noteCall,
+  noteReadFile,
+  formatReadRange,
   forgetTask,
   readFileSignature,
   grepSignature,
@@ -220,5 +222,47 @@ describe('guard-fire telemetry (recordGuardFire / getTaskStats)', () => {
   it('recordGuardFire with no taskId is a no-op', () => {
     recordGuardFire(undefined, 'bashWrapperRefusal')
     expect(getTaskStats(undefined)).toBeNull()
+  })
+
+  it('recordGuardFire bumps hookBypassRefusals', () => {
+    recordGuardFire('t-hook', 'hookBypassRefusal')
+    recordGuardFire('t-hook', 'hookBypassRefusal')
+    expect(getTaskStats('t-hook')?.hookBypassRefusals).toBe(2)
+  })
+})
+
+describe('noteReadFile / formatReadRange — per-path range tracking', () => {
+  it('returns empty previousRanges on the first read', () => {
+    const result = noteReadFile('t-read', 'src/a.ts', { offset: 1, limit: 100 })
+    expect(result.previousRanges).toEqual([])
+    expect(getTaskStats('t-read')?.duplicateReads).toBe(0)
+  })
+
+  it('captures every prior range and bumps duplicateReads on the 2nd call', () => {
+    noteReadFile('t-read', 'src/a.ts', { offset: 1, limit: 100 })
+    const second = noteReadFile('t-read', 'src/a.ts', { offset: 200, limit: 50 })
+    expect(second.previousRanges).toEqual([{ offset: 1, limit: 100 }])
+    expect(getTaskStats('t-read')?.duplicateReads).toBe(1)
+    const third = noteReadFile('t-read', 'src/a.ts', { offset: 300, limit: 50 })
+    expect(third.previousRanges).toHaveLength(2)
+    expect(getTaskStats('t-read')?.duplicateReads).toBe(2)
+  })
+
+  it('keeps per-path ranges separate', () => {
+    noteReadFile('t-read', 'src/a.ts', { offset: 1, limit: 100 })
+    const b = noteReadFile('t-read', 'src/b.ts', { offset: 1, limit: 100 })
+    expect(b.previousRanges).toEqual([])
+  })
+
+  it('no-ops without a taskId', () => {
+    const result = noteReadFile(undefined, 'src/a.ts', { offset: 1, limit: 100 })
+    expect(result.previousRanges).toEqual([])
+  })
+
+  it('formatReadRange handles bounded and open-ended ranges', () => {
+    expect(formatReadRange({ offset: 10, limit: 50 })).toBe('10-59')
+    expect(formatReadRange({ offset: 10 })).toBe('10-end')
+    expect(formatReadRange({})).toBe('1-end')
+    expect(formatReadRange({ limit: 100 })).toBe('1-100')
   })
 })

@@ -76,11 +76,95 @@ export interface ShellWrapperViolation {
   reason: 'wrapper' | 'banned'
 }
 
+export interface HookBypassViolation {
+  pattern: string
+  detail: string
+}
+
+// Markers that indicate the agent is trying to skip the project's pre-commit
+// / commit / pre-push hooks. The Kin shouldn't bypass them — fixing the
+// underlying issue is the whole point of having hooks. Caught at execution
+// time so a prompt rule that the model reasons past still doesn't ship.
+//
+// Real-world incident that motivated this: prod task `e6c9d6f1` (ticket #25)
+// — the agent ran 1× `git commit --no-verify` and 8× `HUSKY=0 bun test` to
+// dodge the husky hook chain.
+const HOOK_BYPASS_PATTERNS: Array<{ regex: RegExp; pattern: string; detail: string }> = [
+  {
+    regex: /(?:^|\s)--no-verify(?=\s|$)/,
+    pattern: '--no-verify',
+    detail: 'skips git pre-commit / commit-msg / pre-push hooks',
+  },
+  {
+    regex: /(?:^|\s)--no-gpg-sign(?=\s|$)/,
+    pattern: '--no-gpg-sign',
+    detail: 'skips commit signature verification',
+  },
+  {
+    regex: /(?:^|\s)HUSKY=(?:0|false)(?=\s)/,
+    pattern: 'HUSKY=0',
+    detail: 'disables husky hooks for the spawned process',
+  },
+  {
+    regex: /(?:^|\s)SKIP_HOOKS=(?:1|true)(?=\s)/,
+    pattern: 'SKIP_HOOKS=1',
+    detail: 'disables Lefthook / pre-commit hooks for the spawned process',
+  },
+  {
+    regex: /(?:^|\s)PRE_COMMIT_ALLOW_NO_CONFIG=(?:1|true)(?=\s)/,
+    pattern: 'PRE_COMMIT_ALLOW_NO_CONFIG=1',
+    detail: 'lets `pre-commit run` proceed without its config — same effect as skipping',
+  },
+]
+
+/**
+ * Detect an attempt to skip the project's hooks (commit/push/test). Returns
+ * the matched marker so the caller can surface a precise refusal message.
+ * Exported for unit testing.
+ */
+export function detectHookBypass(rawCommand: string): HookBypassViolation | null {
+  const cmd = rawCommand.trim()
+  if (!cmd) return null
+  for (const { regex, pattern, detail } of HOOK_BYPASS_PATTERNS) {
+    if (regex.test(cmd)) return { pattern, detail }
+  }
+  return null
+}
+
+// `cat <file>` at the start of a pipeline is the prod-observed loophole in
+// the pipeline carve-out below (ticket #25 task: `cat src/.../ChatPage.tsx
+// | head -90 | tail -50`). We refuse it when the file path looks like a
+// project file (does NOT live under /etc, /proc, /sys, /var, /tmp, /root,
+// /dev — system paths that read_file blocks outright). The pipeline rest
+// is preserved as advisory text in the refusal message.
+const SYSTEM_PATH_PREFIXES = ['/etc/', '/proc/', '/sys/', '/var/', '/tmp/', '/root/', '/dev/']
+
+function isProjectFilePath(arg: string): boolean {
+  if (!arg) return false
+  if (arg.startsWith('-')) return false // flag, not a path
+  if (SYSTEM_PATH_PREFIXES.some((p) => arg.startsWith(p))) return false
+  return true
+}
+
+function isCatWrapperPipelineStart(cmd: string): boolean {
+  // Walk to the first `|` (top-level only — ignore `||` and `|&`).
+  const head = cmd.split(/\|(?!\|)/, 1)[0]?.trim() ?? ''
+  const toks = head.split(/\s+/).filter(Boolean)
+  if (toks.length !== 2) return false
+  if (toks[0] !== 'cat') return false
+  return isProjectFilePath(toks[1]!)
+}
+
 /**
  * Detect a bare shell wrapper around a tool that has a dedicated KinBot
  * equivalent, OR a banned network/browser command. Returns null when the
  * command looks like a legitimate pipeline / script / multi-step (in which
  * case the binary is being used as a filter rather than as an entrypoint).
+ *
+ * One known loophole is now caught: `cat <project_file> | head | tail | …`
+ * — see ticket #25 prod task. The pipeline still gets to flag itself as a
+ * filter chain, but if it *starts* with a bare `cat` of a project file we
+ * refuse and point at read_file.
  *
  * Exported for unit testing.
  */
@@ -93,6 +177,15 @@ export function detectShellWrapper(rawCommand: string): ShellWrapperViolation | 
   // pipeline). This makes the detector see the actual entrypoint.
   const cdMatch = cmd.match(/^cd\s+(?:"[^"]+"|'[^']+'|\S+)\s*(?:&&|;)\s*/)
   if (cdMatch) cmd = cmd.slice(cdMatch[0].length).trim()
+
+  // `cat <project_file> | …` — caught BEFORE the pipeline carve-out below.
+  if (isCatWrapperPipelineStart(cmd)) {
+    return {
+      binary: 'cat',
+      suggestion: WRAPPER_SUGGESTIONS.cat!,
+      reason: 'wrapper',
+    }
+  }
 
   // Anything that includes pipelines, redirections, command substitution, or
   // chained commands is treated as legitimate — `cat <(...)`, `... | grep`,
@@ -154,6 +247,26 @@ export const runShellTool: ToolRegistration = {
         const effectiveCwd = cwd ?? workspace
         const effectiveTimeout = timeout ?? DEFAULT_TIMEOUT
         const start = Date.now()
+
+        const hookBypass = detectHookBypass(command)
+        if (hookBypass) {
+          log.warn(
+            { kinId: ctx.kinId, command, pattern: hookBypass.pattern },
+            'Refused hook-bypass command',
+          )
+          recordGuardFire(ctx.taskId, 'hookBypassRefusal')
+          return {
+            success: false,
+            output: '',
+            error:
+              `Refusing this command — it contains \`${hookBypass.pattern}\` which ${hookBypass.detail}. ` +
+              `The project's hooks (typecheck, tests, build) exist to catch regressions; bypassing them is exactly what causes the kind of incidents you'd want to avoid. ` +
+              `Fix the underlying failure first, then re-run the command without the bypass. ` +
+              `If the user has explicitly authorised the bypass in this task's mission, you can ask via request_input to confirm before retrying.`,
+            exitCode: -1,
+            executionTime: 0,
+          }
+        }
 
         const violation = detectShellWrapper(command)
         if (violation) {
