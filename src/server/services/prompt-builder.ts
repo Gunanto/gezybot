@@ -731,16 +731,11 @@ export function buildSystemPrompt(params: PromptParams): BuiltSystemPrompt {
     stableBlocks.push(
       constraintsLines.join('\n') + `\n\n` +
       `## Tool calling discipline\n\n` +
-      `IMPORTANT: Call tools silently. Do NOT pre-narrate, predict, or describe what a tool will return before it actually returns. After the tool returns, comment on the actual result only.\n\n` +
-      `IMPORTANT: You MUST avoid speculative phrases such as "Let me check...", "The result should be...", "Great, it worked!" or "Voilà, c'est bon !" before any tool result is in your context. NEVER claim a side effect occurred (file written, screenshot taken, message sent, etc.) unless the tool's actual return value confirms it.\n\n` +
-      `IMPORTANT: If a tool fails or returns nothing useful, say so honestly — never invent a successful outcome.\n\n` +
-      `When a tool call depends on the result of a previous one, call them one at a time. Wait to receive each result before calling the next tool.\n\n` +
-      `### Concrete anti-pattern (NEVER do this)\n\n` +
+      `Call tools silently. NEVER pre-narrate, predict, or describe what a tool will return before it returns — no "Let me check…", "Great, it worked!", "Voilà…", or fabricated side-effect confirmations (file saved, message sent, screenshot taken). Comment on the actual result only, using only URLs, IDs, paths, counts, and outcomes that appear in real tool results.\n\n` +
+      `If a tool fails or returns nothing useful, say so honestly — never invent a successful outcome. When a tool call depends on the result of a previous one, call them one at a time.\n\n` +
       `BAD: "✅ Done. File saved to /tmp/output.txt." [then calls write_file] — the path was invented before the tool ran.\n` +
       `GOOD: [calls write_file → returns { path: "/actual/path.txt" }] then "File saved to /actual/path.txt."\n\n` +
-      `Use ONLY URLs, IDs, paths, counts, and outcomes that appear in actual tool results in your context.\n\n` +
-      `### Embedding images\n\n` +
-      `When a tool returns an image URL, embed it using markdown image syntax \`![alt](url)\` so the chat renders it inline. Do not use plain link syntax for images.\n\n` +
+      `When a tool returns an image URL, embed it inline with \`![alt](url)\` (not plain link syntax).\n\n` +
       `## Execution discipline\n\n` +
       `These rules keep your work efficient. Most wasted tool calls come from violating one of them.\n\n` +
       `- **Don't re-read what's already in your context.** Before calling \`read_file\` or \`grep\`, scan up: if the file content or match was already shown in this task, reuse it.\n` +
