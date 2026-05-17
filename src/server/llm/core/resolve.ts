@@ -71,13 +71,19 @@ export async function resolveLLM(opts: ResolveOptions): Promise<ResolvedLLM> {
   // Preferred provider path
   if (providerId) {
     const row = db.select().from(providers).where(eq(providers.id, providerId)).get()
-    if (!row) throw new InvalidRequestError(`Provider not found: ${providerId}`)
+    if (!row) {
+      throw new InvalidRequestError(
+        `Provider not found: "${providerId}". ` +
+          `Expected a provider UUID — use list_providers (or list_models for a model→provider mapping) to discover valid IDs, ` +
+          `or omit provider_id to let kinbot auto-detect the right provider from the model.`,
+      )
+    }
     if (!row.isValid) throw new AuthError(`Provider ${providerId} is not valid`)
     const llm = getLLMProvider(row.type)
     if (!llm) throw new InvalidRequestError(`No LLM implementation for provider type "${row.type}"`)
     const config = await readProviderConfig(row)
     const model = await findModelInProvider(llm, config, modelId)
-    if (!model) throw new InvalidRequestError(`Model "${modelId}" not available on provider ${providerId}`)
+    if (!model) throw new InvalidRequestError(`Model "${modelId}" not available on provider ${providerId} (${row.type})`)
     return { provider: llm, model, config, providerRow: row }
   }
 
@@ -95,7 +101,10 @@ export async function resolveLLM(opts: ResolveOptions): Promise<ResolvedLLM> {
       // This provider can't serve the model — keep scanning.
     }
   }
-  throw new InvalidRequestError(`Model "${modelId}" not available on any configured provider`)
+  throw new InvalidRequestError(
+    `Model "${modelId}" not available on any configured provider. ` +
+      `Use list_models to discover valid (model, provider) pairs.`,
+  )
 }
 
 /**
