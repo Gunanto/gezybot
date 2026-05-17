@@ -484,6 +484,13 @@
       "when": 1779026376537,
       "tag": "0068_friendly_captain_cross",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "6",
+      "when": 1779032460113,
+      "tag": "0069_naive_mikhail_rasputin",
+      "breakpoints": true
     }
   ]
 }

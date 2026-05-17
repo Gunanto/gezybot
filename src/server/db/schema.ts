@@ -333,6 +333,11 @@ export const tasks = sqliteTable('tasks', {
   runPrompt: text('run_prompt'),
   concurrencyGroup: text('concurrency_group'),
   concurrencyMax: integer('concurrency_max'),
+  /** Provider-reported peak input tokens from the most recent LLM turn of
+   *  this task (max over all stepResults of that turn). Source of truth for
+   *  the "real" context bar on the task panel, vs the local BPE estimate
+   *  that buildTaskContextPreview produces. Null until the first turn lands. */
+  lastApiContextTokens: integer('last_api_context_tokens'),
   queuedAt: integer('queued_at', { mode: 'timestamp_ms' }),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),

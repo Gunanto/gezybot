@@ -6,7 +6,7 @@ import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { db } from '@/server/db/index'
-import { kins, kinMcpServers, mcpServers, queueItems, compactingSummaries, memories, messages, providers } from '@/server/db/schema'
+import { kins, kinMcpServers, mcpServers, queueItems, compactingSummaries, memories, messages, providers, tasks } from '@/server/db/schema'
 import { config } from '@/server/config'
 import {
   generateAvatarImage,
@@ -500,7 +500,15 @@ kinRoutes.get('/:id/context-preview', async (c) => {
   if (taskId) {
     const { buildTaskContextPreview } = await import('@/server/services/context-preview')
     const preview = await buildTaskContextPreview(taskId)
-    return c.json(preview)
+    // Attach the provider-reported peak input from the most recent turn so
+    // the task panel can render the green "✓ real" bar alongside the local
+    // BPE estimate. Mirrors what we do for the main-Kin path below.
+    const taskRow = db.select({ lastApiContextTokens: tasks.lastApiContextTokens })
+      .from(tasks).where(eq(tasks.id, taskId)).get()
+    return c.json({
+      ...preview,
+      apiContextTokens: taskRow?.lastApiContextTokens ?? null,
+    })
   }
 
   if (sessionId) {

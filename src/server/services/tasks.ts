@@ -1194,6 +1194,15 @@ async function executeSubKin(taskId: string, isNudge = false) {
         stepCount: stepResults.length,
       })
 
+      // Persist the provider-reported peak input as the task's "real" context
+      // size. Surfaces as the green "✓ real" bar on the task panel (vs the
+      // local BPE estimate from buildTaskContextPreview).
+      if (tokenUsage.peakStepInputTokens && tokenUsage.peakStepInputTokens > 0) {
+        await db.update(tasks)
+          .set({ lastApiContextTokens: tokenUsage.peakStepInputTokens, updatedAt: new Date() })
+          .where(eq(tasks.id, taskId))
+      }
+
       // Push the fresh task-level total over SSE so the panel can update its
       // running counter without polling. Read AFTER recordUsage so the new row
       // is included in the roll-up.

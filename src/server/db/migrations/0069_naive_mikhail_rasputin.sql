@@ -1,0 +1,1 @@
+ALTER TABLE `tasks` ADD `last_api_context_tokens` integer;
