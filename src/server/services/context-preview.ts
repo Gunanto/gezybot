@@ -822,13 +822,14 @@ export async function buildTaskContextPreview(taskId: string): Promise<ContextPr
       try {
         ticketAssignment = JSON.parse(task.ticketAssignmentSnapshot) as import('@/server/services/prompt-builder').TicketAssignmentInfo
       } catch {
-        // Corrupt snapshot — fall through to live fetch
+        // Corrupt snapshot, fall through to live fetch
       }
     }
     if (!ticketAssignment) {
       const { buildTicketAssignmentInfo } = await import('@/server/services/tickets')
       ticketAssignment = await buildTicketAssignmentInfo(task.ticketId, {
         runPrompt: task.runPrompt ?? null,
+        currentTaskId: task.id,
       })
     }
   }

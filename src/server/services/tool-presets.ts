@@ -75,6 +75,8 @@ const PRESETS: Record<Exclude<SubKinPreset, 'all'>, PresetConfig> = {
       'list_project_tags',
       'list_tickets',
       'get_ticket',
+      'get_task_detail',
+      'get_task_messages',
       'update_ticket',
       'create_ticket',
       'add_ticket_tag',

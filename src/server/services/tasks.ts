@@ -461,6 +461,7 @@ export async function spawnTask(params: SpawnParams) {
     // runs once the snapshot is present).
     const info = await buildTicketAssignmentInfo(params.ticketId, {
       runPrompt: params.runPrompt ?? null,
+      currentTaskId: taskId,
     })
     if (info) ticketAssignmentSnapshot = JSON.stringify(info)
   }
@@ -702,13 +703,14 @@ async function executeSubKin(taskId: string, isNudge = false) {
         try {
           ticketAssignment = JSON.parse(task.ticketAssignmentSnapshot) as import('@/server/services/prompt-builder').TicketAssignmentInfo
         } catch (err) {
-          log.warn({ taskId, err }, 'Failed to parse ticket_assignment_snapshot — falling back to live fetch')
+          log.warn({ taskId, err }, 'Failed to parse ticket_assignment_snapshot, falling back to live fetch')
         }
       }
       if (!ticketAssignment) {
         const { buildTicketAssignmentInfo } = await import('@/server/services/tickets')
         ticketAssignment = await buildTicketAssignmentInfo(task.ticketId, {
           runPrompt: task.runPrompt ?? null,
+          currentTaskId: task.id,
         })
       }
     }

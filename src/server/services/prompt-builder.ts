@@ -163,6 +163,22 @@ export interface TicketAssignmentInfo {
   projectTitle: string
   projectDescription: string
   projectGithubUrl: string | null
+  /** Existing task executions linked to the same ticket, newest first. Injected
+   *  into the sub-Kin prompt so a restarted ticket task can resume with context
+   *  from prior completed, failed, and currently running work. */
+  taskHistory?: Array<{
+    id: string
+    title: string | null
+    description: string
+    status: string
+    kind: string
+    parentKinName: string
+    createdAt: number
+    updatedAt: number
+    result: string | null
+    error: string | null
+    isCurrent: boolean
+  }>
   /** Existing ticket comments in chronological order, injected into the sub-Kin
    *  prompt so it picks up the conversation (clarifications, prior auto-reports,
    *  follow-up questions) without having to call `list_ticket_comments`. */
@@ -655,7 +671,33 @@ function buildTicketAssignmentBlock(info: TicketAssignmentInfo): string {
     `Status: ${info.ticketStatus}${tagsLine}${descriptionLine}`,
   )
 
-  // Existing comments — chronological. Absolute ISO timestamps (not relative)
+  // Linked task executions, newest first. Include task ids and terminal output
+  // so a restarted ticket task can resume without guessing. Absolute ISO
+  // timestamps keep this stable when the assignment block is snapshotted.
+  if (info.taskHistory && info.taskHistory.length > 0) {
+    const blocks: string[] = ['### Ticket task history (most recent first)']
+    for (const task of info.taskHistory) {
+      const created = new Date(task.createdAt).toISOString()
+      const updated = new Date(task.updatedAt).toISOString()
+      const currentTag = task.isCurrent ? ' (current task)' : ''
+      const title = task.title?.trim() || task.description
+      const lines = [
+        `- Task ${task.id}${currentTag}: ${task.status}, kind: ${task.kind}, Kin: ${task.parentKinName}, created ${created}, updated ${updated}`,
+        `  Title: ${title}`,
+      ]
+      if (task.result?.trim()) {
+        lines.push(`  Result summary: ${task.result.trim()}`)
+      } else if (task.error?.trim()) {
+        lines.push(`  Error summary: ${task.error.trim()}`)
+      } else if (!task.isCurrent) {
+        lines.push(`  No result or error summary is stored. Use get_task_detail(task_id: "${task.id}") or get_task_messages(task_id: "${task.id}", offset: -20) if you need to inspect where this task stopped.`)
+      }
+      blocks.push(lines.join('\n'))
+    }
+    sections.push(blocks.join('\n\n'))
+  }
+
+  // Existing comments, chronological. Absolute ISO timestamps (not relative)
   // so this block is stable across re-entries of the same task and stays in
   // the Anthropic prompt cache. Relative times like "5 min ago" change every
   // minute and would bust the stable system prefix on every re-entry.

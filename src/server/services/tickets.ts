@@ -1116,7 +1116,7 @@ export async function broadcastTicketUpdated(ticketId: string): Promise<void> {
  *  without conflating it with the ticket description. */
 export async function buildTicketAssignmentInfo(
   ticketId: string,
-  options: { runPrompt?: string | null } = {},
+  options: { runPrompt?: string | null; currentTaskId?: string | null } = {},
 ): Promise<TicketAssignmentInfo | null> {
   const ticket = db.select().from(tickets).where(eq(tickets.id, ticketId)).get()
   if (!ticket) return null
@@ -1131,6 +1131,40 @@ export async function buildTicketAssignmentInfo(
     .where(eq(ticketTags.ticketId, ticketId))
     .all()
     .map((r) => r.label)
+
+  const taskRows = db
+    .select({
+      id: tasks.id,
+      title: tasks.title,
+      description: tasks.description,
+      status: tasks.status,
+      kind: tasks.kind,
+      parentKinName: kins.name,
+      createdAt: tasks.createdAt,
+      updatedAt: tasks.updatedAt,
+      result: tasks.result,
+      error: tasks.error,
+    })
+    .from(tasks)
+    .innerJoin(kins, eq(tasks.parentKinId, kins.id))
+    .where(eq(tasks.ticketId, ticketId))
+    .orderBy(desc(tasks.createdAt))
+    .limit(20)
+    .all()
+
+  const taskHistory = taskRows.map((t) => ({
+    id: t.id,
+    title: t.title,
+    description: t.description,
+    status: t.status,
+    kind: t.kind,
+    parentKinName: t.parentKinName,
+    createdAt: toMillis(t.createdAt),
+    updatedAt: toMillis(t.updatedAt),
+    result: t.result,
+    error: t.error,
+    isCurrent: options.currentTaskId === t.id,
+  }))
 
   // Dynamic import to avoid a static cycle: ticket-comments → tickets is fine,
   // but tickets → ticket-comments would pull the comments module into the
@@ -1150,6 +1184,7 @@ export async function buildTicketAssignmentInfo(
     projectTitle: project.title,
     projectDescription: project.description,
     projectGithubUrl: project.githubUrl,
+    taskHistory,
     comments,
     runPrompt: options.runPrompt ?? null,
   }

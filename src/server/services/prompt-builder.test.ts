@@ -661,6 +661,62 @@ describe('buildSystemPrompt', () => {
       comments: [],
     }
 
+    it('injects linked task history with summaries and inspection hints', () => {
+      const result = buildSystemPrompt(makeParams({
+        isSubKin: true,
+        taskDescription: 'Work on ticket: foo',
+        ticketAssignment: {
+          ...baseAssignment,
+          taskHistory: [
+            {
+              id: 'task-current',
+              title: 'Ticket: current',
+              description: 'Work on ticket: current',
+              status: 'in_progress',
+              kind: 'execute',
+              parentKinName: 'KinBot Master',
+              createdAt: Date.parse('2026-05-17T12:00:00Z'),
+              updatedAt: Date.parse('2026-05-17T12:05:00Z'),
+              result: null,
+              error: null,
+              isCurrent: true,
+            },
+            {
+              id: 'task-done',
+              title: 'Ticket: previous',
+              description: 'Work on ticket: previous',
+              status: 'completed',
+              kind: 'execute',
+              parentKinName: 'KinBot Master',
+              createdAt: Date.parse('2026-05-16T12:00:00Z'),
+              updatedAt: Date.parse('2026-05-16T12:10:00Z'),
+              result: 'Implemented the backend service.',
+              error: null,
+              isCurrent: false,
+            },
+            {
+              id: 'task-failed',
+              title: null,
+              description: 'Work on ticket: failed',
+              status: 'failed',
+              kind: 'execute',
+              parentKinName: 'KinBot Master',
+              createdAt: Date.parse('2026-05-15T12:00:00Z'),
+              updatedAt: Date.parse('2026-05-15T12:10:00Z'),
+              result: null,
+              error: null,
+              isCurrent: false,
+            },
+          ],
+        },
+      }))
+      expect(result).toContain('### Ticket task history (most recent first)')
+      expect(result).toContain('Task task-current (current task): in_progress')
+      expect(result).toContain('Result summary: Implemented the backend service.')
+      expect(result).toContain('Use get_task_detail(task_id: "task-failed")')
+      expect(result).toContain('get_task_messages(task_id: "task-failed", offset: -20)')
+    })
+
     it('omits the run-specific block when no runPrompt is provided', () => {
       const result = buildSystemPrompt(makeParams({
         isSubKin: true,

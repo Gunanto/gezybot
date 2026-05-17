@@ -512,6 +512,14 @@ Status: {ticket.status}
 Description:
 {ticket.description}
 
+### Ticket task history (most recent first)
+
+- Task {task.id}{if current} (current task){/if}: {task.status}, kind: {task.kind}, Kin: {parent_kin_name}, created {relative_time}, updated {relative_time}
+  Title: {task.title}
+  {if result}Result summary: {task.result}{/if}
+  {if error}Error summary: {task.error}{/if}
+  {if no_result_or_error}No result or error summary is stored. Use get_task_detail(task_id: "{task.id}") or get_task_messages(task_id: "{task.id}", offset: -20) if you need to inspect where this task stopped.{/if}
+
 > Use update_ticket() to update the ticket as you progress (status, description, tags).
 > Report back to the parent Kin with report_to_parent() / update_task_status() as usual.
 ```
