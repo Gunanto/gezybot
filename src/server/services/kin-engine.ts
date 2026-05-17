@@ -60,9 +60,18 @@ const log = createLogger('kin-engine')
 const DEFAULT_MAX_LLM_TOOLS = 128
 
 /**
- * Core file tools that must always be preserved when truncation is needed.
- * These are the primary interface for Kins to read/write/search files in their
- * workspace; silently dropping them breaks most workflows.
+ * Core tools that must always be preserved when truncation is needed.
+ *
+ * Two families:
+ *   - File primitives (read/write/edit/list/grep) — the primary interface for
+ *     Kins to read/write/search files in their workspace; silently dropping
+ *     them breaks most workflows.
+ *   - Provider/model discovery (list_providers, list_models) — Kins use these
+ *     to look up valid (model, provider) pairs before calling spawn_self /
+ *     spawn_kin or generate_image. If they get dropped (which happened on
+ *     OpenAI's 128-tool cap when a "hub" Kin had >128 tools), the Kin can no
+ *     longer pick a model and `spawn_self` error messages pointing at
+ *     list_providers become unactionable.
  */
 const PROTECTED_CORE_TOOLS = new Set<string>([
   'read_file',
@@ -71,6 +80,8 @@ const PROTECTED_CORE_TOOLS = new Set<string>([
   'multi_edit',
   'list_directory',
   'grep',
+  'list_providers',
+  'list_models',
 ])
 
 /**
