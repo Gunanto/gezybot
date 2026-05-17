@@ -3286,12 +3286,46 @@ async function tryCreateModel(
           headers.set('Authorization', `Bearer ${accessToken}`)
           headers.set('ChatGPT-Account-ID', accountId)
 
-          // Modify request body: strip forbidden params, enforce store: false
+          // Modify request body: strip forbidden params, enforce store: false,
+          // and hoist developer/system messages into top-level `instructions`.
           if (init?.body && typeof init.body === 'string') {
             try {
               const body = JSON.parse(init.body)
               delete body.max_output_tokens
               body.store = false
+
+              // The Codex backend rejects requests without a top-level
+              // `instructions` field (`{"detail":"Instructions are required"}`),
+              // but the Vercel AI SDK passes the system prompt as a
+              // `developer`-role message inside `input[]` instead. Hoist any
+              // leading developer/system messages into `instructions` and
+              // strip them from `input[]` so both formats coexist.
+              if (!body.instructions && Array.isArray(body.input)) {
+                const instr: string[] = []
+                const remaining: unknown[] = []
+                for (const item of body.input as Array<{
+                  role?: string
+                  content?: unknown
+                }>) {
+                  if (item && (item.role === 'developer' || item.role === 'system')) {
+                    const text = typeof item.content === 'string'
+                      ? item.content
+                      : Array.isArray(item.content)
+                        ? (item.content as unknown[])
+                            .map((c) => (typeof c === 'string' ? c : (c as { text?: string })?.text ?? ''))
+                            .join('')
+                        : ''
+                    if (text) instr.push(text)
+                  } else {
+                    remaining.push(item)
+                  }
+                }
+                if (instr.length > 0) {
+                  body.instructions = instr.join('\n\n')
+                  body.input = remaining
+                }
+              }
+
               init = { ...init, body: JSON.stringify(body) }
             } catch {
               // Not JSON, pass through
