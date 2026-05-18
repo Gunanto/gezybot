@@ -16,7 +16,8 @@
  * context (modality, presence, channel info) without polluting `content`.
  */
 
-import { tool, z } from '@kinbot/sdk'
+import { tool, z } from '@kinbot-developer/sdk'
+import type { PluginContext } from '@kinbot-developer/sdk'
 import { randomUUID } from 'node:crypto'
 import {
   getOrCreateClient,
@@ -33,34 +34,6 @@ import {
   type ClientMovedEvent,
   type WelcomeEvent,
 } from './wsClient'
-
-// ─── Plugin context (loose typing to avoid coupling to internal SDK paths) ──
-
-interface PluginCtxLog {
-  debug(msg: string): void
-  debug(obj: Record<string, unknown>, msg: string): void
-  info(msg: string): void
-  info(obj: Record<string, unknown>, msg: string): void
-  warn(msg: string): void
-  warn(obj: Record<string, unknown>, msg: string): void
-  error(msg: string): void
-  error(obj: Record<string, unknown>, msg: string): void
-}
-
-interface PluginCtxStorage {
-  get<T = unknown>(key: string): Promise<T | null>
-  set<T = unknown>(key: string, value: T): Promise<void>
-  delete(key: string): Promise<void>
-  list(prefix?: string): Promise<string[]>
-  clear(): Promise<void>
-}
-
-interface PluginCtx {
-  config: Record<string, unknown>
-  log: PluginCtxLog
-  storage: PluginCtxStorage
-  manifest: { name: string; version: string }
-}
 
 // ─── Config helpers ─────────────────────────────────────────────────────────
 
@@ -253,7 +226,7 @@ function parseChatId(chatId: string): { kind: 'channel' | 'private'; id: number 
 
 // ─── Plugin entry point ─────────────────────────────────────────────────────
 
-export default function (ctx: PluginCtx) {
+export default function (ctx: PluginContext) {
   const cfg = resolveConfig(ctx.config)
   const state = emptyState()
   let client: TsBotWsClient | null = null

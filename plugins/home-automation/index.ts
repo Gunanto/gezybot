@@ -1,4 +1,5 @@
-import { tool, z } from '@kinbot/sdk'
+import { tool, z } from '@kinbot-developer/sdk'
+import type { PluginContext } from '@kinbot-developer/sdk'
 
 /**
  * Home Automation plugin for KinBot.
@@ -56,7 +57,7 @@ function summarizeEntity(state: HAState): {
   }
 }
 
-export default function (ctx: any) {
+export default function (ctx: PluginContext) {
   const getConfig = () => {
     const haUrl = ctx.config?.haUrl as string | undefined
     const haToken = ctx.config?.haToken as string | undefined

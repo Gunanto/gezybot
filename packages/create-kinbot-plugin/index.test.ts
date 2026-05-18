@@ -34,7 +34,7 @@ describe('generateManifest', () => {
 describe('generateIndex', () => {
   test('includes tool boilerplate for tools type', () => {
     const code = generateIndex({ ...defaultOpts, types: ['tools'] })
-    expect(code).toContain("import { tool, z } from '@kinbot/sdk'")
+    expect(code).toContain("import { tool, z } from '@kinbot-developer/sdk'")
     expect(code).toContain('hello:')
     expect(code).toContain('inputSchema')
   })
@@ -42,7 +42,7 @@ describe('generateIndex', () => {
   test('includes hooks boilerplate for hooks type', () => {
     const code = generateIndex({ ...defaultOpts, types: ['hooks'] })
     expect(code).toContain('afterChat')
-    expect(code).not.toContain("from '@kinbot/sdk'")
+    expect(code).not.toContain("from '@kinbot-developer/sdk'")
   })
 
   test('includes providers section for providers type', () => {

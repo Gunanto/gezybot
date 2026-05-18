@@ -88,62 +88,39 @@ Channel adapters live in `src/server/channels/` and implement the `ChannelAdapte
 4. Add the platform to `ChannelPlatform` in `src/shared/types.ts`
 5. Commit: `feat: add <platform> channel`
 
-## Submitting a Store Plugin
+## Writing a Plugin
 
-The `store/` directory contains curated community plugins that users can install directly from the KinBot UI. Here's how to submit yours.
+Plugins live in the `plugins/` directory and ship with KinBot. The three reference implementations are:
 
-### Scaffold a New Plugin
+- `plugins/teamspeak/` — channel adapter + tools (WebSocket-based external service)
+- `plugins/twilio-sms/` — channel adapter (HTTP-based + signed webhook)
+- `plugins/home-automation/` — tools (Home Assistant integration)
 
-```bash
-bun store:create my-plugin -d "What it does" -a "Your Name" -i "🚀"
-```
-
-This creates `store/my-plugin/` with the three required files:
-- `plugin.json` - manifest (metadata, config schema, permissions)
-- `index.ts` - entry point
-- `README.md` - documentation shown in the Store UI
-
-### Plugin Requirements
-
-- **Name** must match `[a-z0-9][a-z0-9-]*` and be unique in the store
-- **Manifest** must include `name`, `version`, `description`, and `main`
-- **README** is required and displayed in the plugin detail modal
-- **Permissions** must be minimal. Only request what you need (e.g., `http:api.example.com` instead of `http:*`)
-- **No external dependencies**. Plugins run in-process with Bun, use `ctx.http` for HTTP requests
-- **Config fields** must have `type`, `label`, and `description`
-
-### Validate Locally
+### Scaffold a new plugin
 
 ```bash
-bun store:validate my-plugin
+bunx create-kinbot-plugin
 ```
 
-This runs the same checks as CI: manifest schema, required files, TypeScript syntax, config field validation.
+This generates a `plugin.json` manifest, an `index.ts` entry point, and a `README.md`.
 
-### Test Locally
+### Plugin SDK
 
-Copy your plugin to the `plugins/` directory and restart KinBot:
+Plugin authors should import everything they need from `@kinbot-developer/sdk`:
 
-```bash
-cp -r store/my-plugin plugins/
-bun run dev
+```ts
+import { tool, z } from '@kinbot-developer/sdk'
+import type { ChannelAdapter, PluginContext, PluginExports } from '@kinbot-developer/sdk'
 ```
 
-Verify it loads, the config UI renders correctly, and tools work as expected.
-
-### Submit a PR
-
-1. Fork the repo and create a branch: `git checkout -b store/my-plugin`
-2. Add only your plugin directory under `store/`
-3. Push and open a PR. The `store-plugins` CI workflow validates your manifest automatically.
-4. A maintainer will review the code, test the plugin, and merge if it looks good.
+The SDK exposes `tool()`, `asSchema()`, `z` (re-export of zod), and the full type surface needed for tools, channels, providers, and hooks. Plugins should NOT import from `@/server/*` — that path is reserved for KinBot internals.
 
 ### Tips
 
-- Look at `store/rss-reader/` as a reference implementation
+- Use `plugins/teamspeak/` as a reference for a tool + channel plugin
 - Keep plugins focused: one clear purpose per plugin
-- Write helpful README examples so users know what prompts to try
-- Use `ctx.log` for debugging, `ctx.storage` for persistence, `ctx.config` for user settings
+- Write a helpful README so users know how to configure and use it
+- Use `ctx.log` for logging, `ctx.storage` for persistence, `ctx.config` for user-supplied settings
 - See the [Plugin Development Guide](docs/plugins.md) for the full API reference
 
 ## Code Style

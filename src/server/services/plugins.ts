@@ -9,48 +9,37 @@ import { createLogger } from '@/server/logger'
 import { toolRegistry } from '@/server/tools/index'
 import { hookRegistry } from '@/server/hooks/index'
 import { sseManager } from '@/server/sse/index'
-import type { ToolRegistration } from '@/server/tools/types'
 import type { HookName, HookHandler } from '@/server/hooks/types'
 import type { PluginManifest, PluginConfigField, PluginSummary, PluginHealthStats, PluginProviderMeta, PluginChannelMeta, PluginInstallSource, PluginInstallMeta } from '@/shared/types/plugin'
 import { satisfiesSemver } from '@/shared/semver'
-import type { ProviderDefinition } from '@/server/providers/types'
-import type { ChannelAdapter } from '@/server/channels/adapter'
 import { registerPluginProvider, unregisterPluginProvider } from '@/server/providers/index'
 import { channelAdapters } from '@/server/channels/index'
 import { emitPluginCard, updatePluginCard } from '@/server/services/plugin-cards'
 import type { PluginCardPrimitive } from '@/shared/types/plugin-cards'
+import type {
+  PluginContext,
+  PluginExports,
+  PluginCardActionContext,
+  PluginCardActionResult,
+  PluginLogger,
+  PluginStorageAPI,
+  PluginHTTPClient,
+} from '@kinbot-developer/sdk'
+
+// Re-export the plugin-facing surface so other internal modules keep their
+// existing import paths. The SDK is the source of truth.
+export type { PluginCardActionContext, PluginCardActionResult }
 
 const log = createLogger('plugins')
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-interface PluginLogger {
-  debug(msg: string): void
-  debug(obj: Record<string, any>, msg: string): void
-  info(msg: string): void
-  info(obj: Record<string, any>, msg: string): void
-  warn(msg: string): void
-  warn(obj: Record<string, any>, msg: string): void
-  error(msg: string): void
-  error(obj: Record<string, any>, msg: string): void
-}
-
-interface PluginStorageAPI {
-  get<T = unknown>(key: string): Promise<T | null>
-  set<T = unknown>(key: string, value: T): Promise<void>
-  delete(key: string): Promise<void>
-  list(prefix?: string): Promise<string[]>
-  clear(): Promise<void>
-}
-
-interface PluginHTTPClient {
-  fetch(url: string, init?: RequestInit): Promise<Response>
-}
+// ─── Internal types ──────────────────────────────────────────────────────────
 
 /**
- * Card APIs exposed to plugins. The plugin name is captured at context
- * creation time so plugins cannot accidentally emit cards under another
- * plugin's identity.
+ * Card APIs as exposed inside `plugins.ts`. The internal layout typing is
+ * stricter than what the SDK exposes (the SDK's `PluginCardPrimitive` is a
+ * loose `Record<string, unknown>` so plugin authors don't have to import the
+ * discriminated union). The internal one keeps the strict shape because
+ * `emitPluginCard` consumes it.
  */
 export interface PluginCardsAPI {
   emit(params: {
@@ -63,44 +52,6 @@ export interface PluginCardsAPI {
     cardInstanceId: string
     state: Record<string, unknown>
   }): Promise<void>
-}
-
-interface PluginContext {
-  config: Record<string, any>
-  log: PluginLogger
-  storage: PluginStorageAPI
-  http: PluginHTTPClient
-  manifest: PluginManifest
-  cards: PluginCardsAPI
-}
-
-interface PluginProviderRegistration {
-  definition: ProviderDefinition
-  displayName: string
-  capabilities: string[]
-  noApiKey?: boolean
-  apiKeyUrl?: string
-}
-
-/** Payload delivered to a plugin when a user clicks an action on its card. */
-export interface PluginCardActionContext {
-  cardInstanceId: string
-  actionId: string
-  input?: string
-  kinId: string
-}
-
-export type PluginCardActionResult = { ok: true } | { ok: false; error: string }
-
-interface PluginExports {
-  tools?: Record<string, ToolRegistration>
-  providers?: Record<string, PluginProviderRegistration>
-  channels?: Record<string, ChannelAdapter>
-  hooks?: Partial<Record<HookName, HookHandler>>
-  /** Handle user clicks on action-row buttons emitted by this plugin's cards. */
-  onCardAction?(ctx: PluginCardActionContext): Promise<PluginCardActionResult>
-  activate?(): Promise<void>
-  deactivate?(): Promise<void>
 }
 
 interface LoadedPlugin {

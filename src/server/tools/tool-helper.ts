@@ -2,10 +2,10 @@
  * KinBot's internal tool definition helper + legacy message-shape types.
  *
  * The public surface (`tool`, `asSchema`, `Tool`, `JSONValue`) lives in
- * `@kinbot/sdk` — this file simply re-exports from there so internal
+ * `@kinbot-developer/sdk` — this file simply re-exports from there so internal
  * imports (`from '@/server/tools/tool-helper'`) keep working without
  * touching the ~45 native tool files. Plugins should import directly
- * from `@kinbot/sdk` instead.
+ * from `@kinbot-developer/sdk` instead.
  *
  * The `ModelMessage` / `UserContent` types and their part definitions
  * are NOT exported from the SDK — they're internal to KinBot, used only
@@ -13,8 +13,8 @@
  * is being progressively migrated to `KinbotMessage`. They live here so
  * the rest of the codebase can keep its current import path.
  */
-export { tool, asSchema } from '@kinbot/sdk'
-export type { Tool, JSONValue, NormalizedSchema } from '@kinbot/sdk'
+export { tool, asSchema } from '@kinbot-developer/sdk'
+export type { Tool, JSONValue, NormalizedSchema } from '@kinbot-developer/sdk'
 
 // ─── Message shapes (legacy parity, used by buildMessageHistory) ─────────────
 
@@ -71,7 +71,7 @@ export interface ToolCallPart {
   input: unknown
 }
 
-import type { JSONValue } from '@kinbot/sdk'
+import type { JSONValue } from '@kinbot-developer/sdk'
 
 export interface ToolResultPart {
   type: 'tool-result'

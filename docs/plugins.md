@@ -164,10 +164,10 @@ The parsed `plugin.json` manifest object, read-only.
 
 ## Registering Tools
 
-Tools are AI-callable functions that Kins can use in conversations. They use the [Vercel AI SDK](https://sdk.vercel.ai/) tool format:
+Tools are AI-callable functions that Kins can use in conversations. They are declared via `tool()` from `@kinbot-developer/sdk`:
 
 ```typescript
-import { tool, z } from '@kinbot/sdk'
+import { tool, z } from '@kinbot-developer/sdk'
 
 export default function(ctx) {
   return {
@@ -184,7 +184,7 @@ export default function(ctx) {
         create: (execCtx) =>
           tool({
             description: 'Does something useful',
-            parameters: z.object({
+            inputSchema: z.object({
               input: z.string().describe('The input to process'),
             }),
             execute: async ({ input }) => {
@@ -422,8 +422,8 @@ Plugins can be installed directly from the registry with one click.
 A complete example that registers a tool with configuration:
 
 ```typescript
-// plugins/example-weather/index.ts
-import { tool, z } from '@kinbot/sdk'
+// plugins/my-weather/index.ts
+import { tool, z } from '@kinbot-developer/sdk'
 
 export default function(ctx) {
   const { apiKey, units = 'metric' } = ctx.config
@@ -435,7 +435,7 @@ export default function(ctx) {
         create: () =>
           tool({
             description: 'Get current weather for a location',
-            parameters: z.object({
+            inputSchema: z.object({
               location: z.string().describe('City name (e.g. "Paris")'),
             }),
             execute: async ({ location }) => {

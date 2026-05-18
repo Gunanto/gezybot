@@ -508,7 +508,7 @@ Settings are stored in the `plugin_configs` table (new), keyed by plugin name.
 **`plugins/weather/index.ts`**
 ```typescript
 import type { PluginContext, PluginExports } from 'kinbot/plugin'
-import { tool, z } from '@kinbot/sdk'
+import { tool, z } from '@kinbot-developer/sdk'
 
 export default function(ctx: PluginContext): PluginExports {
   const { apiKey, units } = ctx.config
@@ -610,7 +610,7 @@ export default function(ctx: PluginContext): PluginExports {
 **`plugins/twilio-sms/index.ts`**
 ```typescript
 import type { PluginContext, PluginExports } from 'kinbot/plugin'
-import { tool, z } from '@kinbot/sdk'
+import { tool, z } from '@kinbot-developer/sdk'
 
 export default function(ctx: PluginContext): PluginExports {
   const { accountSid, authToken, fromNumber } = ctx.config
@@ -882,12 +882,12 @@ export interface PluginLogger {
 
 ---
 
-## Official Store Plugins
+## Built-in Plugins
 
-The `store/` directory contains community plugins available for one-click install:
+The `plugins/` directory contains the plugins shipped with KinBot. They double as reference implementations for plugin authors:
 
 | Plugin | Icon | Description |
 |--------|------|-------------|
-| `rss-reader` | 📰 | Fetch and summarize RSS/Atom feeds |
-| `pomodoro` | 🍅 | Pomodoro timer for focused work sessions |
-| `system-monitor` | 📊 | Monitor CPU, memory, disk, uptime, and processes |
+| `teamspeak` | 🎙️ | Channel adapter + tools bridging a TeamSpeak server (WebSocket transport, TTS, presence). |
+| `twilio-sms` | 📱 | Channel adapter sending and receiving SMS via Twilio (signed webhooks). |
+| `home-automation` | 🏠 | Tools to interact with Home Assistant (entities, services, automations). |

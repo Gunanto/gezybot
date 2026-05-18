@@ -15,29 +15,11 @@ import type {
   IncomingMessageHandler,
   OutboundMessageParams,
   OutboundMessageResult,
-} from '@/server/channels/adapter'
+  PluginContext,
+} from '@kinbot-developer/sdk'
 import { getSecretValue } from '@/server/services/vault'
 import { getAccount, sendSms, TwilioApiException, type TwilioAuth } from './twilioApi'
 import { validateTwilioSignature } from './webhookSecurity'
-
-// ─── Plugin context (loose typing, mirrors the teamspeak plugin) ────────────
-
-interface PluginCtxLog {
-  debug(msg: string): void
-  debug(obj: Record<string, unknown>, msg: string): void
-  info(msg: string): void
-  info(obj: Record<string, unknown>, msg: string): void
-  warn(msg: string): void
-  warn(obj: Record<string, unknown>, msg: string): void
-  error(msg: string): void
-  error(obj: Record<string, unknown>, msg: string): void
-}
-
-interface PluginCtx {
-  config: Record<string, unknown>
-  log: PluginCtxLog
-  manifest: { name: string; version: string }
-}
 
 // ─── Resolved channel config shape ──────────────────────────────────────────
 // Stored in `channels.platformConfig` as JSON. The Auth Token is a password
@@ -87,7 +69,7 @@ const EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>
 
 // ─── Plugin entry point ─────────────────────────────────────────────────────
 
-export default function twilioSmsPlugin(ctx: PluginCtx): {
+export default function twilioSmsPlugin(ctx: PluginContext): {
   channels: { 'twilio-sms': ChannelAdapter }
   activate?: () => Promise<void>
   deactivate?: () => Promise<void>

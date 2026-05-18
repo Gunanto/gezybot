@@ -112,7 +112,7 @@ export function generateIndex(opts: ScaffoldOptions): string {
   ]
 
   if (opts.types.includes('tools')) {
-    lines.push(`import { tool, z } from '@kinbot/sdk'`)
+    lines.push(`import { tool, z } from '@kinbot-developer/sdk'`)
   }
 
   lines.push('')

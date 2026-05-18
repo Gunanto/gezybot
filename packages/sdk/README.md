@@ -1,13 +1,13 @@
-# `@kinbot/sdk`
+# `@kinbot-developer/sdk`
 
 Plugin SDK for [KinBot](https://github.com/MarlBurroW/kinbot). Re-exports the small surface that plugin authors need to declare tools, so plugins don't have to depend on KinBot internals or on the (now removed) Vercel AI SDK.
 
 ## Install
 
 ```bash
-bun add @kinbot/sdk
+bun add @kinbot-developer/sdk
 # or
-npm i @kinbot/sdk
+npm i @kinbot-developer/sdk
 ```
 
 > KinBot's plugin loader resolves this package against the host's installation, so it doubles as a peer dep when plugins are loaded in-process.
@@ -15,7 +15,7 @@ npm i @kinbot/sdk
 ## Usage
 
 ```ts
-import { tool, z } from '@kinbot/sdk'
+import { tool, z } from '@kinbot-developer/sdk'
 
 export default function (ctx) {
   const log = ctx.log
