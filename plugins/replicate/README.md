@@ -6,7 +6,19 @@ Brings [Replicate](https://replicate.com)-hosted models to KinBot via a single A
 
 1. Grab an API token from [replicate.com/account/api-tokens](https://replicate.com/account/api-tokens).
 2. In KinBot, go to **Settings → Providers → Add provider**, pick **Replicate**, paste the token.
-3. Save. KinBot creates one provider row per family (LLM, Image, Embedding) — all share the same token.
+3. Save. KinBot creates one provider row with all three capabilities enabled (LLM, Image, Embedding).
+
+### Surfacing your own models (private fine-tunes, LoRAs, …)
+
+Replicate's REST API has no "list my models" endpoint — `/v1/models` returns the entire public catalogue with no owner filter. So the plugin can't auto-discover your own models. Instead, the provider config form has three optional textareas:
+
+- **Custom LLM models** — comma-separated `owner/name` identifiers for LLMs missing from the `language-models` collection.
+- **Custom image models** — same, for image models (your LoRAs, private fine-tunes, niche community models).
+- **Custom embedding models** — same.
+
+Example: `marlburrow/betontower-lora, marlburrow/nicolas-lora` in **Custom image models**.
+
+For each entry the plugin hits `GET /v1/models/{owner}/{name}` (your API token grants access to your private models) and surfaces it with the same metadata extraction (max output tokens, image-input support) as the curated entries. A failed lookup (revoked access, typo) is logged and skipped — the rest of the list keeps working.
 
 ## What this plugin demonstrates
 

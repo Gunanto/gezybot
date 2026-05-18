@@ -177,6 +177,84 @@ describe('replicate plugin — LLM provider', () => {
     await expect(llm.listModels({})).rejects.toThrow(/not configured/)
   })
 
+  it('merges custom LLM models from config in front of the curated collection', async () => {
+    const { ctx, calls, pushResponse } = makeCtx()
+    const llm = pickProvider(replicatePlugin(ctx), isLLM)
+
+    // 1) collection fetch
+    pushResponse(200, {
+      name: 'Language models',
+      slug: 'language-models',
+      models: [{ owner: 'meta', name: 'meta-llama-3-8b-instruct', latest_version: null }],
+    })
+    // 2) custom model fetch — single private fine-tune
+    pushResponse(200, {
+      owner: 'marlburrow',
+      name: 'my-llama-finetune',
+      latest_version: null,
+    })
+
+    const models = await llm.listModels({
+      apiToken: 'r8_test',
+      customLlmModels: 'marlburrow/my-llama-finetune',
+    })
+
+    expect(calls).toHaveLength(2)
+    expect(calls[0]!.url).toBe('https://api.replicate.com/v1/collections/language-models')
+    expect(calls[1]!.url).toBe('https://api.replicate.com/v1/models/marlburrow/my-llama-finetune')
+    // Custom comes first, then the curated collection.
+    expect(models.map((m) => m.id)).toEqual([
+      'marlburrow/my-llama-finetune',
+      'meta/meta-llama-3-8b-instruct',
+    ])
+  })
+
+  it('skips invalid `owner/name` entries silently', async () => {
+    const { ctx, calls, pushResponse } = makeCtx()
+    const llm = pickProvider(replicatePlugin(ctx), isLLM)
+
+    pushResponse(200, { name: 'Empty', slug: 'language-models', models: [] })
+    // Entries with no slash, leading/trailing slash, or pure whitespace
+    // are dropped before any HTTP call is made.
+    const models = await llm.listModels({
+      apiToken: 'r8_test',
+      customLlmModels: 'no-slash, /missing-owner, missing-name/, , ',
+    })
+
+    expect(calls).toHaveLength(1) // only the collection fetch
+    expect(models).toEqual([])
+  })
+
+  it('a failing custom-model fetch does NOT break the rest of the list', async () => {
+    const { ctx, pushResponse } = makeCtx()
+    const llm = pickProvider(replicatePlugin(ctx), isLLM)
+
+    // collection
+    pushResponse(200, {
+      name: 'Language models',
+      slug: 'language-models',
+      models: [{ owner: 'meta', name: 'meta-llama-3-8b-instruct', latest_version: null }],
+    })
+    // first custom model — 404 (e.g. revoked access)
+    pushResponse(404, { detail: 'Not Found' })
+    // second custom model — succeeds
+    pushResponse(200, {
+      owner: 'marlburrow',
+      name: 'ok-model',
+      latest_version: null,
+    })
+
+    const models = await llm.listModels({
+      apiToken: 'r8_test',
+      customLlmModels: 'marlburrow/gone-model, marlburrow/ok-model',
+    })
+
+    expect(models.map((m) => m.id)).toEqual([
+      'marlburrow/ok-model',
+      'meta/meta-llama-3-8b-instruct',
+    ])
+  })
+
   it('streams a single text-delta followed by a finish chunk', async () => {
     const { ctx, calls, pushResponse } = makeCtx()
     const llm = pickProvider(replicatePlugin(ctx), isLLM)
@@ -348,6 +426,38 @@ describe('replicate plugin — Image provider', () => {
     expect(models[0]?.supportsImageInput).toBeUndefined()
     expect(models[1]?.id).toBe('stability-ai/sdxl-inpainting')
     expect(models[1]?.supportsImageInput).toBe(true)
+  })
+
+  it('surfaces private LoRAs via customImageModels (real-world Replicate use case)', async () => {
+    const { ctx, calls, pushResponse } = makeCtx()
+    const image = pickProvider(replicatePlugin(ctx), isImage)
+
+    // 1) text-to-image collection
+    pushResponse(200, {
+      name: 'Text to image',
+      slug: 'text-to-image',
+      models: [{ owner: 'black-forest-labs', name: 'flux-schnell', latest_version: null }],
+    })
+    // 2) two custom LoRAs, exactly the user's scenario
+    pushResponse(200, { owner: 'marlburrow', name: 'betontower-lora', latest_version: null })
+    pushResponse(200, { owner: 'marlburrow', name: 'nicolas-lora', latest_version: null })
+
+    const models = await image.listModels({
+      apiToken: 'r8_test',
+      customImageModels: 'marlburrow/betontower-lora, marlburrow/nicolas-lora',
+    })
+
+    // Custom LoRAs first (so they're easy to spot in the model picker),
+    // then the curated collection.
+    expect(models.map((m) => m.id)).toEqual([
+      'marlburrow/betontower-lora',
+      'marlburrow/nicolas-lora',
+      'black-forest-labs/flux-schnell',
+    ])
+    // Three URLs hit: 1 collection + 2 per-model.
+    expect(calls).toHaveLength(3)
+    expect(calls[1]!.url).toBe('https://api.replicate.com/v1/models/marlburrow/betontower-lora')
+    expect(calls[2]!.url).toBe('https://api.replicate.com/v1/models/marlburrow/nicolas-lora')
   })
 })
 

@@ -44,6 +44,71 @@ import { Replicate, ReplicateApiError, type ReplicateCollectionModel } from './r
 
 interface ReplicateConfig {
   apiToken?: string
+  /** Comma-separated `owner/name` Replicate model identifiers to surface
+   *  alongside the curated collection. Useful for the user's own private
+   *  models (LoRAs, fine-tunes) which Replicate's API doesn't expose
+   *  under any "list mine" endpoint. */
+  customLlmModels?: string
+  customImageModels?: string
+  customEmbeddingModels?: string
+}
+
+// ─── Custom-model parsing ───────────────────────────────────────────────────
+
+/**
+ * Parse a comma-separated list of `owner/name` identifiers from the
+ * plugin config. Silently drops blank entries and entries that don't
+ * match the `owner/name` pattern — the plugin author's mistake
+ * shouldn't fail the whole listModels() call.
+ */
+function parseCustomModels(raw: string | undefined): Array<{ owner: string; name: string }> {
+  if (!raw) return []
+  const out: Array<{ owner: string; name: string }> = []
+  for (const entry of raw.split(',')) {
+    const trimmed = entry.trim()
+    if (!trimmed) continue
+    const slash = trimmed.indexOf('/')
+    if (slash <= 0 || slash === trimmed.length - 1) continue
+    const owner = trimmed.slice(0, slash).trim()
+    const name = trimmed.slice(slash + 1).trim()
+    if (!owner || !name) continue
+    out.push({ owner, name })
+  }
+  return out
+}
+
+/**
+ * Fetch every custom model declared by the user and apply the family-
+ * specific mapping. Errors per entry are swallowed (logged via the
+ * plugin's ctx.log) so a missing or revoked model doesn't break the
+ * rest of the catalogue.
+ */
+async function fetchCustomModels<M>(
+  client: Replicate,
+  raw: string | undefined,
+  map: (m: ReplicateCollectionModel) => M,
+  log: PluginContext['log'],
+  family: string,
+): Promise<M[]> {
+  const ids = parseCustomModels(raw)
+  if (ids.length === 0) return []
+  const results = await Promise.allSettled(
+    ids.map(async (id) => map(await client.getModel(id.owner, id.name))),
+  )
+  const out: M[] = []
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i]!
+    if (r.status === 'fulfilled') {
+      out.push(r.value)
+    } else {
+      const id = ids[i]!
+      log.warn(
+        { family, model: `${id.owner}/${id.name}`, err: r.reason instanceof Error ? r.reason.message : String(r.reason) },
+        'Replicate custom model could not be fetched — skipping',
+      )
+    }
+  }
+  return out
 }
 
 // ─── Collection slugs Replicate curates publicly ────────────────────────────
@@ -139,6 +204,50 @@ function embeddingModelFrom(m: ReplicateCollectionModel): EmbeddingModel {
   }
 }
 
+// ─── Shared config schema ───────────────────────────────────────────────────
+//
+// All three native providers (LLM / Image / Embedding) of this plugin
+// share `type: 'replicate'`, so the AddProviderDialog only renders one
+// configSchema (the first one registered — LLM by alphabetical-ish
+// registration order). To make every field actually appear in the form,
+// we use the same schema across all three. Each provider's runtime code
+// only reads the fields it cares about.
+const SHARED_CONFIG_SCHEMA = [
+  {
+    key: 'apiToken',
+    type: 'secret',
+    label: 'Replicate API Token',
+    required: true,
+    placeholder: 'r8_...',
+    description:
+      'Found at https://replicate.com/account/api-tokens. Used for every Replicate call (LLM, image, embedding).',
+  },
+  {
+    key: 'customLlmModels',
+    type: 'text',
+    label: 'Custom LLM models',
+    placeholder: 'meta/my-llama-finetune, my-org/internal-llm',
+    description:
+      'Optional. Comma-separated `owner/name` Replicate model identifiers. Surfaces models that aren\'t in Replicate\'s `language-models` curated collection (your private fine-tunes, niche community models, etc.).',
+  },
+  {
+    key: 'customImageModels',
+    type: 'text',
+    label: 'Custom image models',
+    placeholder: 'marlburrow/betontower-lora, marlburrow/nicolas-lora',
+    description:
+      'Optional. Comma-separated `owner/name`. Use this to surface your own LoRAs, private fine-tunes, or any image model missing from Replicate\'s `text-to-image` collection.',
+  },
+  {
+    key: 'customEmbeddingModels',
+    type: 'text',
+    label: 'Custom embedding models',
+    placeholder: 'owner/my-embedder',
+    description:
+      'Optional. Comma-separated `owner/name` for embedding models outside the `embedding-models` collection.',
+  },
+] as const
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function requireToken(config: ProviderConfig): string {
@@ -200,19 +309,12 @@ class ReplicateLLMProvider implements LLMProvider {
   readonly type = 'replicate'
   readonly displayName = 'Replicate (LLM)'
   readonly apiKeyUrl = 'https://replicate.com/account/api-tokens'
-  readonly configSchema = [
-    {
-      key: 'apiToken',
-      type: 'secret',
-      label: 'Replicate API Token',
-      required: true,
-      placeholder: 'r8_...',
-      description:
-        'Found at https://replicate.com/account/api-tokens. Used for every Replicate call (LLM, image, embedding).',
-    },
-  ] as const
+  readonly configSchema = SHARED_CONFIG_SCHEMA
 
-  constructor(private readonly fetch: PluginContext['http']['fetch']) {}
+  constructor(
+    private readonly fetch: PluginContext['http']['fetch'],
+    private readonly log: PluginContext['log'],
+  ) {}
 
   async authenticate(config: ProviderConfig) {
     try {
@@ -229,10 +331,17 @@ class ReplicateLLMProvider implements LLMProvider {
 
   async listModels(config: ProviderConfig): Promise<LLMModel[]> {
     const token = requireToken(config)
-    const collection = await new Replicate(this.fetch, token).collection(
-      LLM_COLLECTION_SLUG,
+    const client = new Replicate(this.fetch, token)
+    const collection = await client.collection(LLM_COLLECTION_SLUG)
+    const fromCollection = collection.models.map(llmModelFrom)
+    const fromCustom = await fetchCustomModels(
+      client,
+      config.customLlmModels,
+      llmModelFrom,
+      this.log,
+      'llm',
     )
-    return collection.models.map(llmModelFrom)
+    return [...fromCustom, ...fromCollection]
   }
 
   async *chat(
@@ -279,28 +388,30 @@ class ReplicateImageProvider implements ImageProvider {
   readonly type = 'replicate'
   readonly displayName = 'Replicate (Image)'
   readonly apiKeyUrl = 'https://replicate.com/account/api-tokens'
-  readonly configSchema = [
-    {
-      key: 'apiToken',
-      type: 'secret',
-      label: 'Replicate API Token',
-      required: true,
-      placeholder: 'r8_...',
-    },
-  ] as const
+  readonly configSchema = SHARED_CONFIG_SCHEMA
 
-  constructor(private readonly fetch: PluginContext['http']['fetch']) {}
+  constructor(
+    private readonly fetch: PluginContext['http']['fetch'],
+    private readonly log: PluginContext['log'],
+  ) {}
 
   async authenticate(config: ProviderConfig) {
-    return new ReplicateLLMProvider(this.fetch).authenticate(config)
+    return new ReplicateLLMProvider(this.fetch, this.log).authenticate(config)
   }
 
   async listModels(config: ProviderConfig): Promise<ImageModel[]> {
     const token = requireToken(config)
-    const collection = await new Replicate(this.fetch, token).collection(
-      IMAGE_COLLECTION_SLUG,
+    const client = new Replicate(this.fetch, token)
+    const collection = await client.collection(IMAGE_COLLECTION_SLUG)
+    const fromCollection = collection.models.map(imageModelFrom)
+    const fromCustom = await fetchCustomModels(
+      client,
+      config.customImageModels,
+      imageModelFrom,
+      this.log,
+      'image',
     )
-    return collection.models.map(imageModelFrom)
+    return [...fromCustom, ...fromCollection]
   }
 
   async generate(
@@ -349,36 +460,42 @@ class ReplicateEmbeddingProvider implements EmbeddingProvider {
   readonly type = 'replicate'
   readonly displayName = 'Replicate (Embedding)'
   readonly apiKeyUrl = 'https://replicate.com/account/api-tokens'
-  readonly configSchema = [
-    {
-      key: 'apiToken',
-      type: 'secret',
-      label: 'Replicate API Token',
-      required: true,
-      placeholder: 'r8_...',
-    },
-  ] as const
+  readonly configSchema = SHARED_CONFIG_SCHEMA
 
-  constructor(private readonly fetch: PluginContext['http']['fetch']) {}
+  constructor(
+    private readonly fetch: PluginContext['http']['fetch'],
+    private readonly log: PluginContext['log'],
+  ) {}
 
   async authenticate(config: ProviderConfig) {
-    return new ReplicateLLMProvider(this.fetch).authenticate(config)
+    return new ReplicateLLMProvider(this.fetch, this.log).authenticate(config)
   }
 
   async listModels(config: ProviderConfig): Promise<EmbeddingModel[]> {
     const token = requireToken(config)
+    const client = new Replicate(this.fetch, token)
+    let fromCollection: EmbeddingModel[] = []
     try {
-      const collection = await new Replicate(this.fetch, token).collection(
-        EMBEDDING_COLLECTION_SLUG,
-      )
-      return collection.models.map(embeddingModelFrom)
+      const collection = await client.collection(EMBEDDING_COLLECTION_SLUG)
+      fromCollection = collection.models.map(embeddingModelFrom)
     } catch (err) {
       // Replicate sometimes 404s on this slug if the collection is empty
-      // or renamed. Return [] so the UI surfaces "no models" rather than
-      // crashing on the provider page.
-      if (err instanceof ReplicateApiError && err.status === 404) return []
-      throw err
+      // or renamed. Keep going so any custom models the user listed
+      // still surface.
+      if (err instanceof ReplicateApiError && err.status === 404) {
+        fromCollection = []
+      } else {
+        throw err
+      }
     }
+    const fromCustom = await fetchCustomModels(
+      client,
+      config.customEmbeddingModels,
+      embeddingModelFrom,
+      this.log,
+      'embedding',
+    )
+    return [...fromCustom, ...fromCollection]
   }
 
   async embed(
@@ -421,14 +538,16 @@ export default function replicatePlugin(
 
   // Each provider takes the audited fetch from ctx — `http:api.replicate.com`
   // and `http:replicate.delivery` permissions in the manifest are what
-  // makes that fetch succeed.
+  // makes that fetch succeed. ctx.log lets each provider surface
+  // per-custom-model warnings without crashing listModels().
   const fetch = ctx.http.fetch
+  const log = ctx.log
 
   return {
     providers: [
-      new ReplicateLLMProvider(fetch),
-      new ReplicateImageProvider(fetch),
-      new ReplicateEmbeddingProvider(fetch),
+      new ReplicateLLMProvider(fetch, log),
+      new ReplicateImageProvider(fetch, log),
+      new ReplicateEmbeddingProvider(fetch, log),
     ],
     async activate() {
       ctx.log.info('replicate plugin activated')

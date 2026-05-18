@@ -144,6 +144,22 @@ export class Replicate {
   }
 
   /**
+   * Fetch a single model by its `<owner>/<name>` identifier. Used for
+   * surfacing the user's own private models (LoRAs, fine-tunes) which
+   * Replicate's API doesn't expose under any "list mine" endpoint —
+   * `GET /v1/models` returns the entire public catalogue with no
+   * owner filter. The pragmatic alternative is to let the user paste
+   * their model IDs in the plugin config; this helper resolves each
+   * one to a full ReplicateCollectionModel-compatible shape so the
+   * `listModels()` mapping helpers (llmModelFrom / imageModelFrom /
+   * embeddingModelFrom) work unchanged.
+   */
+  async getModel(owner: string, name: string): Promise<ReplicateCollectionModel> {
+    const res = await this.request('GET', `/models/${owner}/${name}`)
+    return res.json() as Promise<ReplicateCollectionModel>
+  }
+
+  /**
    * Create a prediction and return it. When `wait > 0` the API blocks
    * server-side for up to that many seconds before returning, so the
    * response is usually already in a terminal state on common workloads.
