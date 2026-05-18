@@ -494,4 +494,41 @@ providerRoutes.get('/:id/models', async (c) => {
   })
 })
 
+// GET /api/providers/:id — fetch a single provider, including its
+// non-secret config fields so the edit dialog can prefill them
+// (custom-model lists, base URLs, paths). Secret fields are stripped —
+// the stored value never leaves the server; the form shows a masked
+// placeholder for them and PATCH merges any new secret against what's
+// stored. Registered last so the more-specific GET routes above
+// (/capabilities, /types, /models, /:id/models) win on path match.
+providerRoutes.get('/:id', async (c) => {
+  const id = c.req.param('id')
+  const row = await db.select().from(providers).where(eq(providers.id, id)).get()
+  if (!row) {
+    return c.json({ error: { code: 'PROVIDER_NOT_FOUND', message: 'Provider not found' } }, 404)
+  }
+
+  const schema = readConfigSchema(row.type) ?? []
+  const stored = JSON.parse(await decrypt(row.configEncrypted)) as Record<string, unknown>
+  const safeConfig: Record<string, unknown> = {}
+  for (const field of schema) {
+    if (field.type === 'secret') continue
+    if (field.key in stored) safeConfig[field.key] = stored[field.key]
+  }
+
+  return c.json({
+    provider: {
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      type: row.type,
+      capabilities: JSON.parse(row.capabilities),
+      isValid: row.isValid,
+      lastError: row.lastError ?? null,
+      createdAt: row.createdAt,
+      safeConfig,
+    },
+  })
+})
+
 export { providerRoutes }

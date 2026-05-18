@@ -111,6 +111,37 @@ export function ProviderFormDialog({ open, onOpenChange, onSaved, provider, prov
       setConfigValues({})
       setError('')
       setTestPassed(false)
+
+      // Fetch the provider's non-secret config fields so the edit form
+      // can prefill them (custom-model lists, base URLs, …). Secret
+      // fields stay blank — the server strips them and the input shows
+      // its masked placeholder. The fetch is fire-and-forget; if it
+      // races against a fast close, the early-return guards prevent
+      // touching a stale form.
+      let cancelled = false
+      api
+        .get<{ provider: { safeConfig?: Record<string, unknown> } }>(`/providers/${provider.id}`)
+        .then((res) => {
+          if (cancelled) return
+          const safe = res.provider?.safeConfig
+          if (!safe) return
+          const prefill: Record<string, string> = {}
+          for (const [k, v] of Object.entries(safe)) {
+            if (typeof v === 'string') prefill[k] = v
+            else if (v != null) prefill[k] = String(v)
+          }
+          if (Object.keys(prefill).length > 0) {
+            setConfigValues((prev) => ({ ...prefill, ...prev }))
+          }
+        })
+        .catch(() => {
+          // Non-fatal: the form still works, the user just doesn't see
+          // their previously stored non-secret values. The Test/Save
+          // path still merges server-side.
+        })
+      return () => {
+        cancelled = true
+      }
     } else if (open && !provider) {
       resetForm()
     }
