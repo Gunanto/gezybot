@@ -51,8 +51,8 @@ mock.module('@/server/db/schema', () => ({
 
 const mockListModelsForProvider = mock(() =>
   Promise.resolve([
-    { id: 'dall-e-3', name: 'DALL-E 3', capability: 'image', supportsImageInput: false },
-    { id: 'gpt-image-1', name: 'GPT Image 1', capability: 'image', supportsImageInput: true },
+    { id: 'dall-e-3', name: 'DALL-E 3', capability: 'image', maxImageInputs: 0 },
+    { id: 'gpt-image-1', name: 'GPT Image 1', capability: 'image', maxImageInputs: 1 },
     { id: 'gpt-4o', name: 'GPT-4o', capability: 'chat', supportsImageInput: false },
   ]),
 )
@@ -139,9 +139,9 @@ describe('listImageModelsTool', () => {
     expect(result.models).toBeDefined()
     expect(result.models.length).toBe(2) // only image capability models
     expect(result.models[0].id).toBe('dall-e-3')
-    expect(result.models[0].supportsImageInput).toBe(false)
+    expect(result.models[0].maxImageInputs).toBe(0)
     expect(result.models[1].id).toBe('gpt-image-1')
-    expect(result.models[1].supportsImageInput).toBe(true)
+    expect(result.models[1].maxImageInputs).toBe(1)
   })
 
   it('skips providers that are not valid', async () => {
@@ -297,7 +297,8 @@ describe('generateImageTool', () => {
     expect(mockGenerateImage).toHaveBeenCalledWith('a beautiful sunset', {
       providerId: undefined,
       modelId: undefined,
-      imageUrl: undefined,
+      imageUrls: undefined,
+      params: undefined,
     })
     expect(mockMkdir).toHaveBeenCalled()
   })
@@ -376,22 +377,59 @@ describe('generateImageTool', () => {
     expect(mockGenerateImage).toHaveBeenCalledWith('a dog', {
       providerId: 'p-openai',
       modelId: 'dall-e-3',
-      imageUrl: undefined,
+      imageUrls: undefined,
+      params: undefined,
     })
   })
 
-  it('passes imageUrl for editing', async () => {
+  it('passes imageUrls (single) for editing', async () => {
     const ctx = makeCtx()
     const t = generateImageTool.create(ctx)
     await (t as any).execute(
-      { prompt: 'make it blue', imageUrl: '/api/uploads/messages/kin-1/img.png' },
+      { prompt: 'make it blue', imageUrls: ['/api/uploads/messages/kin-1/img.png'] },
       { toolCallId: 'tc-1', messages: [] },
     )
 
     expect(mockGenerateImage).toHaveBeenCalledWith('make it blue', {
       providerId: undefined,
       modelId: undefined,
-      imageUrl: '/api/uploads/messages/kin-1/img.png',
+      imageUrls: ['/api/uploads/messages/kin-1/img.png'],
+      params: undefined,
+    })
+  })
+
+  it('passes imageUrls (multiple) for multi-reference models', async () => {
+    const ctx = makeCtx()
+    const t = generateImageTool.create(ctx)
+    await (t as any).execute(
+      {
+        prompt: 'combine these',
+        imageUrls: ['/api/uploads/a.png', '/api/uploads/b.png'],
+      },
+      { toolCallId: 'tc-1', messages: [] },
+    )
+
+    expect(mockGenerateImage).toHaveBeenCalledWith('combine these', {
+      providerId: undefined,
+      modelId: undefined,
+      imageUrls: ['/api/uploads/a.png', '/api/uploads/b.png'],
+      params: undefined,
+    })
+  })
+
+  it('passes params straight through to generateImage', async () => {
+    const ctx = makeCtx()
+    const t = generateImageTool.create(ctx)
+    await (t as any).execute(
+      { prompt: 'a cat', params: { seed: 42, guidance_scale: 7.5 } },
+      { toolCallId: 'tc-1', messages: [] },
+    )
+
+    expect(mockGenerateImage).toHaveBeenCalledWith('a cat', {
+      providerId: undefined,
+      modelId: undefined,
+      imageUrls: undefined,
+      params: { seed: 42, guidance_scale: 7.5 },
     })
   })
 

@@ -27,6 +27,10 @@ import type {
   ImageRequest,
   ImageResult,
 } from '@/server/llm/image/types'
+import type { ImageModelParamsSchema, ImageParamSpec } from '@kinbot-developer/sdk'
+import { createLogger } from '@/server/logger'
+
+const log = createLogger('openai-image')
 
 const CONFIG_SCHEMA: readonly ConfigField[] = [
   {
@@ -45,22 +49,78 @@ const KNOWN_MODELS: ImageModel[] = [
   {
     id: 'gpt-image-1',
     name: 'GPT Image 1',
-    supportsImageInput: true,
+    maxImageInputs: 1,
     supportedSizes: ['1024x1024', '1024x1536', '1536x1024', 'auto'],
   },
   {
     id: 'dall-e-3',
     name: 'DALL·E 3',
-    supportsImageInput: false,
+    maxImageInputs: 0,
     supportedSizes: ['1024x1024', '1024x1792', '1792x1024'],
   },
   {
     id: 'dall-e-2',
     name: 'DALL·E 2',
-    supportsImageInput: true,
+    maxImageInputs: 1,
     supportedSizes: ['256x256', '512x512', '1024x1024'],
   },
 ]
+
+/**
+ * Per-family parameter schemas surfaced through `describe_image_model`.
+ * OpenAI has no discovery endpoint for these — the docs list them,
+ * and they're stable per family. We hand-author them here so the LLM
+ * can populate `generate_image`'s `params` field deliberately.
+ *
+ * `n` is intentionally omitted: the host always asks for 1 (the tool
+ * returns a single file). Adding `n` would let the LLM ask for more
+ * and the host would silently drop the extras.
+ */
+const PARAM_SCHEMAS: Record<string, Record<string, ImageParamSpec>> = {
+  'gpt-image-1': {
+    quality: {
+      type: 'string',
+      enum: ['auto', 'low', 'medium', 'high'],
+      description: 'Rendering effort vs latency. "auto" lets OpenAI decide; "high" costs more and takes longer but produces a crisper result.',
+    },
+    background: {
+      type: 'string',
+      enum: ['transparent', 'opaque', 'auto'],
+      description: '`transparent` requires output_format png or webp. `auto` defers to the model.',
+    },
+    output_format: {
+      type: 'string',
+      enum: ['png', 'jpeg', 'webp'],
+      default: 'png',
+    },
+    output_compression: {
+      type: 'integer',
+      minimum: 0,
+      maximum: 100,
+      description: 'Only effective when output_format is jpeg or webp. 0 = max compression, 100 = best quality.',
+    },
+    moderation: {
+      type: 'string',
+      enum: ['low', 'auto'],
+      description: '`low` relaxes moderation; `auto` is the default.',
+    },
+  },
+  'dall-e-3': {
+    quality: {
+      type: 'string',
+      enum: ['standard', 'hd'],
+      default: 'standard',
+      description: '`hd` is finer-grained but costs roughly 2x and takes longer.',
+    },
+    style: {
+      type: 'string',
+      enum: ['vivid', 'natural'],
+      default: 'vivid',
+      description: '`vivid` is hyper-real / cinematic. `natural` is more documentary / understated.',
+    },
+  },
+  'dall-e-2': {},
+}
 
 function createClient(config: ProviderConfig): OpenAI {
   const apiKey = config['apiKey']
@@ -131,6 +191,10 @@ export const openaiImageProvider: ImageProvider = {
     }
   },
 
+  async describeModel(model: ImageModel): Promise<ImageModelParamsSchema> {
+    return { params: PARAM_SCHEMAS[model.id] ?? {} }
+  },
+
   async generate(
     model: ImageModel,
     request: ImageRequest,
@@ -139,17 +203,34 @@ export const openaiImageProvider: ImageProvider = {
     const client = createClient(config)
     const size = (request.size ?? '1024x1024') as '1024x1024'
 
+    // OpenAI's edit endpoint takes a single `image` (gpt-image-1, dall-e-2).
+    // If the LLM passed more than one we warn and use the first — the
+    // model's `maxImageInputs: 1` was the contract advertised through
+    // list_image_models so this is a caller bug, not a provider one.
+    const firstInput = request.imageInputs?.[0]
+    if (request.imageInputs && request.imageInputs.length > 1) {
+      log.warn(
+        { modelId: model.id, given: request.imageInputs.length },
+        'OpenAI image models accept a single input — dropping extras',
+      )
+    }
+
+    // Free-form per-model params merged on top of our minimal envelope.
+    // `n` is intentionally not exposed — host always wants 1.
+    const extraParams = request.params ?? {}
+
     let response
     try {
-      if (request.imageInput) {
-        const file = await toFile(request.imageInput.data, 'input.png', {
-          type: request.imageInput.mediaType,
+      if (firstInput) {
+        const file = await toFile(firstInput.data, 'input.png', {
+          type: firstInput.mediaType,
         })
         response = await client.images.edit({
           model: model.id,
           image: file,
           prompt: request.prompt,
           size,
+          ...extraParams,
         }, { signal: request.signal })
       } else {
         const isDallE = model.id.startsWith('dall-e')
@@ -158,6 +239,7 @@ export const openaiImageProvider: ImageProvider = {
           prompt: request.prompt,
           size,
           ...(isDallE ? { response_format: 'b64_json' as const } : {}),
+          ...extraParams,
         }, { signal: request.signal })
       }
     } catch (err) {

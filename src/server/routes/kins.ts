@@ -10,7 +10,7 @@ import {
   ImageGenerationError,
   findLLMProvider,
   resolveImageTarget,
-  modelSupportsImageInput,
+  getMaxImageInputs,
   getBaseAvatarBytes,
 } from '@/server/services/image-generation'
 import { decrypt } from '@/server/services/encryption'
@@ -287,7 +287,7 @@ kinRoutes.post('/avatar/preview', async (c) => {
 
   try {
     const target = await resolveImageTarget({ providerId: imageProviderId, modelId: imageModel })
-    const supportsEdit = modelSupportsImageInput(target.providerType, target.modelId)
+    const supportsEdit = (await getMaxImageInputs(target.providerId, target.modelId)) > 0
 
     const prompt = await buildAvatarPrompt(
       {
@@ -302,7 +302,7 @@ kinRoutes.post('/avatar/preview', async (c) => {
     const result = await generateAvatarImage(prompt, {
       providerId: target.providerId,
       modelId: target.modelId,
-      ...(supportsEdit ? { imageData: await getBaseAvatarBytes() } : {}),
+      ...(supportsEdit ? { imageDatas: [await getBaseAvatarBytes()] } : {}),
     })
 
     return c.json({
@@ -780,7 +780,9 @@ kinRoutes.post('/:id/avatar/generate', async (c) => {
       providerId: body.imageProviderId,
       modelId: body.imageModel,
     })
-    const supportsEdit = mode === 'auto' && modelSupportsImageInput(target.providerType, target.modelId)
+    const supportsEdit =
+      mode === 'auto'
+      && (await getMaxImageInputs(target.providerId, target.modelId)) > 0
 
     const prompt =
       mode === 'auto'
@@ -798,7 +800,7 @@ kinRoutes.post('/:id/avatar/generate', async (c) => {
     const result = await generateAvatarImage(prompt, {
       providerId: target.providerId,
       modelId: target.modelId,
-      ...(supportsEdit ? { imageData: await getBaseAvatarBytes() } : {}),
+      ...(supportsEdit ? { imageDatas: [await getBaseAvatarBytes()] } : {}),
     })
     return c.json({
       base64: result.base64,

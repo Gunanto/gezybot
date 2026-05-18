@@ -124,7 +124,7 @@ import {
   updateTicketAttachmentTool,
   deleteTicketAttachmentTool,
 } from '@/server/tools/ticket-attachment-tools'
-import { generateImageTool, listImageModelsTool } from '@/server/tools/image-tools'
+import { generateImageTool, listImageModelsTool, describeImageModelTool } from '@/server/tools/image-tools'
 import { listProvidersTool, listModelsTool } from '@/server/tools/provider-tools'
 import { runShellTool } from '@/server/tools/shell-tools'
 import {
@@ -382,6 +382,7 @@ export function registerAllTools(): void {
   // Phase 21: Image tools
   toolRegistry.register('generate_image', generateImageTool, 'images')
   toolRegistry.register('list_image_models', listImageModelsTool, 'images')
+  toolRegistry.register('describe_image_model', describeImageModelTool, 'images')
 
   // Provider & model discovery tools (main + sub-kin)
   toolRegistry.register('list_providers', listProvidersTool, 'system')

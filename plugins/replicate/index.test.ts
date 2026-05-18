@@ -479,9 +479,9 @@ describe('replicate plugin — Image provider', () => {
     expect(calls[0]!.url).toBe('https://api.replicate.com/v1/collections/text-to-image')
     expect(models).toHaveLength(2)
     expect(models[0]?.id).toBe('black-forest-labs/flux-schnell')
-    expect(models[0]?.supportsImageInput).toBeUndefined()
+    expect(models[0]?.maxImageInputs).toBeUndefined()
     expect(models[1]?.id).toBe('stability-ai/sdxl-inpainting')
-    expect(models[1]?.supportsImageInput).toBe(true)
+    expect(models[1]?.maxImageInputs).toBe(1)
   })
 
   it('falls back to /predictions + version hash when the model-routed endpoint 404s (non-official models, LoRAs, fine-tunes)', async () => {
@@ -558,6 +558,379 @@ describe('replicate plugin — Image provider', () => {
         { apiToken: 'r8_test' },
       ),
     ).rejects.toThrow(/no published version/)
+  })
+
+  it('describeModel parses the model schema, drops image-input & host-managed fields', async () => {
+    const { ctx, pushResponse } = makeCtx()
+    const image = pickProvider(replicatePlugin(ctx), isImage)
+
+    // Single GET /v1/models/owner/name response with a fat Input schema.
+    pushResponse(200, {
+      owner: 'black-forest-labs',
+      name: 'flux-kontext-pro',
+      latest_version: {
+        id: 'v-1',
+        openapi_schema: {
+          components: {
+            schemas: {
+              Input: {
+                properties: {
+                  prompt: { type: 'string' },
+                  input_image: { type: 'string', format: 'uri' },
+                  width: { type: 'integer' },
+                  height: { type: 'integer' },
+                  aspect_ratio: { type: 'string' },
+                  output_format: { type: 'string', enum: ['png', 'jpg'] },
+                  num_outputs: { type: 'integer' },
+                  guidance_scale: {
+                    type: 'number',
+                    description: 'CFG scale',
+                    default: 3.5,
+                    minimum: 0,
+                    maximum: 10,
+                  },
+                  num_inference_steps: {
+                    type: 'integer',
+                    description: 'How many denoising steps',
+                    default: 30,
+                    minimum: 1,
+                    maximum: 50,
+                  },
+                  seed: { type: ['integer', 'null'], description: 'Random seed' },
+                  safety_tolerance: {
+                    type: 'string',
+                    enum: ['low', 'medium', 'high'],
+                    default: 'medium',
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    })
+
+    const schema = await image.describeModel!(
+      { id: 'black-forest-labs/flux-kontext-pro', name: 'Flux Kontext' },
+      { apiToken: 'r8_test' },
+    )
+
+    // Host-managed fields (prompt, size, aspect, output_format, num_outputs)
+    // and image-input fields (input_image) are dropped.
+    expect(Object.keys(schema.params).sort()).toEqual([
+      'guidance_scale',
+      'num_inference_steps',
+      'safety_tolerance',
+      'seed',
+    ])
+    expect(schema.params.guidance_scale).toMatchObject({
+      type: 'number',
+      default: 3.5,
+      minimum: 0,
+      maximum: 10,
+    })
+    expect(schema.params.safety_tolerance).toMatchObject({
+      type: 'string',
+      enum: ['low', 'medium', 'high'],
+      default: 'medium',
+    })
+    // type: ['integer', 'null'] is normalised to 'integer'.
+    expect(schema.params.seed).toMatchObject({ type: 'integer' })
+  })
+
+  it('detects multi-image models from schema (array input → maxImageInputs = maxItems)', async () => {
+    const { ctx, pushResponse } = makeCtx()
+    const image = pickProvider(replicatePlugin(ctx), isImage)
+
+    pushResponse(200, {
+      name: 'Text to image',
+      slug: 'text-to-image',
+      models: [{
+        owner: 'google',
+        name: 'nano-banana-pro',
+        latest_version: {
+          id: 'v1',
+          openapi_schema: {
+            components: {
+              schemas: {
+                Input: {
+                  properties: {
+                    prompt: { type: 'string' },
+                    image_input: {
+                      type: 'array',
+                      items: { type: 'string', format: 'uri' },
+                      maxItems: 4,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }],
+    })
+
+    const models = await image.listModels({ apiToken: 'r8_test' })
+    expect(models[0]?.maxImageInputs).toBe(4)
+  })
+
+  it('falls back to 8 when array input lacks maxItems (Replicate has no upper hint)', async () => {
+    const { ctx, pushResponse } = makeCtx()
+    const image = pickProvider(replicatePlugin(ctx), isImage)
+
+    pushResponse(200, {
+      name: 'Text to image',
+      slug: 'text-to-image',
+      models: [{
+        owner: 'community',
+        name: 'multi-ref',
+        latest_version: {
+          id: 'v1',
+          openapi_schema: {
+            components: {
+              schemas: {
+                Input: {
+                  properties: {
+                    prompt: { type: 'string' },
+                    input_image: { type: 'array', items: { type: 'string' } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }],
+    })
+
+    const models = await image.listModels({ apiToken: 'r8_test' })
+    expect(models[0]?.maxImageInputs).toBe(8)
+  })
+
+  it('injects single imageInput as a data URL (small payload, no upload round-trip)', async () => {
+    const { ctx, calls, pushResponse } = makeCtx()
+    const image = pickProvider(replicatePlugin(ctx), isImage)
+
+    // 1) getModel fetched by resolveImageInputs to learn the schema
+    pushResponse(200, {
+      owner: 'stability-ai',
+      name: 'sdxl-inpainting',
+      latest_version: {
+        id: 'v1',
+        openapi_schema: {
+          components: {
+            schemas: {
+              Input: { properties: { prompt: { type: 'string' }, image: { type: 'string' } } },
+            },
+          },
+        },
+      },
+    })
+    // 2) prediction (succeeded inline)
+    pushResponse(200, {
+      id: 'pred',
+      status: 'succeeded',
+      output: ['https://replicate.delivery/x/out.png'],
+      error: null,
+    })
+    // 3) image download
+    pushResponse(200, new Uint8Array([0x89]), { 'Content-Type': 'image/png' })
+
+    const bytes = new Uint8Array([1, 2, 3, 4])
+    await image.generate(
+      { id: 'stability-ai/sdxl-inpainting', name: 'SDXL', maxImageInputs: 1 },
+      { prompt: 'fix this', imageInputs: [{ data: bytes, mediaType: 'image/png' }] },
+      { apiToken: 'r8_test' },
+    )
+
+    // 3 HTTP hits: getModel (resolve schema) + predict + download.
+    // No POST /v1/files because the payload is tiny.
+    expect(calls).toHaveLength(3)
+    expect(calls.map((c) => c.url)).not.toContain('https://api.replicate.com/v1/files')
+
+    const predBody = JSON.parse(calls[1]!.init!.body as string)
+    // Single-image model → the field gets a single string (not an array).
+    expect(typeof predBody.input.image).toBe('string')
+    expect(predBody.input.image.startsWith('data:image/png;base64,')).toBe(true)
+  })
+
+  it('uploads via POST /v1/files when the image exceeds the inline limit', async () => {
+    const { ctx, calls, pushResponse } = makeCtx()
+    const image = pickProvider(replicatePlugin(ctx), isImage)
+
+    // schema fetch
+    pushResponse(200, {
+      owner: 'stability-ai',
+      name: 'sdxl-inpainting',
+      latest_version: {
+        id: 'v1',
+        openapi_schema: {
+          components: {
+            schemas: {
+              Input: { properties: { prompt: { type: 'string' }, image: { type: 'string' } } },
+            },
+          },
+        },
+      },
+    })
+    // file upload returns a hosted URL
+    pushResponse(200, {
+      id: 'file-xyz',
+      urls: { get: 'https://api.replicate.com/v1/files/file-xyz' },
+    })
+    // prediction
+    pushResponse(200, {
+      id: 'pred',
+      status: 'succeeded',
+      output: ['https://replicate.delivery/x/out.png'],
+      error: null,
+    })
+    // download
+    pushResponse(200, new Uint8Array([0x89]), { 'Content-Type': 'image/png' })
+
+    // 2 MB payload — past the 1 MB inline ceiling.
+    const big = new Uint8Array(2 * 1024 * 1024)
+    await image.generate(
+      { id: 'stability-ai/sdxl-inpainting', name: 'SDXL', maxImageInputs: 1 },
+      { prompt: 'fix', imageInputs: [{ data: big, mediaType: 'image/png' }] },
+      { apiToken: 'r8_test' },
+    )
+
+    // 4 calls now: schema + file upload + predict + download.
+    expect(calls).toHaveLength(4)
+    expect(calls[1]!.url).toBe('https://api.replicate.com/v1/files')
+    // Prediction body carries the hosted URL, not a data URL.
+    const predBody = JSON.parse(calls[2]!.init!.body as string)
+    expect(predBody.input.image).toBe('https://api.replicate.com/v1/files/file-xyz')
+  })
+
+  it('injects multi-image arrays at the schema-detected key (Nano Banana Pro flow)', async () => {
+    const { ctx, calls, pushResponse } = makeCtx()
+    const image = pickProvider(replicatePlugin(ctx), isImage)
+
+    // schema fetch — multi-image array
+    pushResponse(200, {
+      owner: 'google',
+      name: 'nano-banana-pro',
+      latest_version: {
+        id: 'v1',
+        openapi_schema: {
+          components: {
+            schemas: {
+              Input: {
+                properties: {
+                  prompt: { type: 'string' },
+                  image_input: { type: 'array', items: { type: 'string' }, maxItems: 4 },
+                },
+              },
+            },
+          },
+        },
+      },
+    })
+    // prediction
+    pushResponse(200, {
+      id: 'pred',
+      status: 'succeeded',
+      output: ['https://replicate.delivery/x/out.png'],
+      error: null,
+    })
+    // download
+    pushResponse(200, new Uint8Array([0x89]), { 'Content-Type': 'image/png' })
+
+    await image.generate(
+      { id: 'google/nano-banana-pro', name: 'Nano Banana Pro', maxImageInputs: 4 },
+      {
+        prompt: 'fuse these',
+        imageInputs: [
+          { data: new Uint8Array([1, 2, 3]), mediaType: 'image/png' },
+          { data: new Uint8Array([4, 5, 6]), mediaType: 'image/png' },
+          { data: new Uint8Array([7, 8, 9]), mediaType: 'image/png' },
+        ],
+      },
+      { apiToken: 'r8_test' },
+    )
+
+    const predBody = JSON.parse(calls[1]!.init!.body as string)
+    // The field is image_input AND it's an array of 3 data URLs (one per input).
+    expect(Array.isArray(predBody.input.image_input)).toBe(true)
+    expect(predBody.input.image_input).toHaveLength(3)
+    expect(predBody.input.image_input[0].startsWith('data:image/png;base64,')).toBe(true)
+  })
+
+  it('caps multi-image inputs at the schema maxItems and drops extras (with warning)', async () => {
+    const { ctx, calls, pushResponse } = makeCtx()
+    const image = pickProvider(replicatePlugin(ctx), isImage)
+
+    pushResponse(200, {
+      owner: 'google',
+      name: 'nano-banana-pro',
+      latest_version: {
+        id: 'v1',
+        openapi_schema: {
+          components: {
+            schemas: {
+              Input: {
+                properties: {
+                  prompt: { type: 'string' },
+                  image_input: { type: 'array', items: { type: 'string' }, maxItems: 2 },
+                },
+              },
+            },
+          },
+        },
+      },
+    })
+    pushResponse(200, {
+      id: 'p',
+      status: 'succeeded',
+      output: ['https://replicate.delivery/x/out.png'],
+      error: null,
+    })
+    pushResponse(200, new Uint8Array([0x89]), { 'Content-Type': 'image/png' })
+
+    await image.generate(
+      { id: 'google/nano-banana-pro', name: 'Nano', maxImageInputs: 2 },
+      {
+        prompt: 'two only',
+        imageInputs: [
+          { data: new Uint8Array([1]), mediaType: 'image/png' },
+          { data: new Uint8Array([2]), mediaType: 'image/png' },
+          { data: new Uint8Array([3]), mediaType: 'image/png' },
+        ],
+      },
+      { apiToken: 'r8_test' },
+    )
+
+    const predBody = JSON.parse(calls[1]!.init!.body as string)
+    expect(predBody.input.image_input).toHaveLength(2)
+  })
+
+  it('request.params merge over plugin defaults (LLM can override output_format etc.)', async () => {
+    const { ctx, calls, pushResponse } = makeCtx()
+    const image = pickProvider(replicatePlugin(ctx), isImage)
+
+    pushResponse(200, {
+      id: 'p',
+      status: 'succeeded',
+      output: ['https://replicate.delivery/x/o.png'],
+      error: null,
+    })
+    pushResponse(200, new Uint8Array([0x89]), { 'Content-Type': 'image/png' })
+
+    await image.generate(
+      { id: 'whatever/model', name: 'Whatever' },
+      {
+        prompt: 'x',
+        params: { output_format: 'webp', guidance_scale: 5, lora_scale: 0.8 },
+      },
+      { apiToken: 'r8_test' },
+    )
+
+    const body = JSON.parse(calls[0]!.init!.body as string)
+    // Plugin's default `output_format: 'png'` overridden by the LLM.
+    expect(body.input.output_format).toBe('webp')
+    expect(body.input.guidance_scale).toBe(5)
+    expect(body.input.lora_scale).toBe(0.8)
   })
 
   it('surfaces private LoRAs via customImageModels (real-world Replicate use case)', async () => {

@@ -760,9 +760,19 @@ export interface EmbeddingProvider extends ProviderUIHints {
 export interface ImageModel {
   id: string
   name: string
-  /** True when the model accepts a source image as input for editing /
-   *  inpainting (vs text-to-image only). */
-  supportsImageInput?: boolean
+  /**
+   * How many source images this model accepts as input.
+   *
+   * - `0` or absent — text-to-image only (DALL-E 3, default Flux text mode).
+   * - `1` — single image input (img2img, inpainting, classic edit flows:
+   *         GPT-Image-1, SDXL-edit, Flux-Kontext-pro single ref).
+   * - `>1` — multi-image input (Gemini Nano Banana Pro, Flux-Kontext
+   *         multi-ref, ControlNet stacks). The number is the upper bound.
+   *
+   * The LLM reads this field via `list_image_models` to decide how many
+   * URLs to pass through `generate_image`.
+   */
+  maxImageInputs?: number
   /** Output sizes the model supports (e.g. ['1024x1024', '1792x1024']).
    *  Used by the UI to constrain the size picker. */
   supportedSizes?: string[]
@@ -774,12 +784,31 @@ export interface ImageModel {
 
 export interface ImageRequest {
   prompt: string
-  /** Optional source image for editing/inpainting (requires
-   *  `model.supportsImageInput`). */
-  imageInput?: { data: Uint8Array; mediaType: string }
+  /**
+   * Source images for img2img / inpainting / multi-reference flows.
+   * Always an array — providers that only accept a single input take
+   * `imageInputs[0]` and ignore the rest (logging a warning if more
+   * were provided). Models that accept N>1 (Nano Banana Pro,
+   * Flux-Kontext multi) receive the full list.
+   *
+   * Empty / omitted = text-to-image.
+   */
+  imageInputs?: Array<{ data: Uint8Array; mediaType: string }>
   /** Target size, e.g. '1024x1024'. When omitted, the provider picks a
    *  sensible default for the model. */
   size?: string
+  /**
+   * Free-form per-model parameters surfaced to the LLM through
+   * {@link ImageProvider.describeModel}. The LLM reads the schema and
+   * fills this map; the provider merges it over its own defaults before
+   * hitting the upstream API. Examples: `{ seed: 42, guidance_scale:
+   * 7.5, lora_scale: 0.8, style: 'realistic_image' }`.
+   *
+   * Image-input piloting (which schema key carries the source image,
+   * upload-vs-data-URL strategy) is **never** exposed here — those are
+   * driven by `imageInputs` and resolved by the provider.
+   */
+  params?: Record<string, unknown>
   signal?: AbortSignal
 }
 
@@ -787,6 +816,45 @@ export interface ImageResult {
   /** Raw image bytes. */
   data: Uint8Array
   mediaType: string
+}
+
+/**
+ * A single tunable parameter on an image model. A thin slice of JSON
+ * Schema — enough to let the LLM produce a valid value, not so much
+ * that we need a full schema validator on the receiving side. The host
+ * never validates `ImageRequest.params` against this schema; the
+ * upstream API is the ground truth (a 422 round-trips back to the LLM
+ * as a tool error and triggers self-correction).
+ */
+export type ImageParamSpec =
+  | {
+      type: 'string'
+      description?: string
+      default?: string
+      enum?: string[]
+    }
+  | {
+      type: 'number' | 'integer'
+      description?: string
+      default?: number
+      minimum?: number
+      maximum?: number
+    }
+  | {
+      type: 'boolean'
+      description?: string
+      default?: boolean
+    }
+
+/**
+ * The set of tunables an image model exposes, keyed by param name.
+ * Returned by {@link ImageProvider.describeModel} and surfaced to the
+ * LLM via the `describe_image_model` tool, on demand (not in the
+ * `list_image_models` payload — would explode token usage with 30+
+ * properties per model).
+ */
+export interface ImageModelParamsSchema {
+  params: Record<string, ImageParamSpec>
 }
 
 /** Native image provider interface — plugins implement this directly. */
@@ -797,6 +865,24 @@ export interface ImageProvider extends ProviderUIHints {
 
   authenticate(config: ProviderConfig): Promise<AuthResult>
   listModels(config: ProviderConfig): Promise<ImageModel[]>
+
+  /**
+   * Optional. Return the model's tunable parameters so the LLM can fill
+   * `ImageRequest.params` deliberately rather than guessing. When
+   * absent, the host returns `{ params: {} }` to the LLM, signalling
+   * "no documented knobs — pass nothing or accept the provider's
+   * defaults".
+   *
+   * Implementations are free to fetch (Replicate parses each model's
+   * OpenAPI schema on demand) or hardcode (OpenAI surfaces a
+   * per-family static map — no discovery endpoint exists). The host
+   * caches the result by `(providerType, modelId)` with a short TTL
+   * so the LLM can call `describe_image_model` liberally.
+   */
+  describeModel?(
+    model: ImageModel,
+    config: ProviderConfig,
+  ): Promise<ImageModelParamsSchema>
 
   generate(
     model: ImageModel,

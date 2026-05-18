@@ -5,7 +5,7 @@ import { createLogger } from '@/server/logger'
 import { providers } from '@/server/db/schema'
 import { decrypt } from '@/server/services/encryption'
 import { getDefaultImageModel, getDefaultImageProviderId } from '@/server/services/app-settings'
-import { listModelsForProvider } from '@/server/providers/index'
+import { listModelsForProvider, lookupImageModel } from '@/server/providers/index'
 import { getImageProvider } from '@/server/llm/image/registry'
 import type { ProviderConfig } from '@/server/llm/core/types'
 
@@ -26,21 +26,28 @@ async function loadBaseAvatar(): Promise<Uint8Array> {
 }
 
 /**
- * Whether a given (providerType, modelId) pair accepts an image as input.
+ * Whether a given (providerId, modelId) pair accepts image input —
+ * resolved by asking the provider's own `listModels()` for the model
+ * and reading its `maxImageInputs` field. Provider-agnostic: zero
+ * hardcoded type names here, no special cases.
  *
- * Today only the gpt-image-* and dall-e-2 families on OpenAI support image
- * input. dall-e-3 is text-to-image only. When a new image provider lands
- * (Replicate, Stability, etc.), extend this without touching the rest of
- * kinbot — the provider itself owns the supportsImageInput flag on each
- * ImageModel; this helper is only the "before-roundtrip" peek used by the
- * UI to disable the upload button.
+ * Returns 0 when the model isn't found, the provider isn't registered,
+ * or the model is text-to-image only. > 0 means the upstream API
+ * accepts at least that many source images.
+ *
+ * Cached by the dispatcher (5 min TTL) so a hot UI path doesn't pay a
+ * round-trip per render.
  */
-export function modelSupportsImageInput(providerType: string, modelId?: string | null): boolean {
-  if (!modelId) return false
-  if (providerType === 'openai') {
-    return modelId.startsWith('gpt-image') || modelId === 'dall-e-2'
-  }
-  return false
+export async function getMaxImageInputs(
+  providerId: string,
+  modelId?: string | null,
+): Promise<number> {
+  if (!modelId) return 0
+  const p = await db.select().from(providers).where(eq(providers.id, providerId)).get()
+  if (!p || !p.isValid) return 0
+  const cfg = JSON.parse(await decrypt(p.configEncrypted)) as ProviderConfig
+  const model = await lookupImageModel(p.type, modelId, cfg)
+  return model?.maxImageInputs ?? 0
 }
 
 import { config } from '@/server/config'
@@ -56,9 +63,17 @@ interface GenerateImageResult {
 interface GenerateImageOptions {
   providerId?: string
   modelId?: string
-  imageUrl?: string
-  /** Raw image bytes used as input for editing. Takes precedence over imageUrl. */
-  imageData?: Uint8Array
+  /** Source image URLs (internal /api/uploads/... or external https://...).
+   *  Each is resolved to bytes before going to the provider. The provider
+   *  decides how many to actually use based on its model's maxImageInputs. */
+  imageUrls?: string[]
+  /** Raw image bytes used as input. Takes precedence over imageUrls when
+   *  both are set. Plural — for multi-image models. */
+  imageDatas?: Uint8Array[]
+  /** Free-form per-model params surfaced by `describe_image_model`. The
+   *  provider merges this over its own defaults before hitting the
+   *  upstream API. */
+  params?: Record<string, unknown>
 }
 
 /**
@@ -160,12 +175,15 @@ export async function generateImage(
     baseUrl?: string
   }
 
-  // Resolve image input if provided
-  let imageData: Uint8Array | undefined
-  if (options?.imageData) {
-    imageData = options.imageData
-  } else if (options?.imageUrl) {
-    imageData = await resolveImageInput(options.imageUrl)
+  // Resolve image inputs if provided. Caller can pass either pre-decoded
+  // bytes or URLs (internal or external) — URLs are fetched / read here
+  // so the provider always sees raw bytes.
+  let imageInputs: Array<{ data: Uint8Array; mediaType: string }> | undefined
+  if (options?.imageDatas && options.imageDatas.length > 0) {
+    imageInputs = options.imageDatas.map((data) => ({ data, mediaType: 'image/png' }))
+  } else if (options?.imageUrls && options.imageUrls.length > 0) {
+    const resolved = await Promise.all(options.imageUrls.map(resolveImageInput))
+    imageInputs = resolved.map((data) => ({ data, mediaType: 'image/png' }))
   }
 
   const imageProvider = getImageProvider(provider.type)
@@ -176,11 +194,21 @@ export async function generateImage(
     )
   }
 
+  // Pass the model object the provider itself returned from listModels()
+  // (with its real maxImageInputs / supportedSizes / pricing) when we
+  // can find it. Fall back to a stub for providers whose listing doesn't
+  // surface the id we were asked to use — the provider then makes do
+  // with id+name and its own internal knowledge.
+  const resolvedModel =
+    (await lookupImageModel(provider.type, effectiveModelId, providerConfig as ProviderConfig))
+    ?? { id: effectiveModelId, name: effectiveModelId }
+
   const result = await imageProvider.generate(
-    { id: effectiveModelId, name: effectiveModelId, supportsImageInput: modelSupportsImageInput(provider.type, effectiveModelId) },
+    resolvedModel,
     {
       prompt,
-      ...(imageData ? { imageInput: { data: imageData, mediaType: 'image/png' } } : {}),
+      ...(imageInputs ? { imageInputs } : {}),
+      ...(options?.params ? { params: options.params } : {}),
     },
     providerConfig as ProviderConfig,
   )

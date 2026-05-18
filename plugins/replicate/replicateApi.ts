@@ -160,6 +160,51 @@ export class Replicate {
   }
 
   /**
+   * Upload arbitrary bytes to Replicate's `/v1/files` endpoint and
+   * return a public URL ready to drop into a prediction input. The
+   * server-rendered short-lived URL is what the prediction worker
+   * fetches at run time.
+   *
+   * Used for the image-input flow when the source image is larger
+   * than what we want to inline as a `data:` URL (rule of thumb:
+   * anything past ~1 MB so we don't blow past Replicate's payload
+   * caps or wreck the prediction-body JSON size).
+   */
+  async uploadFile(
+    data: Uint8Array,
+    opts: { filename?: string; contentType?: string } = {},
+  ): Promise<{ url: string; id?: string }> {
+    const filename = opts.filename ?? 'input.png'
+    const contentType = opts.contentType ?? 'image/png'
+    const blob = new Blob([data as unknown as ArrayBuffer], { type: contentType })
+    const form = new FormData()
+    form.append('content', blob, filename)
+
+    // Don't set Content-Type — fetch will inject the multipart boundary.
+    const res = await this.fetch(`${API_BASE}/files`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${this.token}` },
+      body: form,
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => res.statusText)
+      throw new ReplicateApiError(
+        `Replicate file upload failed (${res.status}): ${text}`,
+        res.status,
+      )
+    }
+    const body = await res.json() as {
+      id?: string
+      urls?: { get?: string }
+    }
+    const url = body.urls?.get
+    if (!url) {
+      throw new ReplicateApiError('Replicate file upload returned no URL')
+    }
+    return { url, ...(body.id ? { id: body.id } : {}) }
+  }
+
+  /**
    * Create a prediction and return it. When `wait > 0` the API blocks
    * server-side for up to that many seconds before returning, so the
    * response is usually already in a terminal state on common workloads.

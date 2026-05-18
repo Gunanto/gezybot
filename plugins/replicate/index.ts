@@ -29,6 +29,8 @@ import type {
   EmbeddingModel,
   EmbeddingProvider,
   ImageModel,
+  ImageModelParamsSchema,
+  ImageParamSpec,
   ImageProvider,
   ImageRequest,
   ImageResult,
@@ -180,18 +182,135 @@ function llmModelFrom(m: ReplicateCollectionModel): LLMModel {
   }
 }
 
-function imageModelFrom(m: ReplicateCollectionModel): ImageModel {
-  // Heuristic: detect models that accept an `image` input (= image-to-image
-  // / inpainting). The Input schema lists every input property.
-  const inputProps = (m.latest_version?.openapi_schema as {
-    components?: { schemas?: { Input?: { properties?: Record<string, unknown> } } }
+/**
+ * Replicate's models declare their image-input field under a handful
+ * of well-known names. Priority order matters — newer Flux Kontext
+ * single-ref uses `input_image`, Flux Kontext multi uses
+ * `input_images`, Gemini Nano Banana Pro standardised on
+ * `image_input`, older img2img on `image`, ControlNet-style on
+ * `image_url`, ancient SDXL on `init_image`. We pick the first match
+ * found in the model's Input schema.
+ *
+ * Adding a new alias is safe: extend this list, the schema-driven
+ * `detectImageInputField` and `resolveImageInputs` paths pick it up
+ * with no other change.
+ */
+const IMAGE_INPUT_FIELD_PRIORITY = [
+  'input_image',
+  'input_images',
+  'image_input',
+  'image',
+  'image_url',
+  'init_image',
+] as const
+
+interface InputPropSpec {
+  type?: string | string[]
+  items?: { type?: string }
+  maxItems?: number
+}
+
+function extractInputProps(m: ReplicateCollectionModel): Record<string, InputPropSpec> {
+  return (m.latest_version?.openapi_schema as {
+    components?: { schemas?: { Input?: { properties?: Record<string, InputPropSpec> } } }
   })?.components?.schemas?.Input?.properties ?? {}
-  const supportsImageInput =
-    'image' in inputProps || 'image_url' in inputProps || 'init_image' in inputProps
+}
+
+/**
+ * Find which key in the Input schema carries the image input(s), if any.
+ * Returns the key + whether the schema declares it as an array (= multi-
+ * image model) and any maxItems constraint.
+ */
+function detectImageInputField(
+  props: Record<string, InputPropSpec>,
+): { key: string; isArray: boolean; maxItems?: number } | null {
+  for (const key of IMAGE_INPUT_FIELD_PRIORITY) {
+    const spec = props[key]
+    if (!spec) continue
+    const isArray = spec.type === 'array' || (Array.isArray(spec.type) && spec.type.includes('array'))
+    return {
+      key,
+      isArray,
+      ...(spec.maxItems != null ? { maxItems: spec.maxItems } : {}),
+    }
+  }
+  return null
+}
+
+/**
+ * Convert one Replicate OpenAPI input property into the host's
+ * {@link ImageParamSpec}. Returns null when the property's type isn't
+ * representable in our thin slice (e.g. `array` of objects, `object`,
+ * file/upload fields).
+ *
+ * Replicate model authors put the human description in `description` or
+ * `x-order`/`title`. We surface description verbatim; the LLM uses it
+ * to decide what to send.
+ */
+function openapiToParamSpec(raw: unknown): ImageParamSpec | null {
+  if (!raw || typeof raw !== 'object') return null
+  const p = raw as {
+    type?: string | string[]
+    description?: string
+    default?: unknown
+    enum?: unknown[]
+    minimum?: number
+    maximum?: number
+    format?: string
+    'x-order'?: number
+  }
+  // Normalise to a single primary type. Replicate sometimes ships
+  // ['integer', 'null']; we strip null and pick the first surviving entry.
+  const type = Array.isArray(p.type) ? p.type.find((t) => t !== 'null') : p.type
+  if (!type) return null
+
+  const desc = typeof p.description === 'string' && p.description.trim() ? p.description.trim() : undefined
+  const def = p.default
+
+  if (type === 'string') {
+    const enumVals = Array.isArray(p.enum)
+      ? p.enum.filter((v): v is string => typeof v === 'string')
+      : undefined
+    return {
+      type: 'string',
+      ...(desc ? { description: desc } : {}),
+      ...(typeof def === 'string' ? { default: def } : {}),
+      ...(enumVals && enumVals.length > 0 ? { enum: enumVals } : {}),
+    }
+  }
+  if (type === 'number' || type === 'integer') {
+    return {
+      type: type as 'number' | 'integer',
+      ...(desc ? { description: desc } : {}),
+      ...(typeof def === 'number' ? { default: def } : {}),
+      ...(typeof p.minimum === 'number' ? { minimum: p.minimum } : {}),
+      ...(typeof p.maximum === 'number' ? { maximum: p.maximum } : {}),
+    }
+  }
+  if (type === 'boolean') {
+    return {
+      type: 'boolean',
+      ...(desc ? { description: desc } : {}),
+      ...(typeof def === 'boolean' ? { default: def } : {}),
+    }
+  }
+  // arrays of strings (e.g. multi-image input arrays) and objects fall
+  // through — they're either handled separately or not user-tunable.
+  return null
+}
+
+function imageModelFrom(m: ReplicateCollectionModel): ImageModel {
+  const props = extractInputProps(m)
+  const field = detectImageInputField(props)
+  // No image-input field at all → text-to-image (0).
+  // Single field → 1.
+  // Array field → maxItems if known, else a conservative 8 (multi-ref models
+  // on Replicate today don't accept dozens — capped to keep LLM honest).
+  const maxImageInputs = !field ? 0 : field.isArray ? (field.maxItems ?? 8) : 1
   return {
     id: `${m.owner}/${m.name}`,
     name: displayNameOf(m),
-    ...(supportsImageInput ? { supportsImageInput: true } : {}),
+    ...(maxImageInputs > 0 ? { maxImageInputs } : {}),
   }
 }
 
@@ -440,6 +559,46 @@ class ReplicateImageProvider implements ImageProvider {
     return [...fromCustom, ...fromCollection]
   }
 
+  /**
+   * Parse the model's OpenAPI Input schema into the host's lean
+   * {@link ImageModelParamsSchema} shape. We DROP the image-input
+   * field(s) so the LLM doesn't try to fill them via `params` — those
+   * are piloted by `generate_image`'s `imageUrls`. We also drop
+   * `prompt` (the host's first-class parameter) and a handful of
+   * Replicate-internal fields that the host already manages.
+   */
+  async describeModel(
+    model: ImageModel,
+    config: ProviderConfig,
+  ): Promise<ImageModelParamsSchema> {
+    const token = requireToken(config)
+    const client = new Replicate(this.fetch, token)
+    const [owner, name] = model.id.split('/')
+    if (!owner || !name) return { params: {} }
+
+    const fresh = await client.getModel(owner, name)
+    const props = extractInputProps(fresh)
+    const imageField = detectImageInputField(props)
+    const blocklist = new Set<string>([
+      'prompt',
+      'output_format',
+      'num_outputs',
+      // Aspect / size — handled by request.size in the SDK.
+      'width',
+      'height',
+      'aspect_ratio',
+      ...(imageField ? [imageField.key] : []),
+    ])
+
+    const params: Record<string, ImageParamSpec> = {}
+    for (const [key, raw] of Object.entries(props)) {
+      if (blocklist.has(key)) continue
+      const spec = openapiToParamSpec(raw)
+      if (spec) params[key] = spec
+    }
+    return { params }
+  }
+
   async generate(
     model: ImageModel,
     request: ImageRequest,
@@ -449,17 +608,36 @@ class ReplicateImageProvider implements ImageProvider {
     const client = new Replicate(this.fetch, token)
     const [width, height] = (request.size ?? '1024x1024').split('x').map((n) => Number(n))
 
+    // If the caller passed source images, figure out which schema key
+    // carries them and convert each input to a URL the prediction can
+    // reach. Small inputs (≤ 1 MB) go inline as data URLs to save a
+    // round-trip; larger ones are uploaded via POST /v1/files so we
+    // don't blow the prediction body size.
+    const imageInjection = await this.resolveImageInputs(
+      client,
+      model,
+      request.imageInputs ?? [],
+      config,
+    )
+
     const aspect = aspectRatioFor(width, height)
+    const input: Record<string, unknown> = {
+      prompt: request.prompt,
+      ...(width && height ? { width, height } : {}),
+      ...(aspect ? { aspect_ratio: aspect } : {}),
+      output_format: 'png',
+      num_outputs: 1,
+      // Free-form per-model tunables surfaced through describeModel.
+      // Merged before the image injection so callers can't accidentally
+      // override the field name our heuristic chose.
+      ...(request.params ?? {}),
+      ...imageInjection,
+    }
+
     const prediction = await client.runPrediction<string[] | string>(
       {
         model: model.id,
-        input: {
-          prompt: request.prompt,
-          ...(width && height ? { width, height } : {}),
-          ...(aspect ? { aspect_ratio: aspect } : {}),
-          output_format: 'png',
-          num_outputs: 1,
-        },
+        input,
       },
       { signal: request.signal, timeoutMs: 5 * 60_000 },
     )
@@ -480,6 +658,100 @@ class ReplicateImageProvider implements ImageProvider {
     const mediaType = imgRes.headers.get('content-type') ?? 'image/png'
     return { data: new Uint8Array(buf), mediaType }
   }
+
+  /**
+   * Turn the caller's `imageInputs` into the right Replicate input
+   * shape for the targeted model. Steps:
+   *
+   * 1. Re-fetch the model so we have its latest_version.openapi_schema
+   *    (the heuristic only works against the actual schema, not a
+   *    stale cached one).
+   * 2. Find the image-input field key + whether it's an array.
+   * 3. Convert each Uint8Array into a URL Replicate can pull from:
+   *    - ≤ INLINE_LIMIT_BYTES → data: URL inline (zero round-trip)
+   *    - larger → POST /v1/files for a hosted URL
+   * 4. Cap to maxImageInputs (or 1 for single-image models). Drops
+   *    extras with a warning log.
+   * 5. Return `{ [fieldKey]: url | url[] }` ready to spread into the
+   *    prediction's input.
+   *
+   * Returns an empty object when the model has no image-input field
+   * or no inputs were provided — callers can spread it unconditionally.
+   */
+  private async resolveImageInputs(
+    client: Replicate,
+    model: ImageModel,
+    inputs: ReadonlyArray<{ data: Uint8Array; mediaType: string }>,
+    _config: ProviderConfig,
+  ): Promise<Record<string, string | string[]>> {
+    if (inputs.length === 0) return {}
+
+    const [owner, name] = model.id.split('/')
+    if (!owner || !name) {
+      this.log.warn({ modelId: model.id }, 'imageInputs ignored — model id is not owner/name')
+      return {}
+    }
+
+    const fresh = await client.getModel(owner, name)
+    const props = extractInputProps(fresh)
+    const field = detectImageInputField(props)
+    if (!field) {
+      this.log.warn(
+        { modelId: model.id },
+        'imageInputs given but model schema has no image-input field — silently ignored',
+      )
+      return {}
+    }
+
+    const limit = field.isArray ? (field.maxItems ?? 8) : 1
+    const used = inputs.slice(0, limit)
+    if (inputs.length > used.length) {
+      this.log.warn(
+        { modelId: model.id, given: inputs.length, used: used.length },
+        'Caller passed more image inputs than the model accepts — dropping extras',
+      )
+    }
+
+    const urls = await Promise.all(used.map((input) => this.bytesToReplicateUrl(client, input)))
+    return { [field.key]: field.isArray ? urls : urls[0]! }
+  }
+
+  /**
+   * Convert raw image bytes into a URL Replicate can fetch. Inline as
+   * a data URL when the payload is small enough to keep the prediction
+   * body tight; otherwise upload to /v1/files. Boundary chosen
+   * conservatively — Replicate accepts much larger data URLs in
+   * practice, but multi-MB JSON bodies hurt prediction wait/poll cost.
+   */
+  private async bytesToReplicateUrl(
+    client: Replicate,
+    input: { data: Uint8Array; mediaType: string },
+  ): Promise<string> {
+    if (input.data.byteLength <= INLINE_IMAGE_LIMIT_BYTES) {
+      return `data:${input.mediaType};base64,${uint8ToBase64(input.data)}`
+    }
+    const ext = mediaTypeToExtension(input.mediaType)
+    const { url } = await client.uploadFile(input.data, {
+      filename: `input.${ext}`,
+      contentType: input.mediaType,
+    })
+    return url
+  }
+}
+
+const INLINE_IMAGE_LIMIT_BYTES = 1_048_576 // 1 MB — see bytesToReplicateUrl
+
+function mediaTypeToExtension(mediaType: string): string {
+  if (mediaType.includes('jpeg') || mediaType.includes('jpg')) return 'jpg'
+  if (mediaType.includes('webp')) return 'webp'
+  if (mediaType.includes('gif')) return 'gif'
+  return 'png'
+}
+
+function uint8ToBase64(bytes: Uint8Array): string {
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!)
+  return globalThis.btoa(binary)
 }
 
 // ─── Embedding provider ─────────────────────────────────────────────────────

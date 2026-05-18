@@ -19,7 +19,10 @@ interface ProviderModelEntry {
   capability: string
   contextWindow?: number
   maxOutput?: number
+  /** LLM-family only — chat accepts image attachments. */
   supportsImageInput?: boolean
+  /** Image-family only — how many source images the model accepts. */
+  maxImageInputs?: number
 }
 
 interface ProviderModelsResponse {
@@ -223,6 +226,14 @@ export function ProviderModelsModal({
                             <Badge variant="outline" size="xs">
                               <ImageIcon className="size-3 mr-0.5" />
                               {t('settings.providers.modelsModal.imageInput', 'image-in')}
+                            </Badge>
+                          )}
+                          {m.maxImageInputs != null && m.maxImageInputs > 0 && (
+                            <Badge variant="outline" size="xs">
+                              <ImageIcon className="size-3 mr-0.5" />
+                              {m.maxImageInputs === 1
+                                ? t('settings.providers.modelsModal.img2img', 'img2img')
+                                : t('settings.providers.modelsModal.multiImage', { count: m.maxImageInputs, defaultValue: 'multi-ref ({{count}})' })}
                             </Badge>
                           )}
                         </div>

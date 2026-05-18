@@ -33,7 +33,7 @@ import {
   generateAvatarImage,
   buildAvatarPrompt,
   resolveImageTarget,
-  modelSupportsImageInput,
+  getMaxImageInputs,
   getBaseAvatarBytes,
   ImageGenerationError,
 } from '@/server/services/image-generation'
@@ -457,7 +457,7 @@ export async function generateAndSaveAvatar(kinId: string): Promise<string | nul
     throw err
   }
 
-  const supportsEdit = modelSupportsImageInput(target.providerType, target.modelId)
+  const supportsEdit = (await getMaxImageInputs(target.providerId, target.modelId)) > 0
 
   const prompt = await buildAvatarPrompt(
     {
@@ -472,7 +472,7 @@ export async function generateAndSaveAvatar(kinId: string): Promise<string | nul
   const result = await generateAvatarImage(prompt, {
     providerId: target.providerId,
     modelId: target.modelId,
-    ...(supportsEdit ? { imageData: await getBaseAvatarBytes() } : {}),
+    ...(supportsEdit ? { imageDatas: [await getBaseAvatarBytes()] } : {}),
   })
 
   // Determine file extension from media type

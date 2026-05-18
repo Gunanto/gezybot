@@ -393,7 +393,10 @@ providerRoutes.get('/models', async (c) => {
     providerName: string
     providerType: string
     capability: string
+    /** LLM-family only — true when the chat model accepts image attachments. */
     supportsImageInput?: boolean
+    /** Image-family only — how many source images the model accepts. */
+    maxImageInputs?: number
   }> = []
 
   for (const p of allProviders) {
@@ -416,7 +419,8 @@ providerRoutes.get('/models', async (c) => {
             providerName: p.name,
             providerType: p.type,
             capability: model.capability,
-            ...(model.capability === 'image' && { supportsImageInput: model.supportsImageInput ?? false }),
+            ...(model.capability === 'llm' && model.supportsImageInput ? { supportsImageInput: true } : {}),
+            ...(model.capability === 'image' ? { maxImageInputs: model.maxImageInputs ?? 0 } : {}),
           })
         }
       }
@@ -462,7 +466,10 @@ providerRoutes.get('/:id/models', async (c) => {
     capability: string
     contextWindow?: number
     maxOutput?: number
+    /** LLM-family only — chat accepts image attachments. */
     supportsImageInput?: boolean
+    /** Image-family only — number of source images the model accepts. */
+    maxImageInputs?: number
   }> = []
   const errors: Array<{ capability: string; message: string }> = []
 
@@ -476,7 +483,8 @@ providerRoutes.get('/:id/models', async (c) => {
           capability: m.capability,
           ...(m.contextWindow != null ? { contextWindow: m.contextWindow } : {}),
           ...(m.maxOutput != null ? { maxOutput: m.maxOutput } : {}),
-          ...(m.capability === 'image' && m.supportsImageInput != null ? { supportsImageInput: m.supportsImageInput } : {}),
+          ...(m.capability === 'llm' && m.supportsImageInput != null ? { supportsImageInput: m.supportsImageInput } : {}),
+          ...(m.capability === 'image' && m.maxImageInputs != null ? { maxImageInputs: m.maxImageInputs } : {}),
         })
       }
     } catch (err) {

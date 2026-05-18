@@ -107,13 +107,15 @@ describe('openaiImageProvider.listModels', () => {
     expect(gptImageEntries).toHaveLength(1)
   })
 
-  it('reports image-input support on the known models', async () => {
+  it('reports image-input support on the known models via maxImageInputs', async () => {
     mockModelsList.mockImplementation(() => Promise.resolve({ data: [] }))
     const models = await openaiImageProvider.listModels({ apiKey: 'sk-test' })
     const gptImage = models.find((m) => m.id === 'gpt-image-1')!
     const dalleThree = models.find((m) => m.id === 'dall-e-3')!
-    expect(gptImage.supportsImageInput).toBe(true)
-    expect(dalleThree.supportsImageInput).toBe(false)
+    const dalleTwo = models.find((m) => m.id === 'dall-e-2')!
+    expect(gptImage.maxImageInputs).toBe(1)
+    expect(dalleThree.maxImageInputs).toBe(0)
+    expect(dalleTwo.maxImageInputs).toBe(1)
   })
 })
 
@@ -133,12 +135,12 @@ describe('openaiImageProvider.generate', () => {
     expect(result.data.length).toBe(3)
   })
 
-  it('calls images.edit when imageInput is provided', async () => {
+  it('calls images.edit when imageInputs is provided', async () => {
     const result = await openaiImageProvider.generate(
-      { id: 'gpt-image-1', name: 'GPT Image 1', supportsImageInput: true },
+      { id: 'gpt-image-1', name: 'GPT Image 1', maxImageInputs: 1 },
       {
         prompt: 'transform this',
-        imageInput: { data: new Uint8Array([1, 2, 3]), mediaType: 'image/png' },
+        imageInputs: [{ data: new Uint8Array([1, 2, 3]), mediaType: 'image/png' }],
       },
       { apiKey: 'sk-test' },
     )
@@ -146,6 +148,57 @@ describe('openaiImageProvider.generate', () => {
     expect(mockImagesGenerate).not.toHaveBeenCalled()
     expect(result.mediaType).toBe('image/png')
     expect(result.data.length).toBe(3)
+  })
+
+  it('takes only the first imageInputs entry on single-image models', async () => {
+    await openaiImageProvider.generate(
+      { id: 'gpt-image-1', name: 'GPT Image 1', maxImageInputs: 1 },
+      {
+        prompt: 'transform',
+        imageInputs: [
+          { data: new Uint8Array([1, 2, 3]), mediaType: 'image/png' },
+          { data: new Uint8Array([4, 5, 6]), mediaType: 'image/png' },
+        ],
+      },
+      { apiKey: 'sk-test' },
+    )
+    // Single .edit call — the second input is silently dropped (with a
+    // log warning that isn't asserted here).
+    expect(mockImagesEdit).toHaveBeenCalledTimes(1)
+  })
+
+  it('merges request.params into the upstream call', async () => {
+    await openaiImageProvider.generate(
+      { id: 'gpt-image-1', name: 'GPT Image 1' },
+      { prompt: 'a cat', params: { quality: 'high', background: 'transparent' } },
+      { apiKey: 'sk-test' },
+    )
+    expect(mockImagesGenerate).toHaveBeenCalledTimes(1)
+    const call = (mockImagesGenerate.mock.calls as unknown as Array<[Record<string, unknown>]>)[0]?.[0]
+    expect(call?.['quality']).toBe('high')
+    expect(call?.['background']).toBe('transparent')
+  })
+
+  it('describeModel returns the per-family static schema', async () => {
+    const gptSchema = await openaiImageProvider.describeModel!(
+      { id: 'gpt-image-1', name: 'GPT Image 1' },
+      { apiKey: 'sk-test' },
+    )
+    expect(Object.keys(gptSchema.params)).toContain('quality')
+    expect(Object.keys(gptSchema.params)).toContain('background')
+    expect(Object.keys(gptSchema.params)).toContain('output_format')
+
+    const dalleSchema = await openaiImageProvider.describeModel!(
+      { id: 'dall-e-3', name: 'DALL-E 3' },
+      { apiKey: 'sk-test' },
+    )
+    expect(Object.keys(dalleSchema.params)).toEqual(['quality', 'style'])
+
+    const unknownSchema = await openaiImageProvider.describeModel!(
+      { id: 'mystery-model', name: 'Mystery' },
+      { apiKey: 'sk-test' },
+    )
+    expect(unknownSchema.params).toEqual({})
   })
 
   it('passes response_format=b64_json for dall-e family', async () => {
