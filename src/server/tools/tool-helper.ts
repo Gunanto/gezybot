@@ -18,4 +18,4 @@
  */
 
 export { tool, asSchema } from 'ai'
-export type { Tool, JSONValue } from 'ai'
+export type { Tool, JSONValue, ModelMessage, UserContent } from 'ai'

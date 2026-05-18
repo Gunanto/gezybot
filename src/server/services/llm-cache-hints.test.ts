@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test'
-import type { ModelMessage } from 'ai'
+import type { ModelMessage } from '@/server/tools/tool-helper'
 import type { Tool } from '@ai-sdk/provider-utils'
 import {
   buildSegmentedMessages,

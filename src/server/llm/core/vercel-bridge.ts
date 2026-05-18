@@ -4,19 +4,22 @@
  * `LLMProvider` abstraction.
  *
  * These helpers exist because:
- *   - Tool definitions (`tool({...})` from 'ai') live in ~37 files across
- *     `src/server/tools/*` and migrating them all to a kinbot-native shape
- *     would be a separate, much larger refactor.
+ *   - Tool definitions still use the Vercel `tool({...})` shape — they're
+ *     declared in ~37 `src/server/tools/*` files and all import the helper
+ *     through `@/server/tools/tool-helper` (the one place where the Vercel
+ *     SDK is still referenced).
  *   - Message history in kin-engine / tasks is accumulated as `ModelMessage[]`
  *     (the Vercel shape) because that's how the chat persistence + history
- *     reconstruction code reads/writes it. Same logic — migrate later.
+ *     reconstruction code reads/writes it. Migrating to `KinbotMessage[]`
+ *     end-to-end would touch the Anthropic prompt-cache strategy and needs
+ *     runtime validation, so it's deferred.
  *
  * For now: at the very last moment before calling `provider.chat()`, we
  * convert Vercel tools/messages into kinbot's own shapes. Both translations
  * are pure data — no behavior is moved here.
  */
 
-import type { ModelMessage } from 'ai'
+import type { ModelMessage } from '@/server/tools/tool-helper'
 import { asSchema } from '@/server/tools/tool-helper'
 import type { Tool } from '@/server/tools/tool-helper'
 import type {

@@ -29,7 +29,7 @@
  * prefix by one assistant/tool message). Within a turn (across tool steps),
  * BP4 ensures successive requests can read each other's cache.
  */
-import type { ModelMessage } from 'ai'
+import type { ModelMessage } from '@/server/tools/tool-helper'
 import type { Tool } from '@ai-sdk/provider-utils'
 
 /**

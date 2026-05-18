@@ -1,4 +1,4 @@
-import type { ModelMessage, UserContent } from 'ai'
+import type { ModelMessage, UserContent } from '@/server/tools/tool-helper'
 import type { Tool } from '@/server/tools/tool-helper'
 import { eq, and, isNull, ne, asc, desc } from 'drizzle-orm'
 import { v4 as uuid } from 'uuid'
