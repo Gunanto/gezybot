@@ -57,10 +57,16 @@ function summarizeEntity(state: HAState): {
   }
 }
 
-export default function (ctx: PluginContext) {
+/** Mirrors the `config` section of plugin.json so `ctx.config` is typed. */
+interface HomeAutomationConfig {
+  haUrl?: string
+  haToken?: string
+  areaFilter?: string
+}
+
+export default function (ctx: PluginContext<HomeAutomationConfig>) {
   const getConfig = () => {
-    const haUrl = ctx.config?.haUrl as string | undefined
-    const haToken = ctx.config?.haToken as string | undefined
+    const { haUrl, haToken } = ctx.config
     if (!haUrl || !haToken) {
       throw new Error(
         'Home Assistant is not configured. Go to Settings > Plugins > Home Automation to set the URL and access token.',
@@ -70,10 +76,10 @@ export default function (ctx: PluginContext) {
   }
 
   const getAreaFilter = (): string[] => {
-    const raw = (ctx.config?.areaFilter as string) ?? ''
+    const raw = ctx.config.areaFilter ?? ''
     return raw
       .split(',')
-      .map((s: string) => s.trim().toLowerCase())
+      .map((s) => s.trim().toLowerCase())
       .filter(Boolean)
   }
 

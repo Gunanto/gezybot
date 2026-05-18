@@ -35,7 +35,7 @@
     "start": "bun src/server/index.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun scripts/migrate.ts",
-    "test": "bun test",
+    "test": "bun test ./src ./packages/sdk/src ./plugins",
     "test:e2e": "npx playwright test",
     "typecheck": "tsc --noEmit",
     "prepare": "husky"

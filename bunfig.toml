@@ -1,4 +1,5 @@
 [test]
-# Only run unit/integration tests under src/ — E2E tests run via: npx playwright test
-# Store plugin tests: bun test ./store/
+# Default `bun test` discovers under src/ (KinBot core). Workspace + plugin
+# tests are run by the `test` npm script — see `package.json` — which passes
+# explicit paths so ad-hoc `bun test` invocations stay snappy.
 root = "./src"

@@ -524,13 +524,205 @@ export interface PluginManifestInfo {
   version: string
 }
 
-/** Payload of a single primitive in a card layout. Plugins build these via
- *  helper functions or hand-write them; the host renders them in the chat. */
-export type PluginCardPrimitive = Record<string, unknown>
+// ─── Card primitives (strict discriminated union) ────────────────────────────
+
+/** Color/intent variant accepted by most card primitives. */
+export type PluginCardVariant =
+  | 'default'
+  | 'success'
+  | 'warning'
+  | 'destructive'
+  | 'primary'
+  | 'muted'
+
+/** Animation applied to a status-banner. */
+export type PluginCardBannerAnimation = 'pulse' | 'shimmer' | 'spin' | 'none'
+
+/** A single input slot attached to a card action button. */
+export interface PluginCardActionInput {
+  type: 'text' | 'textarea'
+  placeholder?: string
+}
+
+export interface PluginCardAction {
+  id: string
+  label: string
+  variant?: PluginCardVariant
+  input?: PluginCardActionInput
+  /** If true, the UI confirms with the user before firing the action. */
+  confirm?: boolean
+}
+
+export interface PluginCardInfoGridItem {
+  label: string
+  value: string
+  variant?: PluginCardVariant
+  /** When true, long values are clipped with ellipsis and a tooltip shows
+   *  the full text. */
+  truncate?: boolean
+  /** Icon next to the value. Either a Lucide icon name (`"Sparkles"`) or a
+   *  react-icons identifier in the form `"<collection>/<ComponentName>"`
+   *  (`"bs/BsClaude"`, `"si/SiOpenai"`). */
+  icon?: string
+}
+
+/** Discriminated union of every primitive a plugin can put in a card layout.
+ *
+ *  Plugins build these objects directly or via the `card.*` helpers below.
+ *  String fields may contain `{{key}}` placeholders interpolated against
+ *  the card's state at render time.
+ */
+export type PluginCardPrimitive =
+  | {
+      type: 'header'
+      title: string
+      icon?: string
+      accent?: PluginCardVariant
+    }
+  | {
+      type: 'info-grid'
+      columns?: 2 | 3
+      items: PluginCardInfoGridItem[]
+    }
+  | {
+      type: 'status-banner'
+      label: string
+      sublabel?: string
+      variant?: PluginCardVariant
+      icon?: string
+      animated?: PluginCardBannerAnimation
+    }
+  | {
+      type: 'progress'
+      value?: number
+      max?: number
+      indeterminate?: boolean
+      label?: string
+    }
+  | {
+      type: 'collapsible'
+      label: string
+      defaultOpen?: boolean
+      content: PluginCardPrimitive | PluginCardPrimitive[]
+    }
+  | {
+      type: 'log-stream'
+      lines: string[]
+      autoscroll?: boolean
+      maxHeight?: number
+    }
+  | { type: 'action-row'; actions: PluginCardAction[] }
+  | { type: 'markdown'; content: string }
+  | { type: 'spinner'; label?: string }
+  | {
+      type: 'badge'
+      text: string
+      variant?: PluginCardVariant
+      icon?: string
+    }
+  | { type: 'divider'; label?: string }
+
+/**
+ * Builder helpers for card primitives. Plugins can either hand-write the
+ * discriminated union literals or use these helpers for slightly more
+ * ergonomic call sites with default-friendly argument shapes.
+ *
+ *   import { card, z } from '@kinbot-developer/sdk'
+ *
+ *   ctx.cards.emit({
+ *     kinId,
+ *     cardType: 'task-run',
+ *     layout: [
+ *       card.header({ title: 'Task running…', icon: 'Sparkles' }),
+ *       card.progress({ indeterminate: true }),
+ *       card.actionRow([{ id: 'cancel', label: 'Cancel', variant: 'destructive' }]),
+ *     ],
+ *     initialState: {},
+ *   })
+ */
+export const card = {
+  header(params: {
+    title: string
+    icon?: string
+    accent?: PluginCardVariant
+  }): Extract<PluginCardPrimitive, { type: 'header' }> {
+    return { type: 'header', ...params }
+  },
+  infoGrid(params: {
+    items: PluginCardInfoGridItem[]
+    columns?: 2 | 3
+  }): Extract<PluginCardPrimitive, { type: 'info-grid' }> {
+    return { type: 'info-grid', ...params }
+  },
+  statusBanner(params: {
+    label: string
+    sublabel?: string
+    variant?: PluginCardVariant
+    icon?: string
+    animated?: PluginCardBannerAnimation
+  }): Extract<PluginCardPrimitive, { type: 'status-banner' }> {
+    return { type: 'status-banner', ...params }
+  },
+  progress(
+    params: {
+      value?: number
+      max?: number
+      indeterminate?: boolean
+      label?: string
+    } = {},
+  ): Extract<PluginCardPrimitive, { type: 'progress' }> {
+    return { type: 'progress', ...params }
+  },
+  collapsible(params: {
+    label: string
+    defaultOpen?: boolean
+    content: PluginCardPrimitive | PluginCardPrimitive[]
+  }): Extract<PluginCardPrimitive, { type: 'collapsible' }> {
+    return { type: 'collapsible', ...params }
+  },
+  logStream(params: {
+    lines: string[]
+    autoscroll?: boolean
+    maxHeight?: number
+  }): Extract<PluginCardPrimitive, { type: 'log-stream' }> {
+    return { type: 'log-stream', ...params }
+  },
+  actionRow(
+    actions: PluginCardAction[],
+  ): Extract<PluginCardPrimitive, { type: 'action-row' }> {
+    return { type: 'action-row', actions }
+  },
+  markdown(
+    content: string,
+  ): Extract<PluginCardPrimitive, { type: 'markdown' }> {
+    return { type: 'markdown', content }
+  },
+  spinner(
+    label?: string,
+  ): Extract<PluginCardPrimitive, { type: 'spinner' }> {
+    return label === undefined ? { type: 'spinner' } : { type: 'spinner', label }
+  },
+  badge(params: {
+    text: string
+    variant?: PluginCardVariant
+    icon?: string
+  }): Extract<PluginCardPrimitive, { type: 'badge' }> {
+    return { type: 'badge', ...params }
+  },
+  divider(
+    label?: string,
+  ): Extract<PluginCardPrimitive, { type: 'divider' }> {
+    return label === undefined ? { type: 'divider' } : { type: 'divider', label }
+  },
+} as const
 
 /** Card APIs exposed to plugins. The plugin name is captured at context
  *  creation time so plugins cannot accidentally emit cards under another
- *  plugin's identity. */
+ *  plugin's identity.
+ *
+ *  `layout` is typed as the strict `PluginCardPrimitive[]` discriminated
+ *  union: plugin authors get autocomplete on every primitive, and a typo
+ *  in a `type` field fails at compile time. */
 export interface PluginCardsAPI {
   emit(params: {
     kinId: string
@@ -554,8 +746,31 @@ export interface PluginCardActionContext {
 
 export type PluginCardActionResult = { ok: true } | { ok: false; error: string }
 
-export interface PluginContext {
-  config: Record<string, any>
+/**
+ * The runtime context KinBot passes to every plugin's default export.
+ *
+ * The `Config` generic lets a plugin author declare the exact shape of
+ * their config so `ctx.config.<field>` is strongly typed:
+ *
+ *   import type { PluginContext } from '@kinbot-developer/sdk'
+ *
+ *   interface MyConfig { apiKey: string; region?: 'eu' | 'us' }
+ *
+ *   export default function (ctx: PluginContext<MyConfig>) {
+ *     const region = ctx.config.region ?? 'eu'   // typed
+ *     // ctx.config.apiKey  ← string
+ *   }
+ *
+ * Plugins that don't care fall back to the default
+ * `Record<string, unknown>` and read fields with their own narrowing.
+ *
+ * The runtime never validates the config against the generic — KinBot
+ * already validated it against the manifest's declared config schema
+ * before instantiating the context. The generic is purely a type-side
+ * convenience for the plugin's call sites.
+ */
+export interface PluginContext<Config = Record<string, unknown>> {
+  config: Config
   log: PluginLogger
   storage: PluginStorageAPI
   http: PluginHTTPClient

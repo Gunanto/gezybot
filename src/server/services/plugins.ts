@@ -23,12 +23,12 @@ import { satisfiesSemver } from '@/shared/semver'
 import { registerPluginProvider, unregisterPluginProvider } from '@/server/providers/index'
 import { channelAdapters } from '@/server/channels/index'
 import { emitPluginCard, updatePluginCard } from '@/server/services/plugin-cards'
-import type { PluginCardPrimitive } from '@/shared/types/plugin-cards'
 import type {
   PluginContext,
   PluginExports,
   PluginCardActionContext,
   PluginCardActionResult,
+  PluginCardsAPI,
   PluginLogger,
   PluginStorageAPI,
   PluginHTTPClient,
@@ -86,27 +86,6 @@ export function createPluginVault(pluginName: string): PluginVaultAPI {
   }
 }
 
-// ─── Internal types ──────────────────────────────────────────────────────────
-
-/**
- * Card APIs as exposed inside `plugins.ts`. The internal layout typing is
- * stricter than what the SDK exposes (the SDK's `PluginCardPrimitive` is a
- * loose `Record<string, unknown>` so plugin authors don't have to import the
- * discriminated union). The internal one keeps the strict shape because
- * `emitPluginCard` consumes it.
- */
-export interface PluginCardsAPI {
-  emit(params: {
-    kinId: string
-    cardType: string
-    layout: PluginCardPrimitive[]
-    initialState: Record<string, unknown>
-  }): Promise<{ messageId: string; cardInstanceId: string }>
-  update(params: {
-    cardInstanceId: string
-    state: Record<string, unknown>
-  }): Promise<void>
-}
 
 interface LoadedPlugin {
   manifest: PluginManifest
