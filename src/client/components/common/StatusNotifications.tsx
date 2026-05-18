@@ -2,8 +2,8 @@ import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useSSE } from '@/client/hooks/useSSE'
+import { useProviderTypes } from '@/client/hooks/useProviderTypes'
 import { CheckCircle2, XCircle, AlertTriangle, ArrowUpCircle } from 'lucide-react'
-import { PROVIDER_DISPLAY_NAMES } from '@/shared/constants'
 
 /**
  * Global component that listens for provider/channel status changes via SSE
@@ -13,6 +13,7 @@ import { PROVIDER_DISPLAY_NAMES } from '@/shared/constants'
  */
 export function StatusNotifications() {
   const { t } = useTranslation()
+  const catalogue = useProviderTypes()
 
   // Track previous states to only notify on *changes*
   const providerStates = useRef<Map<string, boolean>>(new Map())
@@ -33,7 +34,7 @@ export function StatusNotifications() {
       // Only notify on actual change
       if (prevValid === isValid) return
 
-      const displayName = name || PROVIDER_DISPLAY_NAMES[providerType] || providerType
+      const displayName = name || catalogue.displayNames[providerType] || providerType
 
       if (isValid) {
         toast.success(t('statusNotifications.providerOnline', { name: displayName }), {

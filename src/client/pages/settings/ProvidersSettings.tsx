@@ -7,13 +7,21 @@ import { SettingsListSkeleton } from '@/client/components/common/SettingsListSke
 import { TestAllProviders } from '@/client/components/common/TestAllProviders'
 import { ProviderCard } from '@/client/components/kin/ProviderCard'
 import { ProviderFormDialog } from '@/client/components/kin/AddProviderDialog'
-import { AI_PROVIDER_TYPES } from '@/shared/constants'
 import { useProviders } from '@/client/hooks/useProviders'
 import { useProviderActions } from '@/client/hooks/useProviderActions'
+import { useProviderTypes } from '@/client/hooks/useProviderTypes'
 
 export function ProvidersSettings() {
   const { t } = useTranslation()
-  const { providers, isLoading, refetch: fetchProviders } = useProviders({ filterTypes: AI_PROVIDER_TYPES })
+  // Live catalogue (built-ins + plugin-contributed). Used both as the
+  // filter for the saved providers list and as the picker entries.
+  const catalogue = useProviderTypes()
+  const aiTypes = catalogue.entries.length > 0
+    ? catalogue.entries
+        .filter((e) => e.capabilities.some((c) => c === 'llm' || c === 'embedding' || c === 'image'))
+        .map((e) => e.type)
+    : catalogue.types
+  const { providers, isLoading, refetch: fetchProviders } = useProviders({ filterTypes: aiTypes })
 
   const {
     testingId,
@@ -87,7 +95,7 @@ export function ProvidersSettings() {
         onOpenChange={setModalOpen}
         onSaved={handleProviderSaved}
         provider={editingProvider}
-        providerTypes={AI_PROVIDER_TYPES}
+        providerTypes={aiTypes}
       />
     </div>
   )

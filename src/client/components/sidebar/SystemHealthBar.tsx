@@ -9,8 +9,8 @@ import {
 import { BrainCircuit, Radio, Activity, Coins } from 'lucide-react'
 import { api } from '@/client/lib/api'
 import { useSSE } from '@/client/hooks/useSSE'
+import { useProviderTypes } from '@/client/hooks/useProviderTypes'
 import { cn } from '@/client/lib/utils'
-import { AI_PROVIDER_TYPES } from '@/shared/constants'
 
 interface ProviderHealth {
   total: number
@@ -30,6 +30,9 @@ export const SystemHealthBar = memo(function SystemHealthBar({ onOpenSettings }:
   const { t } = useTranslation()
   const [providers, setProviders] = useState<ProviderHealth | null>(null)
   const [channels, setChannels] = useState<ChannelHealth | null>(null)
+  // Catalogue follows plugin enable/disable so plugin-contributed
+  // providers count toward the health bar too.
+  const catalogue = useProviderTypes()
 
   const fetchHealth = useCallback(async () => {
     try {
@@ -39,7 +42,7 @@ export const SystemHealthBar = memo(function SystemHealthBar({ onOpenSettings }:
       ])
 
       const aiProviders = provData.providers.filter((p) =>
-        (AI_PROVIDER_TYPES as readonly string[]).includes(p.type),
+        catalogue.types.includes(p.type),
       )
 
       setProviders({
@@ -54,7 +57,9 @@ export const SystemHealthBar = memo(function SystemHealthBar({ onOpenSettings }:
     } catch {
       // Ignore — will show nothing
     }
-  }, [])
+    // The closure captures `catalogue.types`; rerun when it changes so a
+    // newly-enabled plugin's providers start counting.
+  }, [catalogue.types])
 
   useEffect(() => {
     fetchHealth()

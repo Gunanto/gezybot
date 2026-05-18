@@ -19,7 +19,7 @@ import { FormErrorAlert } from '@/client/components/common/FormErrorAlert'
 import { ProviderIcon } from '@/client/components/common/ProviderIcon'
 import { InfoTip } from '@/client/components/common/InfoTip'
 import { api, getErrorMessage } from '@/client/lib/api'
-import { PROVIDER_API_KEY_URLS, PROVIDER_CAPABILITIES, PROVIDER_DISPLAY_NAMES, PROVIDER_TYPES, PROVIDERS_WITHOUT_API_KEY, PROVIDERS_WITH_OPTIONAL_API_KEY } from '@/shared/constants'
+import { useProviderTypes } from '@/client/hooks/useProviderTypes'
 import type { ProviderType } from '@/shared/types'
 
 /**
@@ -58,8 +58,12 @@ export function ProviderFormDialog({ open, onOpenChange, onSaved, provider, prov
   const [testPassed, setTestPassed] = useState(false)
   const [error, setError] = useState('')
 
-  const types = providerTypes ?? PROVIDER_TYPES
-  const defaultType = types[0] ?? PROVIDER_TYPES[0] ?? ''
+  // Live provider catalogue — built-ins + every plugin-contributed provider
+  // currently registered. Refreshes on plugin enable/disable SSE events.
+  const catalogue = useProviderTypes()
+
+  const types = providerTypes ?? catalogue.types
+  const defaultType = types[0] ?? catalogue.types[0] ?? ''
   const [providerType, setProviderType] = useState<string>(defaultType)
   const [providerName, setProviderName] = useState('')
   const [apiKey, setApiKey] = useState('')
@@ -103,12 +107,12 @@ export function ProviderFormDialog({ open, onOpenChange, onSaved, provider, prov
   }
 
   const getCapabilitiesForType = (type: string): readonly string[] => {
-    return PROVIDER_CAPABILITIES[type as ProviderType] ?? []
+    return catalogue.capabilities[type] ?? []
   }
 
-  const isApiKeyOptional = (PROVIDERS_WITHOUT_API_KEY as readonly string[]).includes(providerType)
-  const hasOptionalApiKey = (PROVIDERS_WITH_OPTIONAL_API_KEY as readonly string[]).includes(providerType)
-  const apiKeyUrl = PROVIDER_API_KEY_URLS[providerType] as string | undefined
+  const isApiKeyOptional = catalogue.withoutApiKey.includes(providerType)
+  const hasOptionalApiKey = catalogue.withOptionalApiKey.includes(providerType)
+  const apiKeyUrl = catalogue.apiKeyUrls[providerType]
 
   // Families this provider type can serve, in display order. When more than
   // one is available, the form shows checkboxes so the user can opt into a
@@ -195,7 +199,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSaved, provider, prov
         const config: Record<string, string> = {}
         if (apiKey) config.apiKey = apiKey
         await api.post('/providers', {
-          name: providerName || (PROVIDER_DISPLAY_NAMES[providerType] ?? providerType),
+          name: providerName || (catalogue.displayNames[providerType] ?? providerType),
           type: providerType,
           config,
           // Only send `families` when the picker was actually shown — otherwise
@@ -262,7 +266,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSaved, provider, prov
                     <SelectItem key={type} value={type}>
                       <span className="flex items-center gap-2">
                         <ProviderIcon providerType={type} className="size-4 shrink-0" />
-                        <span>{PROVIDER_DISPLAY_NAMES[type] ?? type}</span>
+                        <span>{catalogue.displayNames[type] ?? type}</span>
                         <span className="text-xs text-muted-foreground">
                           ({getCapabilitiesForType(type).join(', ')})
                         </span>
@@ -286,7 +290,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSaved, provider, prov
               id="providerName"
               value={providerName}
               onChange={(e) => setProviderName(e.target.value)}
-              placeholder={t('onboarding.providers.namePlaceholder', { type: PROVIDER_DISPLAY_NAMES[providerType] ?? providerType })}
+              placeholder={t('onboarding.providers.namePlaceholder', { type: catalogue.displayNames[providerType] ?? providerType })}
             />
           </div>
 
@@ -324,7 +328,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSaved, provider, prov
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
               >
-                {t('onboarding.providers.getApiKey', { provider: PROVIDER_DISPLAY_NAMES[providerType] ?? providerType })}
+                {t('onboarding.providers.getApiKey', { provider: catalogue.displayNames[providerType] ?? providerType })}
                 <ExternalLink className="size-3" />
               </a>
             )}

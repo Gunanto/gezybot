@@ -4,7 +4,7 @@ import { Check, ChevronRight, Cpu, Bot, Network, Radio, Sparkles } from 'lucide-
 import { Button } from '@/client/components/ui/button'
 import { api } from '@/client/lib/api'
 import { cn } from '@/client/lib/utils'
-import { AI_PROVIDER_TYPES } from '@/shared/constants'
+import { useProviderTypes } from '@/client/hooks/useProviderTypes'
 
 interface StepProps {
   number: number
@@ -79,14 +79,14 @@ export function GettingStartedChecklist({ specialistKinCount, hubKinId, onCreate
   const { t } = useTranslation()
   const [providerCount, setProviderCount] = useState<number | null>(null)
   const [channelCount, setChannelCount] = useState<number | null>(null)
+  // Catalogue follows plugin enable/disable in real time.
+  const catalogue = useProviderTypes()
 
   useEffect(() => {
     api
       .get<{ providers: { type: string }[] }>('/providers')
       .then((data) => {
-        const aiProviders = data.providers.filter((p) =>
-          (AI_PROVIDER_TYPES as readonly string[]).includes(p.type),
-        )
+        const aiProviders = data.providers.filter((p) => catalogue.types.includes(p.type))
         setProviderCount(aiProviders.length)
       })
       .catch(() => setProviderCount(0))
@@ -95,7 +95,10 @@ export function GettingStartedChecklist({ specialistKinCount, hubKinId, onCreate
       .get<{ channels: unknown[] }>('/channels')
       .then((data) => setChannelCount(data.channels.length))
       .catch(() => setChannelCount(0))
-  }, [])
+    // Re-evaluate when the provider catalogue changes (plugin
+    // enable/disable adds new types to consider as AI providers).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalogue.types])
 
   if (providerCount === null) return null
 
