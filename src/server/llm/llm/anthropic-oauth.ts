@@ -13,9 +13,8 @@
  *   4. Adds the CLI fingerprint headers (anthropic-beta, user-agent, Stainless,
  *      x-app) and `metadata.user_id`.
  *
- * Auth/refresh/header logic is imported from the legacy `providers/`
- * directory — it will be moved into this folder in Phase 5 when the legacy
- * provider is retired.
+ * Auth/refresh/header logic lives next door in `_anthropic-oauth-auth.ts`
+ * (underscore-prefixed so the registry's `import.meta.glob` skips it).
  */
 
 import Anthropic, { APIError } from '@anthropic-ai/sdk'

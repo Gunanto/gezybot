@@ -122,15 +122,15 @@ export type ProviderFamily = 'llm' | 'embedding' | 'image'
  * against the matching one. Returns null when the type isn't registered
  * in the requested family (or in any family when `family` is omitted).
  *
- * The `family` hint is critical for multi-capability providers
- * (OpenAI llm+embedding+image, Replicate, …) where the same type is
- * registered in several registries. Without the hint we'd silently
- * route every call to the first family found — usually LLM — and the
- * embedding/image rows would never see their own listModels().
+ * The `family` hint is required for any call that dispatches a
+ * family-specific operation (listModels, image generate, embed). It
+ * routes to the right registry when a single provider type registers
+ * in multiple registries (OpenAI llm+embedding+image, Replicate, …).
  *
- * When `family` is omitted (legacy callers that haven't migrated yet),
- * we fall back to "try LLM, then embedding, then image" for backward
- * compat. New call sites should always pass the row's family.
+ * `family` is omitted only by `testProviderConnection` — `authenticate`
+ * is family-invariant (same credentials across families), so we don't
+ * care which family's registry answers as long as one of them does.
+ * The "try LLM → embedding → image" fallback below handles that case.
  */
 async function tryDispatch<T>(
   type: string,

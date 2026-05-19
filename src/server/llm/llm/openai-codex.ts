@@ -12,8 +12,8 @@
  * headers, slightly different stream events) diverges from the standard
  * Responses API enough that pulling the SDK in would buy us nothing.
  *
- * Auth helpers are imported from the legacy `providers/openai-codex` module
- * for now; they will move into this folder in Phase 5.
+ * Auth helpers live next door in `_codex-auth.ts` (underscore-prefixed so
+ * the registry's `import.meta.glob` skips them).
  */
 
 import { existsSync, readFileSync } from 'fs'
