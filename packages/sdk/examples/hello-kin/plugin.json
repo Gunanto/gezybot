@@ -6,7 +6,7 @@
   "author": "KinBot Team",
   "license": "AGPL-3.0-only",
   "main": "index.ts",
-  "kinbot": ">=0.40.0",
+  "kinbot": ">=0.41.0",
   "icon": "👋",
   "permissions": [
     "http:api.example.com"
