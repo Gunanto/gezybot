@@ -9,8 +9,9 @@ import {
 } from '@/client/components/ui/dialog'
 import { Input } from '@/client/components/ui/input'
 import { Badge } from '@/client/components/ui/badge'
+import { Button } from '@/client/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/client/components/ui/tabs'
-import { AlertTriangle, Brain, Image as ImageIcon, Loader2, Search } from 'lucide-react'
+import { AlertTriangle, Brain, Image as ImageIcon, Loader2, RefreshCw, Search } from 'lucide-react'
 import { api, getErrorMessage } from '@/client/lib/api'
 
 interface ProviderModelEntry {
@@ -62,6 +63,7 @@ export function ProviderModelsModal({
   const { t } = useTranslation()
   const [data, setData] = useState<ProviderModelsResponse | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<string>(ALL_TAB)
   const [search, setSearch] = useState('')
@@ -94,6 +96,21 @@ export function ProviderModelsModal({
       cancelled = true
     }
   }, [open, providerId])
+
+  // Manual refresh — keeps the existing list visible (no flash to empty
+  // state) and just swaps it once the new payload arrives. Useful when a
+  // provider just released a new model and the user doesn't want to wait
+  // for the next scheduled cache refresh.
+  const handleRefresh = () => {
+    if (isLoading || isRefreshing) return
+    setIsRefreshing(true)
+    setError(null)
+    api
+      .get<ProviderModelsResponse>(`/providers/${providerId}/models`)
+      .then((res) => setData(res))
+      .catch((err) => setError(getErrorMessage(err)))
+      .finally(() => setIsRefreshing(false))
+  }
 
   const filteredModels = useMemo(() => {
     if (!data) return []
@@ -183,13 +200,27 @@ export function ProviderModelsModal({
               </Tabs>
             )}
 
-            <Input
-              type="search"
-              placeholder={t('settings.providers.modelsModal.searchPlaceholder', 'Filter by name or id…')}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              autoFocus
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                type="search"
+                placeholder={t('settings.providers.modelsModal.searchPlaceholder', 'Filter by name or id…')}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                autoFocus
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                title={t('settings.providers.modelsModal.refreshTooltip', 'Re-fetch the model list from the provider API')}
+              >
+                <RefreshCw className={isRefreshing ? 'animate-spin' : undefined} />
+                {t('settings.providers.modelsModal.refresh', 'Refresh')}
+              </Button>
+            </div>
 
             <div className="max-h-[400px] overflow-y-auto rounded-md border border-border">
               {filteredModels.length === 0 ? (

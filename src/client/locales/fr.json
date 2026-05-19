@@ -1005,6 +1005,22 @@
       "testAllPassed": "réussis",
       "testAllFailed": "échoués",
       "emptyDescription": "Ajoutez un fournisseur d'IA comme OpenAI, Anthropic ou Gemini pour alimenter vos Kins.",
+      "modelsModal": {
+        "title": "Modèles exposés par {{name}}",
+        "description": "Modèles que le fournisseur expose actuellement (récupérés en direct depuis son API). Utilisez cette liste pour vérifier ce qui est disponible sans quitter KinBot.",
+        "loading": "Chargement des modèles…",
+        "fetchError": "Impossible de charger les modèles",
+        "allCapabilities": "Toutes",
+        "searchPlaceholder": "Filtrer par nom ou identifiant…",
+        "emptyAll": "Ce fournisseur n'expose aucun modèle.",
+        "emptyFiltered": "Aucun modèle ne correspond au filtre actuel.",
+        "imageInput": "image-in",
+        "img2img": "img2img",
+        "multiImage": "multi-ref ({{count}})",
+        "refresh": "Rafraîchir",
+        "refreshTooltip": "Re-fetch la liste des modèles depuis l'API du fournisseur",
+        "footer": "Affichage de {{shown}} modèles sur {{total}}"
+      },
       "help": {
         "content": "Les providers IA sont les services qui alimentent vos Kins en intelligence. Chaque provider fournit des modèles de langage, d'embedding ou de génération d'images.",
         "bullet1": "Ajoutez plusieurs providers pour accéder à différents modèles (GPT, Claude, Gemini, etc.)",

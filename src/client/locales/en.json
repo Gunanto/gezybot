@@ -1005,6 +1005,22 @@
       "testAllPassed": "passed",
       "testAllFailed": "failed",
       "emptyDescription": "Add an AI provider like OpenAI, Anthropic, or Gemini to power your Kins.",
+      "modelsModal": {
+        "title": "Models exposed by {{name}}",
+        "description": "Models the provider exposes right now (fetched live from its API). Use this list to verify what is available without leaving KinBot.",
+        "loading": "Loading models…",
+        "fetchError": "Could not load models",
+        "allCapabilities": "All",
+        "searchPlaceholder": "Filter by name or id…",
+        "emptyAll": "This provider exposes no models.",
+        "emptyFiltered": "No model matches the current filter.",
+        "imageInput": "image-in",
+        "img2img": "img2img",
+        "multiImage": "multi-ref ({{count}})",
+        "refresh": "Refresh",
+        "refreshTooltip": "Re-fetch the model list from the provider API",
+        "footer": "Showing {{shown}} of {{total}} models"
+      },
       "help": {
         "content": "AI providers are the services that power your Kins. Each provider gives access to language models, embedding models, or image generation capabilities.",
         "bullet1": "Add multiple providers to access different models (GPT, Claude, Gemini, etc.)",
