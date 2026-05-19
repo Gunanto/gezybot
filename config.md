@@ -195,3 +195,164 @@ Configuration des **sessions de navigateur persistantes par Kin**, utilisées pa
 | `browserSessions.maxStateSizeBytes` | `BROWSER_MAX_STATE_SIZE_BYTES` | `5_242_880` (5 Mo) | Taille max d'un fichier d'état (limite localStorage gourmand) |
 
 > **Hooks de fermeture automatique** : sessions auto-closed à la fin d'une task (`resolveTask`), à la suppression d'un Kin (`deleteKin` — qui supprime aussi les états sauvegardés), au SIGTERM/SIGINT du serveur, et par le GC d'inactivité toutes les 15 s.
+
+---
+
+# Tuning knobs (advanced)
+
+Paramètres de réglage interne — la plupart des déploiements n'y touchent jamais, les défauts sont éprouvés en production. Cette annexe les liste pour les exploitants qui veulent ajuster la mémoire, le cache de contexte, les limites de ressources, etc. **Modifier uniquement si vous comprenez l'impact** sur la latence, le coût ou la consommation mémoire de votre déploiement.
+
+## Context Capping & Trimming
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `TOOL_RESULT_SIZE_CAP_TOKENS` | `30000` | Taille max d'un résultat d'outil dans le payload LLM ; au-delà, le contenu est remplacé par un placeholder (la DB reste intacte). |
+| `TOOL_CALL_ARGS_SIZE_CAP_TOKENS` | `8000` | Taille max par champ string dans les anciens tool-call args (couvre les write_file/edit avec gros contenus). |
+| `ASSISTANT_CONTENT_SIZE_CAP_TOKENS` | `12000` | Taille max du texte d'un message assistant ; tête + queue préservées, milieu remplacé par placeholder. |
+| `USER_CONTENT_SIZE_CAP_TOKENS` | `16000` | Taille max du texte d'un message user ; plafond légèrement plus haut que l'assistant pour absorber les gros copier-coller. |
+| `HISTORY_MAX_MESSAGES` | `1000` | Nombre max de messages bruts récupérés depuis la DB pour l'historique de conversation ; borne mémoire. |
+
+## Memory (long-term)
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `MEMORY_SIMILARITY_THRESHOLD` | `0.5` | Seuil de similarité cosinus pour les candidats vector search (baissé à 0.5 pour plus de diversité). |
+| `MEMORY_TEMPORAL_DECAY_LAMBDA` | `0.01` | Vitesse de décroissance temporelle ; plus haut = décroît plus vite. |
+| `MEMORY_TEMPORAL_DECAY_FLOOR` | `0.7` | Plancher de score pour les souvenirs anciens (évite que de très vieux atteignent zéro). |
+| `MEMORY_CONSOLIDATION_SIMILARITY` | `0.85` | Seuil pour fusionner deux souvenirs lors de la consolidation. |
+| `MEMORY_CONSOLIDATION_MAX_GEN` | `5` | Nombre max de générations de consolidation avant fusion forcée. |
+| `MEMORY_ADAPTIVE_K` | `true` | Active l'heuristique K adaptatif pour élaguer les résultats à faible score. |
+| `MEMORY_ADAPTIVE_K_MIN_SCORE_RATIO` | `0.15` | Ratio min vs le top pour éviter le winner-take-all. |
+| `MEMORY_ADAPTIVE_K_LARGEST_GAP_RATIO` | `0.6` | Heuristique largest-gap : tronque uniquement si une chute >60% du delta top-current. |
+| `MEMORY_RRF_K` | `60` | Paramètre Reciprocal Rank Fusion pour la recherche hybride (vector + FTS). |
+| `MEMORY_FTS_BOOST` | `0.5` | Multiplicateur de score FTS dans le ranking hybride. |
+| `MEMORY_SUBJECT_BOOST` | `1.3` | Multiplicateur de pertinence du champ subject. |
+| `MEMORY_CATEGORY_BOOST` | `1.25` | Multiplicateur de pertinence du champ category. |
+| `MEMORY_CONTEXTUAL_REWRITE_THRESHOLD` | `80` | Seuil de tokens déclenchant la réécriture contextuelle des requêtes. |
+| `MEMORY_TOKEN_BUDGET` | `0` | Budget tokens max pour l'injection mémoire ; 0 = illimité. |
+| `MEMORY_RECENCY_BOOST` | `true` | Booste les souvenirs très récents dans le ranking. |
+| `MEMORY_CONSOLIDATION_MODEL` | — | Modèle pour la consolidation (format `providerId:modelId`) ; fallback sur celui du Kin. |
+| `MEMORY_MULTI_QUERY_MODEL` | — | Modèle pour l'expansion multi-query. |
+| `MEMORY_HYDE_MODEL` | — | Modèle pour le reranking HyDE. |
+| `MEMORY_RERANK_MODEL` | — | Modèle pour le reranking secondaire. |
+| `MEMORY_CONTEXTUAL_REWRITE_MODEL` | — | Modèle pour la réécriture contextuelle des requêtes longues. |
+
+## Browser sessions
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `BROWSER_SESSION_TTL_MS` | `3_600_000` (1 h) | TTL dur d'une session navigateur, peu importe l'activité. |
+| `BROWSER_SESSION_IDLE_TIMEOUT_MS` | `600_000` (10 min) | Fermeture automatique après inactivité. |
+
+(Voir aussi les `browserSessions.*` documentés en haut pour `BROWSER_MAX_*` et `BROWSER_DEFAULT_VIEWPORT_*`.)
+
+## File storage & uploads
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `FILE_STORAGE_DIR` | `{dataDir}/storage` | Répertoire du stockage de fichiers persistant. |
+| `FILE_STORAGE_MAX_SIZE` | `100` (Mo) | Taille max d'un fichier individuel. |
+| `FILE_STORAGE_CLEANUP_INTERVAL` | `60` (min) | Intervalle du job de nettoyage des fichiers expirés. |
+| `UPLOAD_CHANNEL_RETENTION_DAYS` | `30` | Rétention des fichiers téléchargés par les channels ; 0 = jamais purger. |
+| `UPLOAD_CHANNEL_CLEANUP_INTERVAL` | `60` (min) | Intervalle du job de purge des fichiers channel. |
+
+## Vault
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `VAULT_ATTACHMENT_DIR` | `{dataDir}/vault` | Répertoire des pièces jointes vault. |
+| `VAULT_MAX_ATTACHMENT_SIZE` | `50` (Mo) | Taille max par pièce jointe. |
+| `VAULT_MAX_ATTACHMENTS_PER_ENTRY` | `10` | Nombre max de pièces jointes par entrée vault. |
+
+## Webhooks
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `WEBHOOKS_MAX_PER_KIN` | `20` | Nombre max de webhooks par Kin. |
+| `WEBHOOKS_MAX_PAYLOAD_BYTES` | `1_048_576` (1 Mo) | Payload max pour la livraison. |
+| `WEBHOOKS_LOG_RETENTION_DAYS` | `30` | Rétention des logs d'exécution. |
+| `WEBHOOKS_MAX_LOGS_PER_WEBHOOK` | `500` | Nombre max d'entrées de log retenues par webhook. |
+| `WEBHOOKS_RATE_LIMIT_PER_MINUTE` | `60` | Limite de débit de livraison. |
+
+## Channels
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `CHANNELS_MAX_PER_KIN` | `5` | Nombre max de channels connectés par Kin. |
+| `CHANNEL_PENDING_ORIGIN_TTL` | `300_000` (5 min) | TTL de la vérification d'origine en attente lors du setup. |
+
+## Tasks (sub-Kins)
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `TASKS_MAX_REQUEST_INPUT` | `3` | Nombre max d'appels `request_input` par sub-Kin task. |
+| `TASKS_MAX_INTER_KIN_REQUESTS` | `3` | Nombre max d'appels inter-Kin par sub-Kin task. |
+| `TASKS_INTER_KIN_RESPONSE_TIMEOUT_MS` | `300_000` (5 min) | Timeout pour les réponses inter-Kin. |
+
+## Crons & scheduling
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `MODEL_INFO_REFRESH_CRON` | `0 */6 * * *` | Cron de rafraîchissement du cache model-info (capte les changements de spec côté provider sans redémarrer). |
+
+## Invitations & sessions
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `INVITATION_DEFAULT_EXPIRY_DAYS` | `7` | Expiration par défaut d'une invitation. |
+| `INVITATION_MAX_ACTIVE` | `50` | Nombre max d'invitations actives sur le serveur. |
+| `QUICK_SESSION_EXPIRATION_HOURS` | `24` | Durée de vie d'une quick session. |
+| `QUICK_SESSION_MAX_PER_USER_KIN` | `1` | Nombre max de quick-sessions par (user, Kin). |
+| `QUICK_SESSION_RETENTION_DAYS` | `7` | Rétention de l'historique quick-session. |
+| `QUICK_SESSION_CLEANUP_INTERVAL` | `60` (min) | Intervalle du job de purge. |
+
+## Notifications
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `NOTIFICATIONS_RETENTION_DAYS` | `30` | Rétention des notifications internes. |
+| `NOTIFICATIONS_MAX_PER_USER` | `500` | Nombre max de notifications stockées par user. |
+| `NOTIFICATIONS_EXT_MAX_PER_USER` | `5` | Nombre max d'intégrations de livraison externe par user. |
+| `NOTIFICATIONS_EXT_RATE_LIMIT` | `5` | Limite de débit de livraison externe (par minute). |
+| `NOTIFICATIONS_EXT_MAX_ERRORS` | `5` | Erreurs consécutives avant désactivation auto de l'intégration. |
+
+## Wakeups & prompts humains
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `WAKEUPS_MAX_PENDING_PER_KIN` | `20` | Nombre max de wakeups programmés par Kin. |
+| `HUMAN_PROMPTS_MAX_PENDING` | `5` | Nombre max de prompts humains en attente par Kin. |
+
+## Projects (Kanban & tickets)
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `PROJECTS_MAX_DESCRIPTION_PROMPT_TOKENS` | `8000` | Plafond strict des tokens de description projet injectés dans le prompt. |
+| `PROJECTS_MAX_TICKETS_IN_PROMPT` | `50` | Nombre max de tickets non-done injectés (triés par `updated_at` DESC). |
+| `PROJECTS_KANBAN_POSITION_STEP` | `1024` | Pas entre positions consécutives lors d'insertion en tête de colonne. |
+
+## Mini-apps
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `MINI_APPS_DIR` | `{dataDir}/mini-apps` | Répertoire des bundles mini-apps. |
+| `MINI_APPS_MAX_PER_KIN` | `20` | Nombre max de mini-apps déployables par Kin. |
+| `MINI_APPS_MAX_FILE_SIZE` | `5` (Mo) | Taille max d'un fichier individuel dans un bundle. |
+| `MINI_APPS_MAX_TOTAL_SIZE` | `50` (Mo) | Taille totale max d'un bundle mini-app. |
+| `MINI_APPS_BACKEND_ENABLED` | `true` | Active/désactive le serveur backend des mini-apps. |
+
+## Version checking
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `VERSION_CHECK_ENABLED` | `true` | Active les vérifications périodiques de nouvelle version. |
+| `VERSION_CHECK_REPO` | `MarlBurroW/kinbot` | Repo cible pour les vérifications. |
+| `VERSION_CHECK_INTERVAL_HOURS` | `1` | Intervalle de vérification. |
+
+## MCP
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `MCP_REQUIRE_APPROVAL` | `true` | Demande approbation user avant d'exécuter un tool MCP. |
+
+> **Note** : la plupart de ces défauts sont production-tested et rarement à modifier. Les variables `MEMORY_*_MODEL` suivent le format `providerId:modelId` et fallback sur le modèle principal du Kin si non définies.

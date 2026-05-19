@@ -160,8 +160,17 @@ Excess tasks enter `queued` status and are automatically promoted (FIFO) when a 
 | `update_stored_file` | Update file metadata |
 | `delete_stored_file` | Delete a stored file |
 | `attach_file` | Attach a file to the current message |
-| `generate_image` | Generate an image using a configured provider |
-| `list_image_models` | List available image generation models |
+| `list_image_models` | Discover image models available across configured providers (with `maxImageInputs`: 0 = text-to-image, 1 = single-image edit, N>1 = multi-reference) |
+| `describe_image_model` | Fetch the tunable per-model parameters (seed, guidance, style, lora_scale, …) for a chosen model — call this before `generate_image` to populate its `params` field |
+| `generate_image` | Generate an image with a chosen model. Accepts a text `prompt`, optional `imageUrls` array (source images, capped by the model's `maxImageInputs`), and optional `params` from `describe_image_model` |
+
+#### Image generation workflow
+
+The three image tools are designed to be chained:
+
+1. **`list_image_models`** — see what's available across the user's configured providers. Each entry includes `maxImageInputs` so you know whether the model is text-to-image only (0), single-image edit/inpainting (1), or multi-reference (N>1, e.g. Nano Banana Pro, Flux-Kontext multi).
+2. **`describe_image_model`** *(optional but recommended)* — for the model you want to use, fetch its parameter schema (each entry has `type`, `description`, `default`, and either an `enum` or `minimum`/`maximum`). Image-input fields are deliberately excluded — those are driven by `generate_image`'s `imageUrls`, not by `params`.
+3. **`generate_image`** — provide `prompt`, optional `imageUrls` (one or more URLs from the conversation or a previous `generate_image` call), and optional `params` from step 2. Validation is loose on the client side: an invalid `params` value surfaces as a 422 from the upstream provider, which round-trips back as a tool error so you can self-correct on the next call.
 
 ### Webhooks
 

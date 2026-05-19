@@ -81,8 +81,3 @@ export function PlatformIcon({ platform, className, variant = 'mono' }: Platform
   const color = variant === 'color' ? PLATFORM_COLORS[platform] : undefined
   return <Icon className={className} color={color} />
 }
-
-/** Get the brand color for a platform */
-export function getPlatformColor(platform: string): string {
-  return PLATFORM_COLORS[platform] ?? 'currentColor'
-}
