@@ -57,7 +57,14 @@ const mockListModelsForProvider = mock(() =>
   ]),
 )
 
-// Import real providers/index to spread all exports — only override listModelsForProvider
+// Import real providers/index to spread all exports — only override
+// `listModelsForProvider` so the tool tests don't need a real image
+// provider registered. We DO NOT mock `describeImageModel`: bun's
+// `mock.module` poisons the binding globally (even across re-exports
+// from `image-cache.ts`), which broke the dispatcher tests in
+// providers/image-dispatch.test.ts. The describe_image_model tool
+// tests below register a fake ImageProvider in the registry instead,
+// matching the dispatcher tests' pattern.
 const _realProvidersIndex = await import('@/server/providers/index')
 mock.module('@/server/providers/index', () => ({
   ..._realProvidersIndex,
@@ -95,7 +102,7 @@ const originalBunWrite = Bun.write
 const mockBunWrite = mock(() => Promise.resolve(0))
 
 // Import after mocks
-const { listImageModelsTool, generateImageTool } = await import('@/server/tools/image-tools')
+const { listImageModelsTool, generateImageTool, describeImageModelTool } = await import('@/server/tools/image-tools')
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -479,5 +486,175 @@ describe('generateImageTool', () => {
     )
 
     expect(mockDbInsert).toHaveBeenCalled()
+  })
+})
+
+// ─── describeImageModelTool ──────────────────────────────────────────────────
+//
+// We can't mock the `describeImageModel` dispatcher directly: bun's
+// `mock.module` poisons the underlying binding globally and that
+// kills the dispatcher's own test file (providers/image-dispatch.test.ts).
+// Instead we register a fake `ImageProvider` against a synthetic type
+// in the image registry, and arrange the DB mock to return a provider
+// row whose `type` matches it. The tool's real code path runs through
+// the real dispatcher → real registry → fake provider.
+
+const { registerImageProvider, unregisterImageProvider } = await import('@/server/llm/image/registry')
+const { _resetImageModelCaches } = await import('@/server/providers/image-cache')
+const FAKE_TYPE = '__test-describe-provider__'
+
+function makeProviderRow(opts: { isValid?: boolean; capabilities?: string[]; type?: string } = {}) {
+  return {
+    id: 'p-test',
+    name: 'Test',
+    type: opts.type ?? FAKE_TYPE,
+    isValid: opts.isValid ?? true,
+    capabilities: JSON.stringify(opts.capabilities ?? ['image']),
+    configEncrypted: 'encrypted',
+  }
+}
+
+function stubProviderRow(row: unknown) {
+  const mockFrom = mock(() => ({
+    where: mock(() => ({ get: mock(() => Promise.resolve(row)) })),
+  }))
+  mockDbSelect.mockReturnValueOnce({ from: mockFrom } as any)
+}
+
+describe('describeImageModelTool', () => {
+  beforeEach(() => {
+    unregisterImageProvider(FAKE_TYPE)
+    _resetImageModelCaches()
+  })
+
+  it('has correct availability', () => {
+    expect(describeImageModelTool.availability).toEqual(['main', 'sub-kin'])
+  })
+
+  it('returns an error when the provider id is unknown', async () => {
+    stubProviderRow(undefined)
+
+    const ctx = makeCtx()
+    const t = describeImageModelTool.create(ctx)
+    const result = await (t as any).execute(
+      { providerId: 'p-missing', modelId: 'whatever/model' },
+      { toolCallId: 'tc-1', messages: [] },
+    )
+
+    expect(result.error).toContain('not found')
+  })
+
+  it('returns an error when the provider is currently invalid', async () => {
+    stubProviderRow(makeProviderRow({ isValid: false }))
+
+    const ctx = makeCtx()
+    const t = describeImageModelTool.create(ctx)
+    const result = await (t as any).execute(
+      { providerId: 'p-test', modelId: 'gpt-image-1' },
+      { toolCallId: 'tc-1', messages: [] },
+    )
+
+    expect(result.error).toContain('marked invalid')
+  })
+
+  it("returns an error when the provider doesn't expose the 'image' capability", async () => {
+    stubProviderRow(makeProviderRow({ capabilities: ['llm'] }))
+
+    const ctx = makeCtx()
+    const t = describeImageModelTool.create(ctx)
+    const result = await (t as any).execute(
+      { providerId: 'p-test', modelId: 'gpt-4o' },
+      { toolCallId: 'tc-1', messages: [] },
+    )
+
+    expect(result.error).toContain("doesn't expose image generation")
+  })
+
+  it('returns an error when the provider type is not registered in the image registry', async () => {
+    stubProviderRow(makeProviderRow({ type: 'mystery-vendor' }))
+
+    const ctx = makeCtx()
+    const t = describeImageModelTool.create(ctx)
+    const result = await (t as any).execute(
+      { providerId: 'p-test', modelId: 'whatever' },
+      { toolCallId: 'tc-1', messages: [] },
+    )
+
+    expect(result.error).toContain("doesn't support image-model description")
+  })
+
+  it('forwards the schema (and a helpful note) when describeModel returns params', async () => {
+    registerImageProvider({
+      type: FAKE_TYPE,
+      displayName: 'Fake',
+      configSchema: [],
+      authenticate: async () => ({ valid: true }),
+      listModels: async () => [{ id: 'fake/model', name: 'Fake', maxImageInputs: 1 }],
+      describeModel: async () => ({
+        params: {
+          guidance_scale: { type: 'number', default: 3.5, minimum: 0, maximum: 10 },
+          seed: { type: 'integer' },
+        },
+      }),
+      generate: async () => ({ data: new Uint8Array(), mediaType: 'image/png' }),
+    })
+    stubProviderRow(makeProviderRow())
+
+    const ctx = makeCtx()
+    const t = describeImageModelTool.create(ctx)
+    const result = await (t as any).execute(
+      { providerId: 'p-test', modelId: 'fake/model' },
+      { toolCallId: 'tc-1', messages: [] },
+    )
+
+    expect(result.modelId).toBe('fake/model')
+    expect(result.providerId).toBe('p-test')
+    expect(Object.keys(result.params)).toEqual(['guidance_scale', 'seed'])
+    expect(result.note).toContain("generate_image's `params` field")
+  })
+
+  it('returns a "no documented parameters" note when the provider implements describeModel but returns empty params', async () => {
+    registerImageProvider({
+      type: FAKE_TYPE,
+      displayName: 'Fake',
+      configSchema: [],
+      authenticate: async () => ({ valid: true }),
+      listModels: async () => [{ id: 'fake/bare', name: 'Bare' }],
+      describeModel: async () => ({ params: {} }),
+      generate: async () => ({ data: new Uint8Array(), mediaType: 'image/png' }),
+    })
+    stubProviderRow(makeProviderRow())
+
+    const ctx = makeCtx()
+    const t = describeImageModelTool.create(ctx)
+    const result = await (t as any).execute(
+      { providerId: 'p-test', modelId: 'fake/bare' },
+      { toolCallId: 'tc-1', messages: [] },
+    )
+
+    expect(result.params).toEqual({})
+    expect(result.note).toContain('no documented parameters')
+  })
+
+  it('returns the thrown error message when describeModel throws', async () => {
+    registerImageProvider({
+      type: FAKE_TYPE,
+      displayName: 'Fake',
+      configSchema: [],
+      authenticate: async () => ({ valid: true }),
+      listModels: async () => [{ id: 'fake/bad', name: 'Bad' }],
+      describeModel: async () => { throw new Error('upstream 503') },
+      generate: async () => ({ data: new Uint8Array(), mediaType: 'image/png' }),
+    })
+    stubProviderRow(makeProviderRow())
+
+    const ctx = makeCtx()
+    const t = describeImageModelTool.create(ctx)
+    const result = await (t as any).execute(
+      { providerId: 'p-test', modelId: 'fake/bad' },
+      { toolCallId: 'tc-1', messages: [] },
+    )
+
+    expect(result.error).toContain('upstream 503')
   })
 })

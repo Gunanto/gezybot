@@ -12,7 +12,6 @@
 
 import type { ProviderConfig as KinbotProviderConfig } from '@/server/llm/core/types'
 import type { ProviderCapability } from '@/shared/types'
-import type { ImageModel, ImageModelParamsSchema } from '@kinbot-developer/sdk'
 import { PROVIDER_META, type ProviderType, type ProviderMeta } from '@/shared/provider-metadata'
 import { createLogger } from '@/server/logger'
 import { getLLMProvider, listLLMProviders } from '@/server/llm/llm/registry'
@@ -261,82 +260,16 @@ export async function listModelsForProvider(
   return models
 }
 
-/**
- * Look up a single image model on the provider by id, going through
- * its native `listModels()` so the returned object carries every field
- * the provider chose to surface (maxImageInputs, supportedSizes,
- * pricing, …). Used by core paths that need to know what a model
- * supports BEFORE calling generate(), without hardcoding any
- * provider-specific knowledge.
- *
- * Returns null when the provider type isn't registered as an image
- * provider, or when no model with that id is found in the listing.
- */
-const IMAGE_MODEL_CACHE_TTL_MS = 5 * 60_000
-const imageModelCache = new Map<string, { value: ImageModel | null; expiresAt: number }>()
-
-export async function lookupImageModel(
-  type: string,
-  modelId: string,
-  config: KinbotProviderConfig,
-): Promise<ImageModel | null> {
-  const cacheKey = `${type}::${modelId}`
-  const cached = imageModelCache.get(cacheKey)
-  if (cached && cached.expiresAt > Date.now()) return cached.value
-
-  const provider = getImageProvider(type)
-  if (!provider) return null
-
-  const list = await provider.listModels(config)
-  const found = list.find((m) => m.id === modelId) ?? null
-  imageModelCache.set(cacheKey, { value: found, expiresAt: Date.now() + IMAGE_MODEL_CACHE_TTL_MS })
-  return found
-}
-
-/**
- * Look up an image model's per-param schema via the native registry,
- * with a short in-memory cache. The schema doesn't change between
- * calls (Replicate parses a frozen OpenAPI spec; OpenAI returns a
- * static map), so we memoize aggressively — the LLM may call
- * `describe_image_model` for several models in a row while exploring.
- *
- * Returns null when the provider type isn't registered as an image
- * provider, or when the registered provider declines to implement
- * `describeModel` (signals "no documented knobs" to the LLM).
- *
- * Provider-agnostic on purpose: zero hardcoded type names in this
- * function. Plugins drop in via the registry and benefit immediately.
- */
-const DESCRIBE_CACHE_TTL_MS = 5 * 60_000
-const describeCache = new Map<string, { value: ImageModelParamsSchema; expiresAt: number }>()
-
-export async function describeImageModel(
-  type: string,
-  modelId: string,
-  config: KinbotProviderConfig,
-): Promise<ImageModelParamsSchema | null> {
-  const cacheKey = `${type}::${modelId}`
-  const cached = describeCache.get(cacheKey)
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.value
-  }
-
-  const provider = getImageProvider(type)
-  if (!provider) return null
-  if (!provider.describeModel) return { params: {} }
-
-  const model = (await lookupImageModel(type, modelId, config)) ?? { id: modelId, name: modelId }
-  const schema = await provider.describeModel(model, config)
-
-  describeCache.set(cacheKey, { value: schema, expiresAt: Date.now() + DESCRIBE_CACHE_TTL_MS })
-  return schema
-}
-
-/** Test-only: flush the describe + lookup caches so tests don't bleed state. */
-export function _resetImageModelCaches(): void {
-  describeCache.clear()
-  imageModelCache.clear()
-}
+// Image-model lookup + describe dispatchers live in a sibling module
+// so they have a stable import path that isn't poisoned by the
+// `mock.module('@/server/providers/index', ...)` calls in
+// image-tools.test.ts. Re-exported here for callers that already
+// reach for them via the dispatcher index.
+export {
+  lookupImageModel,
+  describeImageModel,
+  _resetImageModelCaches,
+} from '@/server/providers/image-cache'
 
 /** For diagnostics — listing of providers in each native registry. */
 export function getRegistryStats() {
