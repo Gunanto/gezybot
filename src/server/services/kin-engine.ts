@@ -23,7 +23,7 @@ import { decrypt } from '@/server/services/encryption'
 import { buildSystemPrompt, joinSystemPrompt } from '@/server/services/prompt-builder'
 import { buildSegmentedMessages } from '@/server/services/llm-cache-hints'
 import { stringifyToolResultValue } from '@/server/llm/core/vercel-bridge'
-import { getLLMProvider } from '@/server/llm/llm/registry'
+import { DEFAULT_MAX_LLM_TOOLS, getMaxToolsForProvider } from '@/server/services/tool-cap'
 import { dequeueMessage, markQueueItemDone, isKinProcessing, getQueueSize, recoverStaleProcessingItems, popQueueMessageMetadata } from '@/server/services/queue'
 import { recoverStaleTasks } from '@/server/services/tasks'
 import { sseManager } from '@/server/sse/index'
@@ -58,7 +58,6 @@ const log = createLogger('kin-engine')
  * Used as a safe fallback when the provider type is unknown.
  * OpenAI enforces a hard limit of 128 tools; assume that for unknown providers.
  */
-const DEFAULT_MAX_LLM_TOOLS = 128
 
 /**
  * Core tools that must always be preserved when truncation is needed.
@@ -98,23 +97,6 @@ function isProtectedToolName(name: string): boolean {
     if (name.startsWith(prefix)) return true
   }
   return false
-}
-
-/**
- * Return the max number of tools the given provider type accepts in a
- * single LLM call. Reads the value the provider declared on itself via
- * `LLMProvider.defaultMaxTools`; falls back to `DEFAULT_MAX_LLM_TOOLS`
- * (128 — the OpenAI-compatible conservative limit) when the provider
- * is unknown or declined to declare one.
- *
- * Provider-agnostic on purpose: zero hardcoded type names here. New
- * providers declare their cap in their own file and KinBot picks it up
- * automatically.
- */
-function getMaxToolsForProvider(providerType: string | null): number {
-  if (!providerType) return DEFAULT_MAX_LLM_TOOLS
-  const provider = getLLMProvider(providerType)
-  return provider?.defaultMaxTools ?? DEFAULT_MAX_LLM_TOOLS
 }
 
 /**

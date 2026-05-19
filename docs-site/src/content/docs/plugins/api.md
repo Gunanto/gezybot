@@ -117,7 +117,7 @@ interface ToolRegistration {
 }
 ```
 
-Tools use the [Vercel AI SDK](https://sdk.vercel.ai/) `tool()` function with Zod schemas for parameters.
+Tools use the `tool()` helper exported by [`@kinbot-developer/sdk`](https://www.npmjs.com/package/@kinbot-developer/sdk) with [Zod](https://zod.dev/) schemas for parameters.
 
 ### Hook Names
 

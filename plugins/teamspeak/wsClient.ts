@@ -11,6 +11,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import type { PluginLogger } from '@kinbot-developer/sdk'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -145,16 +146,8 @@ export type EventType = TsBotEvent['type']
 
 export type EventHandler<E extends TsBotEvent = TsBotEvent> = (event: E) => void
 
-export interface PluginLogger {
-  debug(msg: string): void
-  debug(obj: Record<string, unknown>, msg: string): void
-  info(msg: string): void
-  info(obj: Record<string, unknown>, msg: string): void
-  warn(msg: string): void
-  warn(obj: Record<string, unknown>, msg: string): void
-  error(msg: string): void
-  error(obj: Record<string, unknown>, msg: string): void
-}
+// PluginLogger comes from the SDK — single source of truth shared
+// with every plugin and the host. Imported above as a type.
 
 // ─── Internal pending command tracking ──────────────────────────────────────
 

@@ -71,7 +71,11 @@ export interface ContactForNotification {
 
 export type ProviderType = 'anthropic' | 'anthropic-oauth' | 'openai' | 'openai-codex'
 
-export type ProviderCapability = 'llm' | 'embedding' | 'image'
+// ProviderCapability lives in the SDK (single source of truth shared
+// with plugin authors). The SDK version includes the forward-looking
+// 'rerank' family which the host doesn't yet implement but new
+// provider plugins might.
+export type { ProviderCapability } from '@kinbot-developer/sdk'
 
 export type MessageSource = 'user' | 'kin' | 'task' | 'cron' | 'system' | 'webhook' | 'channel'
 
