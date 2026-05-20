@@ -240,6 +240,9 @@ export function validateManifest(data: unknown): { valid: boolean; errors: strin
   if (typeof m.name !== 'string' || !NAME_PATTERN.test(m.name)) {
     errors.push('name must match [a-z0-9-]+')
   }
+  if (m.displayName !== undefined && (typeof m.displayName !== 'string' || !m.displayName.trim())) {
+    errors.push('displayName must be a non-empty string when present')
+  }
   if (typeof m.version !== 'string' || !m.version) {
     errors.push('version is required')
   }
@@ -1414,6 +1417,7 @@ class PluginManager {
     const version = this.kinbotVersion ?? '0.0.0'
     return Array.from(this.plugins.values()).map(p => ({
       name: p.manifest.name,
+      displayName: p.manifest.displayName,
       version: p.manifest.version,
       description: p.manifest.description,
       author: p.manifest.author,

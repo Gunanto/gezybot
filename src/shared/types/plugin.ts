@@ -50,7 +50,17 @@ export interface PluginChannelManifestEntry {
 }
 
 export interface PluginManifest {
+  /**
+   * Technical identifier — must match the npm package name (lowercase,
+   * kebab-case, no spaces). Used for filesystem paths, the install/uninstall
+   * URLs, and dependency declarations.
+   */
   name: string
+  /**
+   * Human-readable name shown in the UI (e.g. "Mistral AI", "Notion
+   * Sync"). Optional — falls back to `name` when omitted.
+   */
+  displayName?: string
   version: string
   description: string
   author?: string
@@ -117,6 +127,10 @@ export interface PluginInstallMeta {
 export interface NpmPlugin {
   /** Full npm package name (e.g. `@marlburrow/kinbot-plugin-x`). */
   name: string
+  /** Human-readable name from manifest.displayName (fetched via unpkg).
+   *  Missing for packages that don't ship a plugin.json or where the
+   *  manifest doesn't declare one — UI falls back to `name`. */
+  displayName?: string
   /** Latest version published to npm. */
   version: string
   /** One-line description from package.json. */
@@ -157,6 +171,8 @@ export interface PluginHealthStats {
 
 export interface PluginSummary {
   name: string
+  /** Human-readable name from manifest.displayName, falling back to `name`. */
+  displayName?: string
   version: string
   description: string
   author?: string

@@ -322,7 +322,12 @@ export function PluginsSettings() {
                 ) : null}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h4 className="font-medium">{plugin.name}</h4>
+                    <h4 className="font-medium">{plugin.displayName || plugin.name}</h4>
+                    {plugin.displayName && (
+                      <span className="text-xs text-muted-foreground/70 font-mono">
+                        {plugin.name}
+                      </span>
+                    )}
                     <Badge variant="outline" className="text-xs">
                       v{plugin.version}
                     </Badge>

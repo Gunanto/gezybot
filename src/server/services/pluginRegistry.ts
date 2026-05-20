@@ -116,13 +116,15 @@ export class PluginRegistryService {
   }
 
   /**
-   * Best-effort logo discovery for an npm search result. Fetches the
-   * plugin's `plugin.json` from unpkg, reads `iconUrl`, and resolves it
-   * to an absolute unpkg URL.
+   * Best-effort manifest fetch for an npm search result. Pulls plugin.json
+   * from unpkg in a single round-trip, then enriches the search-result
+   * shape with anything the npm index doesn't already expose:
+   *   - logoUrl (resolved from manifest.iconUrl)
+   *   - displayName (so the card shows "Mistral AI" not "kinbot-plugin-mistral")
    *
    * Returns the input plugin unchanged on any failure (timeout, 404,
-   * malformed manifest, missing iconUrl). 3s timeout — search latency
-   * matters more than 100% logo coverage on first paint.
+   * malformed manifest). 3s timeout — search latency matters more than
+   * 100% enrichment coverage on first paint.
    */
   private async enrichWithLogo(plugin: NpmPlugin): Promise<NpmPlugin> {
     try {
@@ -132,11 +134,16 @@ export class PluginRegistryService {
       const res = await fetch(manifestUrl, { signal: controller.signal })
       clearTimeout(timer)
       if (!res.ok) return plugin
-      const manifest = (await res.json()) as { iconUrl?: string }
-      if (!manifest.iconUrl || typeof manifest.iconUrl !== 'string') return plugin
-      if (manifest.iconUrl.includes('..')) return plugin // refuse path traversal
-      const normalized = manifest.iconUrl.replace(/^\/+/, '')
-      return { ...plugin, logoUrl: `https://unpkg.com/${plugin.name}@${plugin.version}/${normalized}` }
+      const manifest = (await res.json()) as { iconUrl?: string; displayName?: string }
+      const enriched: NpmPlugin = { ...plugin }
+      if (manifest.displayName && typeof manifest.displayName === 'string') {
+        enriched.displayName = manifest.displayName
+      }
+      if (manifest.iconUrl && typeof manifest.iconUrl === 'string' && !manifest.iconUrl.includes('..')) {
+        const normalized = manifest.iconUrl.replace(/^\/+/, '')
+        enriched.logoUrl = `https://unpkg.com/${plugin.name}@${plugin.version}/${normalized}`
+      }
+      return enriched
     } catch {
       return plugin
     }

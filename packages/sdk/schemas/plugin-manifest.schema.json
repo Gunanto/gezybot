@@ -16,6 +16,11 @@
       "pattern": "^[a-z0-9][a-z0-9-]*$",
       "description": "Unique plugin identifier. Lowercase, digits, dashes. KinBot uses it as the directory name in plugins/ and as the namespace prefix for the plugin's tools, providers, and vault keys."
     },
+    "displayName": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable name shown in the UI (e.g. \"Mistral AI\", \"Notion Sync\"). When omitted, KinBot falls back to the technical `name`."
+    },
     "version": {
       "type": "string",
       "pattern": "^\\d+\\.\\d+\\.\\d+(-[A-Za-z0-9.-]+)?(\\+[A-Za-z0-9.-]+)?$",

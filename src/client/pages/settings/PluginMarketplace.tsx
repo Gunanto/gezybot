@@ -247,7 +247,12 @@ function NpmPluginCard({
       {/* Middle column — name, author, description, metadata */}
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1.5">
-          <h4 className="font-medium truncate">{plugin.name}</h4>
+          <h4 className="font-medium truncate">{plugin.displayName || plugin.name}</h4>
+          {plugin.displayName && (
+            <span className="text-xs text-muted-foreground/70 font-mono truncate">
+              {plugin.name}
+            </span>
+          )}
           <Badge variant="outline" className="text-xs">v{plugin.version}</Badge>
           {plugin.installed && (
             <Badge variant="default" className="text-xs gap-1">
