@@ -48,12 +48,14 @@ export function PluginMarketplace() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery])
 
-  const load = async (q: string) => {
+  const load = async (q: string, opts?: { refresh?: boolean }) => {
     setLoading(true)
     try {
-      const url = q
-        ? `/plugins/registry/npm-search?q=${encodeURIComponent(q)}`
-        : '/plugins/registry/npm-search'
+      const params = new URLSearchParams()
+      if (q) params.set('q', q)
+      if (opts?.refresh) params.set('refresh', 'true')
+      const qs = params.toString()
+      const url = qs ? `/plugins/registry/npm-search?${qs}` : '/plugins/registry/npm-search'
       const res = await api.get<{ plugins: Array<NpmPlugin & { installed: boolean }> }>(url)
       setResults(res?.plugins ?? [])
     } catch {
@@ -118,7 +120,7 @@ export function PluginMarketplace() {
           <h3 className="text-lg font-semibold">{t('settings.marketplace.title')}</h3>
           <p className="text-sm text-muted-foreground">{t('settings.marketplace.description')}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => load(searchQuery)}>
+        <Button variant="outline" size="sm" onClick={() => load(searchQuery, { refresh: true })}>
           <RefreshCw className="size-4 mr-2" />
           {t('settings.marketplace.refresh')}
         </Button>

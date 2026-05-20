@@ -49,7 +49,12 @@ const requireAdmin = async (c: any, next: any) => {
 pluginRoutes.get('/registry/npm-search', async (c) => {
   try {
     const q = c.req.query('q') ?? ''
-    const plugins = await pluginRegistry.searchNpm(q)
+    // `?refresh=true` bypasses the 5min server-side cache. The
+    // Marketplace's "Refresh" button passes it so a plugin just
+    // published to npm shows up immediately instead of waiting for the
+    // cache to expire.
+    const force = c.req.query('refresh') === 'true'
+    const plugins = await pluginRegistry.searchNpm(q, { force })
 
     // Tag installed plugins so the Browse UI can render the "Already
     // installed" state without a second round-trip. Match by npm

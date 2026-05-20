@@ -55,11 +55,13 @@ export class PluginRegistryService {
    * doesn't hammer npm. Empty query returns the latest 20 plugins
    * matching the keyword (default discovery).
    */
-  async searchNpm(query?: string): Promise<NpmPlugin[]> {
+  async searchNpm(query?: string, opts?: { force?: boolean }): Promise<NpmPlugin[]> {
     const cacheKey = (query ?? '').trim().toLowerCase()
-    const cached = this.npmSearchCache.get(cacheKey)
-    if (cached && Date.now() - cached.fetchedAt < NPM_SEARCH_CACHE_TTL_MS) {
-      return cached.data
+    if (!opts?.force) {
+      const cached = this.npmSearchCache.get(cacheKey)
+      if (cached && Date.now() - cached.fetchedAt < NPM_SEARCH_CACHE_TTL_MS) {
+        return cached.data
+      }
     }
 
     // The npm search API treats `text` as a space-separated set of
