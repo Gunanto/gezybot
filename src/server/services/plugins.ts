@@ -1421,6 +1421,10 @@ class PluginManager {
       license: p.manifest.license,
       icon: p.manifest.icon,
       logoUrl: p.manifest.iconUrl ? `/api/plugins/${encodeURIComponent(p.manifest.name)}/logo` : undefined,
+      repositoryUrl: p.installMeta?.repository,
+      npmUrl: p.installSource === 'npm' && p.installMeta?.package
+        ? `https://www.npmjs.com/package/${encodeURIComponent(p.installMeta.package)}`
+        : undefined,
       permissions: p.manifest.permissions ?? [],
       enabled: p.enabled,
       error: p.error,
@@ -1491,6 +1495,38 @@ class PluginManager {
   }
 
   // ─── Install / Uninstall / Update ────────────────────────────────────────
+
+  /**
+   * Convert an npm-style or git-style repository URL into something a
+   * browser anchor can open. npm accepts `git+https://`, `git://`,
+   * `git@host:owner/repo.git`, etc. — none of which are valid `href` values.
+   */
+  private normalizeRepositoryUrl(url: string): string {
+    let r = url.trim()
+    if (r.startsWith('git+')) r = r.slice(4)
+    if (r.startsWith('git://')) r = 'https://' + r.slice(6)
+    const ssh = r.match(/^git@([^:]+):(.+?)(?:\.git)?$/)
+    if (ssh) r = `https://${ssh[1]}/${ssh[2]}`
+    if (r.endsWith('.git')) r = r.slice(0, -4)
+    return r
+  }
+
+  /**
+   * Read `package.json.repository` from an installed package and return
+   * a normalized HTTP(S) URL ready for an anchor. Returns undefined if
+   * the file is missing or the field is absent/unparseable.
+   */
+  private async readPackageRepository(pluginDir: string): Promise<string | undefined> {
+    try {
+      const raw = await readFile(join(pluginDir, 'package.json'), 'utf-8')
+      const pkg = JSON.parse(raw) as { repository?: string | { url?: string } }
+      const repo = typeof pkg.repository === 'string' ? pkg.repository : pkg.repository?.url
+      if (!repo) return undefined
+      return this.normalizeRepositoryUrl(repo)
+    } catch {
+      return undefined
+    }
+  }
 
   // Always drain stdout+stderr in parallel: piping without reading can deadlock the
   // child once the kernel pipe buffer (~64KB) fills.
@@ -1606,6 +1642,9 @@ class PluginManager {
         url,
         version: manifest.version,
         installedAt: now.toISOString(),
+        // The install URL is the source repo — normalize so the UI can
+        // link directly to it without further parsing.
+        repository: this.normalizeRepositoryUrl(url),
       }
 
       const existing = await this.getState(manifest.name)
@@ -1762,12 +1801,14 @@ class PluginManager {
       // Cleanup temp dir
       await rm(tempDir, { recursive: true, force: true }).catch(() => {})
 
-      // Save state
+      // Save state — captures the package's repository URL so the UI
+      // can link to the source without re-fetching the npm registry.
       const now = new Date()
       const installMeta: PluginInstallMeta = {
         package: packageName,
         version: manifest.version,
         installedAt: now.toISOString(),
+        ...(await this.readPackageRepository(targetDir).then((r) => r ? { repository: r } : {})),
       }
 
       await db.insert(pluginStates).values({
@@ -1979,6 +2020,10 @@ class PluginManager {
     plugin.manifest = manifest
     if (plugin.installMeta) {
       plugin.installMeta.version = manifest.version
+      // Re-read repository URL in case the plugin author switched repos
+      // between versions (rare but cheap to keep in sync).
+      const repo = await this.readPackageRepository(pluginDir)
+      if (repo) plugin.installMeta.repository = repo
     }
 
     // Update DB

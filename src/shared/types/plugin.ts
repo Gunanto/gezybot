@@ -101,6 +101,10 @@ export interface PluginInstallMeta {
   package?: string    // npm package name
   version?: string    // installed version
   installedAt?: string // ISO date
+  /** Browser-ready repository URL captured at install time. For npm,
+   *  read from the package's package.json and normalized (drop git+
+   *  prefix, .git suffix). For git installs, the install URL itself. */
+  repository?: string
 }
 
 // ─── Registry Types ──────────────────────────────────────────────────────────
@@ -162,6 +166,13 @@ export interface PluginSummary {
   /** Set when the plugin ships a logo file (manifest.iconUrl); resolved
    *  to `/api/plugins/<name>/logo` so the UI can `<img src="…">` directly. */
   logoUrl?: string
+  /** Browser-ready URL to the plugin's source repository. Derived from
+   *  the install meta (git URL or the npm package's repository field);
+   *  normalized to drop `git+` prefixes and `.git` suffixes. */
+  repositoryUrl?: string
+  /** Set when the plugin was installed from npm — points to the package
+   *  page on npmjs.com. Derived from `installMeta.package`. */
+  npmUrl?: string
   permissions: string[]
   enabled: boolean
   error?: string

@@ -83,6 +83,10 @@ export class PluginRegistryService {
         .map((o) => {
           const p = o.package
           if (!p?.name || !p.version) return null
+          // npm reports `repository` in its raw package.json form, often
+          // prefixed with `git+` (npm convention). Browsers don't follow
+          // unknown URL schemes — strip it so anchors actually navigate.
+          const normalizedLinks = p.links ? normalizeLinks(p.links) : undefined
           return {
             name: p.name,
             version: p.version,
@@ -92,7 +96,7 @@ export class PluginRegistryService {
             keywords: p.keywords ?? [],
             ...(p.date ? { date: p.date } : {}),
             ...(o.score?.final != null ? { score: o.score.final } : {}),
-            ...(p.links ? { links: p.links } : {}),
+            ...(normalizedLinks ? { links: normalizedLinks } : {}),
           } satisfies NpmPlugin
         })
         .filter((x): x is NpmPlugin => x !== null)
@@ -142,6 +146,31 @@ export class PluginRegistryService {
   resetNpmSearchCache(): void {
     this.npmSearchCache.clear()
   }
+}
+
+/**
+ * Convert an npm-style `repository` URL into something a browser can open.
+ * npm package.json conventions accept `git+https://`, `git://`,
+ * `git@github.com:owner/repo.git`, etc. — none of which are valid for
+ * an `<a href>`. We only normalise the repository field; others
+ * (homepage, npm, bugs) are already plain http(s) URLs in practice.
+ */
+function normalizeLinks(links: NonNullable<NpmPlugin['links']>): NpmPlugin['links'] {
+  const out: NonNullable<NpmPlugin['links']> = { ...links }
+  if (out.repository) {
+    let r = out.repository
+    // `git+https://...` → `https://...`
+    if (r.startsWith('git+')) r = r.slice(4)
+    // `git://github.com/...` → `https://github.com/...`
+    if (r.startsWith('git://')) r = 'https://' + r.slice(6)
+    // SSH form `git@host:owner/repo.git` → `https://host/owner/repo`
+    const sshMatch = r.match(/^git@([^:]+):(.+?)(?:\.git)?$/)
+    if (sshMatch) r = `https://${sshMatch[1]}/${sshMatch[2]}`
+    // Trailing `.git` is fine for `git clone` but ugly in a browser
+    if (r.endsWith('.git')) r = r.slice(0, -4)
+    out.repository = r
+  }
+  return out
 }
 
 export const pluginRegistry = new PluginRegistryService()

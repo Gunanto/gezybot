@@ -390,6 +390,45 @@ export function PluginsSettings() {
                     </p>
                   )}
 
+                  {/* External links — source repo / npm page / homepage. */}
+                  {(plugin.repositoryUrl || plugin.npmUrl || plugin.homepage) && (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-muted-foreground">
+                      {plugin.repositoryUrl && (
+                        <a
+                          href={plugin.repositoryUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 hover:text-foreground"
+                        >
+                          <ExternalLink className="size-3" />
+                          {t('settings.marketplace.repository')}
+                        </a>
+                      )}
+                      {plugin.npmUrl && (
+                        <a
+                          href={plugin.npmUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 hover:text-foreground"
+                        >
+                          <ExternalLink className="size-3" />
+                          npm
+                        </a>
+                      )}
+                      {plugin.homepage && plugin.homepage !== plugin.repositoryUrl && (
+                        <a
+                          href={plugin.homepage}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 hover:text-foreground"
+                        >
+                          <ExternalLink className="size-3" />
+                          {t('settings.plugins.homepage')}
+                        </a>
+                      )}
+                    </div>
+                  )}
+
                   {/* Stats */}
                   <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                     {plugin.toolCount > 0 && (
