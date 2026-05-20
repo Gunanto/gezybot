@@ -1735,14 +1735,18 @@ class PluginManager {
       // Dedicated cache dir, persisted across installs. Also outside plugins/
       // for the same reason as tempDir.
       const isolatedCache = join(this.installWorkspace, 'bun-cache')
-      log.info({ package: packageName, tempDir, cache: isolatedCache }, 'npm install: running bun add (60s timeout)')
+      log.info({ package: packageName, tempDir, cache: isolatedCache }, 'npm install: running bun add (120s timeout)')
 
       const { exitCode, stderr, stdout } = await this.runSpawn(
         ['bun', 'add', packageName],
         {
           cwd: tempDir,
           env: { BUN_INSTALL_CACHE_DIR: isolatedCache },
-          timeoutMs: 60_000,
+          // 120s — bun shares some global state with the parent runtime
+          // (the dev server is itself a bun process), and the resolve
+          // step can briefly contend on it. 60s was too tight in
+          // practice; this gives the lock plenty of time to free.
+          timeoutMs: 120_000,
         },
       )
       if (exitCode !== 0) {
@@ -1993,27 +1997,32 @@ class PluginManager {
       await mkdir(this.installWorkspace, { recursive: true })
       const tempDir = join(this.installWorkspace, `_update_${Date.now()}`)
       await mkdir(tempDir, { recursive: true })
-      await Bun.write(join(tempDir, 'package.json'), JSON.stringify({ name: 'kinbot-plugin-update', private: true }))
+      // Try/finally guarantees the tempDir is removed even if bun add
+      // times out — without it the workspace accumulates `_update_*`
+      // shells forever.
+      try {
+        await Bun.write(join(tempDir, 'package.json'), JSON.stringify({ name: 'kinbot-plugin-update', private: true }))
 
-      const isolatedCache = join(this.installWorkspace, 'bun-cache')
-      const { exitCode, stderr, stdout } = await this.runSpawn(
-        ['bun', 'add', `${packageName}@latest`],
-        {
-          cwd: tempDir,
-          env: { BUN_INSTALL_CACHE_DIR: isolatedCache },
-          timeoutMs: 60_000,
-        },
-      )
-      if (exitCode !== 0) {
+        const isolatedCache = join(this.installWorkspace, 'bun-cache')
+        const { exitCode, stderr, stdout } = await this.runSpawn(
+          ['bun', 'add', `${packageName}@latest`],
+          {
+            cwd: tempDir,
+            env: { BUN_INSTALL_CACHE_DIR: isolatedCache },
+            timeoutMs: 120_000,
+          },
+        )
+        if (exitCode !== 0) {
+          throw new Error(`npm update failed (exit ${exitCode}): ${stderr.trim() || stdout.trim() || '(no output)'}`)
+        }
+        log.info({ plugin: name }, 'npm update: bun add done')
+
+        // Replace plugin dir
+        await rm(pluginDir, { recursive: true, force: true })
+        await this.runSpawn(['mv', join(tempDir, 'node_modules', packageName), pluginDir], { timeoutMs: 10_000 })
+      } finally {
         await rm(tempDir, { recursive: true, force: true }).catch(() => {})
-        throw new Error(`npm update failed (exit ${exitCode}): ${stderr.trim() || stdout.trim() || '(no output)'}`)
       }
-      log.info({ plugin: name }, 'npm update: bun add done')
-
-      // Replace plugin dir
-      await rm(pluginDir, { recursive: true, force: true })
-      await this.runSpawn(['mv', join(tempDir, 'node_modules', packageName), pluginDir], { timeoutMs: 10_000 })
-      await rm(tempDir, { recursive: true, force: true }).catch(() => {})
     } else {
       throw new Error('Cannot update a local plugin')
     }
