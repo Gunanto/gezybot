@@ -333,10 +333,14 @@ export function PluginsSettings() {
                   </span>
                 ) : null}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  {/* flex-wrap so the badge row doesn't overflow the
+                      ~600px modal width when the display name, mono
+                      technical name, version, source, and status
+                      badges all fight for space. */}
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <h4 className="font-medium">{plugin.displayName || plugin.name}</h4>
                     {plugin.displayName && (
-                      <span className="text-xs text-muted-foreground/70 font-mono">
+                      <span className="text-xs text-muted-foreground/70 font-mono break-all">
                         {plugin.name}
                       </span>
                     )}
