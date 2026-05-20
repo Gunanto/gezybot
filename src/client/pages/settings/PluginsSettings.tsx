@@ -274,13 +274,15 @@ export function PluginsSettings() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* Header — stacked: title/description on top, actions below.
+          4 action buttons + a title don't fit on one line at the modal's
+          max-w-2xl width without truncating the title. */}
+      <div className="space-y-3">
         <div>
           <h3 className="text-lg font-semibold">{t('settings.plugins.title')}</h3>
           <p className="text-sm text-muted-foreground">{t('settings.plugins.description')}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Primary action: browse the npm marketplace. This is the
               90% case (most admins discover plugins from npm, not from
               a Git URL they happen to know). */}
