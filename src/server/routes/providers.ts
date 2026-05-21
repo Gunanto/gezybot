@@ -139,7 +139,7 @@ providerRoutes.post('/', async (c) => {
   const testResult = await testProviderConnection(type, providerConfig)
 
   const allCaps = getCapabilitiesForType(type)
-  const FAMILY_ORDER = ['llm', 'embedding', 'image'] as const
+  const FAMILY_ORDER = ['llm', 'embedding', 'image', 'search'] as const
   const allFamilies = FAMILY_ORDER.filter((f) => (allCaps as readonly string[]).includes(f))
   const capabilities = requestedFamilies && requestedFamilies.length > 0
     ? allFamilies.filter((f) => requestedFamilies.includes(f))

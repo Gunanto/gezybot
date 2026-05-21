@@ -96,6 +96,7 @@
       "familyLlm": "LLM (chat)",
       "familyEmbedding": "Embeddings (memory search)",
       "familyImage": "Image generation",
+      "familySearch": "Web search",
       "familiesLabel": "Enable for",
       "familiesHint": "A single provider row is created with the selected capabilities. The same API key powers every family you enable — toggling them later is a row edit, not a new entry.",
       "type": "Provider type",

@@ -96,6 +96,7 @@
       "familyLlm": "LLM (chat)",
       "familyEmbedding": "Embeddings (recherche mémoire)",
       "familyImage": "Génération d'image",
+      "familySearch": "Recherche web",
       "familiesLabel": "Activer pour",
       "familiesHint": "Une seule ligne fournisseur est créée avec les capacités sélectionnées. La même clé API alimente toutes les familles activées — les basculer plus tard est une édition de ligne, pas une nouvelle entrée.",
       "type": "Type de fournisseur",

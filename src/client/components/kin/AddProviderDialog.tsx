@@ -179,16 +179,18 @@ export function ProviderFormDialog({ open, onOpenChange, onSaved, provider, prov
   // Families this provider type can serve, in display order. When more than
   // one is available, the form shows checkboxes so the user can opt into a
   // subset (e.g. only "Images" for OpenAI). Defaults all checked.
-  const FAMILY_ORDER = ['llm', 'embedding', 'image'] as const
+  const FAMILY_ORDER = ['llm', 'embedding', 'image', 'search'] as const
   const FAMILY_LABEL_KEY: Record<string, string> = {
     llm: 'onboarding.providers.familyLlm',
     embedding: 'onboarding.providers.familyEmbedding',
     image: 'onboarding.providers.familyImage',
+    search: 'onboarding.providers.familySearch',
   }
   const FAMILY_LABEL_FALLBACK: Record<string, string> = {
     llm: 'LLM (chat)',
     embedding: 'Embeddings (memory search)',
     image: 'Image generation',
+    search: 'Web search',
   }
   const supportedFamilies = FAMILY_ORDER.filter((f) =>
     getCapabilitiesForType(providerType).includes(f),
