@@ -1,19 +1,24 @@
 /**
- * Provider dispatcher — single front-door over the four native registries
- * (`llm`, `embedding`, `image`, `search`). Built-in providers (Anthropic,
- * OpenAI, …) and plugin-contributed providers register identically into
- * these four registries; nothing here knows or cares about the difference.
+ * Provider dispatcher — single front-door over the six native registries
+ * (`llm`, `embedding`, `image`, `search`, `tts`, `stt`). Built-in
+ * providers (Anthropic, OpenAI, Brave, …) and plugin-contributed
+ * providers register identically into these registries; nothing here
+ * knows or cares about the difference.
  *
  * Callers (routes/providers, tools/provider-tools, image-tools,
  * model-info-cache, image-generation, routes/kins, llm/core/resolve) get a
  * uniform `ProviderModel` shape regardless of which family answers, which
  * keeps the per-model UI generic.
  *
- * Note: `listModelsForProvider` is a no-op for the `search` family —
- * search providers have no concept of model selection (one provider ==
- * one search endpoint). The dispatcher returns an empty list rather
- * than failing so the model-info-cache refresh loop can ignore search
- * rows without special-casing.
+ * Notes on the model-bearing concept:
+ *   - `listModelsForProvider` is a no-op for `search` and `tts` —
+ *     search providers have no model selection (one provider == one
+ *     endpoint), and TTS's user-facing unit is the Voice, not a model.
+ *     The dispatcher returns an empty list rather than failing so the
+ *     model-info-cache refresh loop can ignore these rows without
+ *     special-casing.
+ *   - TTS providers expose their voice catalogue via the dedicated
+ *     `listVoicesForProvider` dispatcher below.
  */
 
 import type { ProviderConfig as KinbotProviderConfig } from '@/server/llm/core/types'
@@ -24,6 +29,9 @@ import { getLLMProvider, listLLMProviders } from '@/server/llm/llm/registry'
 import { getEmbeddingProvider, listEmbeddingProviders } from '@/server/llm/embedding/registry'
 import { getImageProvider, listImageProviders } from '@/server/llm/image/registry'
 import { getSearchProvider, listSearchProviders } from '@/server/llm/search/registry'
+import { getTTSProvider, listTTSProviders } from '@/server/llm/tts/registry'
+import { getSTTProvider, listSTTProviders } from '@/server/llm/stt/registry'
+import type { Voice } from '@/server/llm/tts/types'
 
 const log = createLogger('providers')
 
@@ -39,7 +47,7 @@ const log = createLogger('providers')
 export interface ProviderModel {
   id: string
   name: string
-  capability: 'llm' | 'embedding' | 'image' | 'rerank'
+  capability: 'llm' | 'embedding' | 'image' | 'stt' | 'rerank'
   /** LLM models only — true when the chat can receive image blocks in
    *  user messages (vision-capable). Unrelated to image-generation. */
   supportsImageInput?: boolean
@@ -48,7 +56,9 @@ export interface ProviderModel {
    *  reference like Nano Banana Pro or Flux-Kontext multi). Absent =
    *  unknown, treat as 0. */
   maxImageInputs?: number
-  /** Maximum input/context tokens. Populated when the provider's API exposes it. */
+  /** Maximum input/context tokens (LLM/embedding) or maximum audio
+   *  duration in seconds (STT — encoded as contextWindow for shape
+   *  parity). Populated when the provider's API exposes it. */
   contextWindow?: number
   /** Maximum output tokens. Populated when the provider's API exposes it. */
   maxOutput?: number
@@ -75,10 +85,14 @@ function metaForType(type: string): ProviderMeta | undefined {
   if (img) capabilities.push('image')
   const search = getSearchProvider(type)
   if (search) capabilities.push('search')
+  const tts = getTTSProvider(type)
+  if (tts) capabilities.push('tts')
+  const stt = getSTTProvider(type)
+  if (stt) capabilities.push('stt')
 
   if (capabilities.length === 0) return undefined
 
-  const first = llm ?? emb ?? img ?? search
+  const first = llm ?? emb ?? img ?? search ?? tts ?? stt
   return {
     capabilities,
     displayName: first?.displayName ?? type,
@@ -99,7 +113,14 @@ function metaForType(type: string): ProviderMeta | undefined {
  */
 export function getPluginProviderMeta(): Record<string, ProviderMeta> {
   const out: Record<string, ProviderMeta> = {}
-  for (const p of [...listLLMProviders(), ...listEmbeddingProviders(), ...listImageProviders(), ...listSearchProviders()]) {
+  for (const p of [
+    ...listLLMProviders(),
+    ...listEmbeddingProviders(),
+    ...listImageProviders(),
+    ...listSearchProviders(),
+    ...listTTSProviders(),
+    ...listSTTProviders(),
+  ]) {
     if (!p.type.startsWith('plugin:')) continue
     if (out[p.type]) {
       // Same type registered in multiple families (e.g. a single plugin
@@ -126,23 +147,24 @@ export function getCapabilitiesForType(type: string): ProviderCapability[] {
 /** Provider family hint passed to the dispatcher to route the call to a
  *  specific native registry. Each `providers.capabilities[]` entry
  *  matches one of these values. */
-export type ProviderFamily = 'llm' | 'embedding' | 'image' | 'search'
+export type ProviderFamily = 'llm' | 'embedding' | 'image' | 'search' | 'tts' | 'stt'
 
 /**
- * Look up a provider across the four native registries and run `fn`
+ * Look up a provider across the six native registries and run `fn`
  * against the matching one. Returns null when the type isn't registered
  * in the requested family (or in any family when `family` is omitted).
  *
  * The `family` hint is required for any call that dispatches a
- * family-specific operation (listModels, image generate, embed, search).
- * It routes to the right registry when a single provider type registers
- * in multiple registries (OpenAI llm+embedding+image, Replicate, …).
+ * family-specific operation (listModels, image generate, embed, search,
+ * speak, transcribe). It routes to the right registry when a single
+ * provider type registers in multiple registries (OpenAI
+ * llm+embedding+image+tts+stt, Replicate, …).
  *
  * `family` is omitted only by `testProviderConnection` — `authenticate`
  * is family-invariant (same credentials across families), so we don't
  * care which family's registry answers as long as one of them does.
- * The "try LLM → embedding → image → search" fallback below handles
- * that case.
+ * The "try LLM → embedding → image → search → tts → stt" fallback
+ * below handles that case.
  */
 async function tryDispatch<T>(
   type: string,
@@ -152,6 +174,8 @@ async function tryDispatch<T>(
     embedding: (p: NonNullable<ReturnType<typeof getEmbeddingProvider>>) => Promise<T>
     image: (p: NonNullable<ReturnType<typeof getImageProvider>>) => Promise<T>
     search: (p: NonNullable<ReturnType<typeof getSearchProvider>>) => Promise<T>
+    tts: (p: NonNullable<ReturnType<typeof getTTSProvider>>) => Promise<T>
+    stt: (p: NonNullable<ReturnType<typeof getSTTProvider>>) => Promise<T>
   },
   family?: ProviderFamily,
 ): Promise<T | null> {
@@ -171,6 +195,14 @@ async function tryDispatch<T>(
     const search = getSearchProvider(type)
     return search ? fn.search(search) : null
   }
+  if (family === 'tts') {
+    const tts = getTTSProvider(type)
+    return tts ? fn.tts(tts) : null
+  }
+  if (family === 'stt') {
+    const stt = getSTTProvider(type)
+    return stt ? fn.stt(stt) : null
+  }
   // No family hint — try in order.
   const llm = getLLMProvider(type)
   if (llm) return fn.llm(llm)
@@ -180,6 +212,10 @@ async function tryDispatch<T>(
   if (img) return fn.image(img)
   const search = getSearchProvider(type)
   if (search) return fn.search(search)
+  const tts = getTTSProvider(type)
+  if (tts) return fn.tts(tts)
+  const stt = getSTTProvider(type)
+  if (stt) return fn.stt(stt)
   return null
 }
 
@@ -205,6 +241,8 @@ export async function testProviderConnection(
       embedding: (p) => p.authenticate(config).then((r) => ({ valid: r.valid, error: r.error })),
       image: (p) => p.authenticate(config).then((r) => ({ valid: r.valid, error: r.error })),
       search: (p) => p.authenticate(config).then((r) => ({ valid: r.valid, error: r.error })),
+      tts: (p) => p.authenticate(config).then((r) => ({ valid: r.valid, error: r.error })),
+      stt: (p) => p.authenticate(config).then((r) => ({ valid: r.valid, error: r.error })),
     },
     family,
   )
@@ -276,6 +314,19 @@ export async function listModelsForProvider(
       // search endpoint. Return an empty list so the model-info cache
       // refresh loop ignores them without special-casing.
       search: async () => [],
+      // TTS providers' user-facing unit is the Voice, not a model.
+      // Voices are fetched via the dedicated `listVoicesForProvider`
+      // dispatcher; this generic helper returns an empty model list.
+      tts: async () => [],
+      stt: async (p) => {
+        const list = await p.listModels(config)
+        return list.map((m): ProviderModel => ({
+          id: m.id,
+          name: m.name,
+          capability: 'stt',
+          ...(m.maxAudioSeconds ? { contextWindow: m.maxAudioSeconds } : {}),
+        }))
+      },
     },
     family,
   )
@@ -320,5 +371,33 @@ export function getRegistryStats() {
     embedding: listEmbeddingProviders().map((p) => p.type),
     image: listImageProviders().map((p) => p.type),
     search: listSearchProviders().map((p) => p.type),
+    tts: listTTSProviders().map((p) => p.type),
+    stt: listSTTProviders().map((p) => p.type),
   }
+}
+
+/**
+ * Dedicated dispatcher for TTS voice listing — separate from
+ * `listModelsForProvider` because the user-facing unit for TTS is a
+ * Voice (with optional `model` binding) rather than a model.
+ *
+ * Returns an empty array when the type isn't a registered TTS
+ * provider — orphaned plugin rows are silently skipped (same
+ * convention as the model-info path), so the caller can iterate
+ * without special-casing missing plugins.
+ */
+export async function listVoicesForProvider(
+  type: string,
+  config: KinbotProviderConfig,
+): Promise<Voice[]> {
+  const provider = getTTSProvider(type)
+  if (!provider) {
+    if (type.startsWith('plugin:')) {
+      log.debug({ type }, 'Skipping listVoices — plugin not loaded')
+      return []
+    }
+    log.error({ type }, 'Cannot list voices for unknown TTS provider type')
+    return []
+  }
+  return provider.listVoices(config)
 }

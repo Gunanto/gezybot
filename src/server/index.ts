@@ -10,6 +10,8 @@ import { registerBuiltinLLMProviders } from '@/server/llm/llm/register'
 import { registerBuiltinEmbeddingProviders } from '@/server/llm/embedding/register'
 import { registerBuiltinImageProviders } from '@/server/llm/image/register'
 import { registerBuiltinSearchProviders } from '@/server/llm/search/register'
+import { registerBuiltinTTSProviders } from '@/server/llm/tts/register'
+import { registerBuiltinSTTProviders } from '@/server/llm/stt/register'
 import { initCronScheduler } from '@/server/services/crons'
 import { recoverPendingWakeups } from '@/server/services/wakeup-scheduler'
 import { Cron } from 'croner'
@@ -69,6 +71,8 @@ registerBuiltinLLMProviders()
 registerBuiltinEmbeddingProviders()
 registerBuiltinImageProviders()
 registerBuiltinSearchProviders()
+registerBuiltinTTSProviders()
+registerBuiltinSTTProviders()
 
 // Scan and load plugins
 log.info('Scanning for plugins...')

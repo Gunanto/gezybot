@@ -14,6 +14,8 @@ import { getLLMProvider } from '@/server/llm/llm/registry'
 import { getEmbeddingProvider } from '@/server/llm/embedding/registry'
 import { getImageProvider } from '@/server/llm/image/registry'
 import { getSearchProvider } from '@/server/llm/search/registry'
+import { getTTSProvider } from '@/server/llm/tts/registry'
+import { getSTTProvider } from '@/server/llm/stt/registry'
 import { PROVIDER_META } from '@/shared/provider-metadata'
 import type { ConfigField } from '@kinbot-developer/sdk'
 import { createLogger } from '@/server/logger'
@@ -80,7 +82,9 @@ function readConfigSchema(type: string): ConfigField[] | undefined {
     getLLMProvider(type) ??
     getEmbeddingProvider(type) ??
     getImageProvider(type) ??
-    getSearchProvider(type)
+    getSearchProvider(type) ??
+    getTTSProvider(type) ??
+    getSTTProvider(type)
   if (!provider) return undefined
   return [...provider.configSchema]
 }

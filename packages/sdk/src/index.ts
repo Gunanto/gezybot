@@ -496,17 +496,18 @@ export interface ChannelAdapter {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-//  Providers (native LLM / embedding / image / search)
+//  Providers (native LLM / embedding / image / search / TTS / STT)
 // ════════════════════════════════════════════════════════════════════════════
 //
-// Plugins extend KinBot with new providers by implementing one of the four
+// Plugins extend KinBot with new providers by implementing one of the six
 // native interfaces (`LLMProvider`, `EmbeddingProvider`, `ImageProvider`,
-// `SearchProvider`). KinBot's built-in providers (Anthropic, OpenAI, …)
-// use the same interfaces — there is no separate "plugin shape" anymore.
+// `SearchProvider`, `TTSProvider`, `STTProvider`). KinBot's built-in
+// providers (Anthropic, OpenAI, Brave, …) use the same interfaces —
+// there is no separate "plugin shape" anymore.
 
 /** Capability flags a provider declares. Implemented as the union of the
- *  four native interfaces below. */
-export type ProviderCapability = 'llm' | 'embedding' | 'image' | 'search' | 'rerank'
+ *  six native interfaces below. */
+export type ProviderCapability = 'llm' | 'embedding' | 'image' | 'search' | 'tts' | 'stt' | 'rerank'
 
 // ─── Config schema (provider-declared, UI-rendered) ─────────────────────────
 
@@ -1299,8 +1300,273 @@ export interface SearchProvider extends ProviderUIHints {
   ): Promise<SearchResult>
 }
 
+// ─── TTS (text-to-speech) ───────────────────────────────────────────────────
+
+/**
+ * Static capability declaration a TTS provider exposes so the host
+ * knows which knobs to surface and can warn the caller when a request
+ * asks for something the provider doesn't support.
+ *
+ * All flags default to false. A provider that ships only the bare
+ * `speak()` contract declares an empty `capabilities: {}`.
+ */
+export interface TTSCapabilities {
+  /** Incremental synthesis — `speak()` returns / streams audio chunks
+   *  as text arrives. Reserved for v2; built-ins ship batch-only. */
+  readonly supportsStreaming?: boolean
+  /** SSML (`<speak>…</speak>`) input. Most modern voices prefer plain
+   *  text + natural-language `instructions`; declare this only when
+   *  the upstream API genuinely consumes SSML. */
+  readonly supportsSSML?: boolean
+  /** Natural-language style direction (OpenAI `gpt-4o-mini-tts`
+   *  `instructions` field, Hume emotion directives, …). When true the
+   *  host surfaces it in the tool input as a free-form prompt. */
+  readonly supportsInstructions?: boolean
+  /** Playback-rate control via `SpeakRequest.speed`. Providers without
+   *  speed control silently ignore the parameter (the host emits a
+   *  warning). */
+  readonly supportsSpeedControl?: boolean
+  /** Language override for multilingual voices (ElevenLabs
+   *  `eleven_multilingual_v2`, Cartesia multilingual). Voice-locked
+   *  providers (Google `fr-FR-Wavenet-D`) set this to false — the
+   *  voice already encodes the language. */
+  readonly supportsLanguageOverride?: boolean
+  /** Audio container/codecs the provider can emit. The host clamps
+   *  `SpeakRequest.format` against this list and warns on downgrade. */
+  readonly supportedFormats?: ReadonlyArray<'mp3' | 'wav' | 'opus' | 'pcm'>
+}
+
+/**
+ * A voice the user (or LLM) picks to synthesize speech. The provider's
+ * `listVoices()` returns its full catalogue — built-ins (OpenAI fixed
+ * voices) hard-code it; cloud providers (ElevenLabs, PlayHT) fetch the
+ * user's library each call (with host-side caching downstream).
+ *
+ * `model` is opaque to the host: providers that need a voice+model
+ * pair to call their API encode the model here and read it back at
+ * `speak()` time. OpenAI flattens its 9 voices × 3 models = 27
+ * entries; Google voices encode the model in their id; ElevenLabs
+ * binds each voice to its recommended model.
+ */
+export interface Voice {
+  /** Provider-opaque identifier. */
+  id: string
+  /** Display name shown in pickers and tool descriptions. */
+  name: string
+  /** BCP 47 language tag (`'fr-FR'`, `'en-US'`) when the voice is
+   *  bound to a single language. Omitted for multilingual voices. */
+  language?: string
+  /** Gender hint when the provider exposes it. */
+  gender?: 'male' | 'female' | 'neutral'
+  /** Optional human-readable description ("Calm narrator", "Energetic
+   *  female", …). */
+  description?: string
+  /** Provider-internal model binding (ElevenLabs `eleven_v3`, OpenAI
+   *  `tts-1-hd` / `gpt-4o-mini-tts`, …). Opaque to the host. */
+  model?: string
+  /** Short audio sample the UI can play in the voice picker. */
+  previewUrl?: string
+  /** Provider-specific extras (Hume emotion vectors, ElevenLabs
+   *  labels, …). The host doesn't interpret these. */
+  metadata?: Record<string, unknown>
+}
+
+/**
+ * What `TTSProvider.speak()` receives. Standard fields cover the
+ * lowest common denominator; `extra` is the passthrough for
+ * provider-specific knobs the standard schema doesn't model
+ * (ElevenLabs `voice_settings.stability` / `similarity_boost`,
+ * OpenAI `instructions`, SSML markup, prosody, …).
+ *
+ * Providers MUST tolerate unknown keys in `extra` so adding a key
+ * meant for one provider doesn't break calls routed to another.
+ */
+export interface SpeakRequest {
+  text: string
+  /** Output container/codec. Provider clamps against
+   *  `capabilities.supportedFormats` and warns on downgrade. */
+  format?: 'mp3' | 'wav' | 'opus' | 'pcm'
+  /** Output sample rate in Hz (e.g. 16000, 22050, 24000, 44100). */
+  sampleRate?: number
+  /** Playback-rate multiplier. 1.0 = normal. Honored only when the
+   *  provider declares `supportsSpeedControl`. */
+  speed?: number
+  /** Override the synthesis language for multilingual voices. Honored
+   *  only when the provider declares `supportsLanguageOverride`. */
+  lang?: string
+  /** Provider-specific options the host doesn't model. */
+  extra?: Record<string, unknown>
+  signal?: AbortSignal
+}
+
+export interface SpeakResult {
+  audio: Uint8Array
+  /** MIME type — `'audio/mpeg'`, `'audio/wav'`, `'audio/ogg'`,
+   *  `'audio/pcm'`. */
+  mediaType: string
+  /** Duration in milliseconds, when the provider reports it. */
+  durationMs?: number
+  /** Soft notices the host or LLM should be aware of (format silently
+   *  downgraded, speed clamped, language hint ignored, …). Not
+   *  errors — the audio bytes are still valid. */
+  warnings?: string[]
+}
+
+/**
+ * Native TTS provider interface — plugins implement this directly,
+ * built-in providers (ElevenLabs, OpenAI TTS, Google Cloud TTS) use
+ * the same shape.
+ *
+ * Unlike LLM/embedding/image providers, TTS providers expose
+ * `listVoices()` (not `listModels()`) — the user-facing unit is the
+ * voice. Voices may encode a model binding internally via the
+ * `model?` field; the host doesn't interpret it.
+ */
+export interface TTSProvider extends ProviderUIHints {
+  readonly type: string
+  readonly displayName: string
+  readonly configSchema: ProviderConfigSchema
+  readonly capabilities: TTSCapabilities
+
+  authenticate(config: ProviderConfig): Promise<AuthResult>
+
+  /** Fetch the voice catalogue. Built-ins with a fixed roster
+   *  (OpenAI's `alloy`/`echo`/…) hard-code the list; cloud
+   *  providers hit the upstream API. The host caches results — do
+   *  NOT cache across calls inside the provider. */
+  listVoices(config: ProviderConfig): Promise<Voice[]>
+
+  speak(
+    voice: Voice,
+    request: SpeakRequest,
+    config: ProviderConfig,
+  ): Promise<SpeakResult>
+}
+
+// ─── STT (speech-to-text) ───────────────────────────────────────────────────
+
+/** Capability flags an STT provider exposes. All optional, default false. */
+export interface STTCapabilities {
+  /** Provider accepts an explicit language hint (`TranscribeRequest.lang`)
+   *  to improve recognition accuracy. */
+  readonly supportsLanguageHint?: boolean
+  /** Provider returns the detected language in `TranscribeResult.language`.
+   *  Independent of `supportsLanguageHint` — a provider can do either,
+   *  both, or neither. */
+  readonly supportsAutoDetectLanguage?: boolean
+  /** Provider can label per-segment speakers when given
+   *  `TranscribeRequest.diarize: true` (Deepgram, AssemblyAI). */
+  readonly supportsDiarization?: boolean
+  /** Provider returns per-segment timestamps when
+   *  `TranscribeRequest.timestamps: true`. */
+  readonly supportsTimestamps?: boolean
+  /** Provider supports a `prompt` field for vocabulary biasing
+   *  (Whisper-family). */
+  readonly supportsPromptBiasing?: boolean
+  /** Audio MIME types the provider accepts as input. The host validates
+   *  the file's content type before dispatching. */
+  readonly supportedAudioFormats?: ReadonlyArray<string>
+  /** Live (streaming) transcription. Reserved for v2; built-ins ship
+   *  batch-only. */
+  readonly supportsStreaming?: boolean
+}
+
+/**
+ * Metadata for one transcription model the provider exposes.
+ * Returned by `STTProvider.listModels()`.
+ */
+export interface TranscriptionModel {
+  id: string
+  name: string
+  /** ISO 639-1 codes the model handles. Omitted = automatic /
+   *  language-agnostic (Whisper, Voxtral). */
+  supportedLanguages?: string[]
+  /** Maximum audio duration in seconds the provider accepts in one
+   *  call. The host can split long files when this is set. */
+  maxAudioSeconds?: number
+  /** Token / per-minute pricing in USD, when the provider exposes it. */
+  pricing?: {
+    perAudioMinute?: number
+  }
+}
+
+export interface TranscribeRequest {
+  /** Raw audio bytes + MIME type. The host loads files from storage
+   *  on behalf of the LLM — providers never resolve URLs themselves. */
+  audio: { data: Uint8Array; mediaType: string }
+  /** ISO 639-1 hint (`'en'`, `'fr'`). Honored only when the provider
+   *  declares `supportsLanguageHint`. */
+  lang?: string
+  /** Vocabulary biasing prompt (Whisper-style). Honored only when
+   *  the provider declares `supportsPromptBiasing`. */
+  prompt?: string
+  /** Request per-segment speaker labels. Honored only when the
+   *  provider declares `supportsDiarization`. */
+  diarize?: boolean
+  /** Request per-segment start/end timestamps. Honored only when the
+   *  provider declares `supportsTimestamps`. */
+  timestamps?: boolean
+  /** Provider-specific options the host doesn't model. */
+  extra?: Record<string, unknown>
+  signal?: AbortSignal
+}
+
+export interface TranscribeResult {
+  /** Full transcript as a single string. Always present. */
+  text: string
+  /** ISO 639-1 detected language. Populated when the provider does
+   *  auto-detection or echoes back the language hint. */
+  language?: string
+  /** Total audio duration in milliseconds. */
+  durationMs?: number
+  /** Per-segment breakdown when `timestamps` or `diarize` was requested.
+   *  Each segment carries text, start/end in seconds, and an optional
+   *  speaker label. */
+  segments?: Array<{
+    start: number
+    end: number
+    text: string
+    speaker?: string
+  }>
+  /** Soft notices (capability not supported, low-confidence transcription,
+   *  language hint overridden, …). Not errors — the text is still valid. */
+  warnings?: string[]
+}
+
+/**
+ * Native STT provider interface — plugins implement this directly,
+ * built-in providers (OpenAI Whisper, Deepgram, Mistral Voxtral) use
+ * the same shape.
+ *
+ * Unlike TTS, STT has no `Voice` concept — a transcription model
+ * ingests whatever audio it's given regardless of who is speaking in
+ * it. The user-facing unit is the model (whisper-1, nova-2,
+ * voxtral-mini-2507).
+ */
+export interface STTProvider extends ProviderUIHints {
+  readonly type: string
+  readonly displayName: string
+  readonly configSchema: ProviderConfigSchema
+  readonly capabilities: STTCapabilities
+
+  authenticate(config: ProviderConfig): Promise<AuthResult>
+  listModels(config: ProviderConfig): Promise<TranscriptionModel[]>
+
+  transcribe(
+    model: TranscriptionModel,
+    request: TranscribeRequest,
+    config: ProviderConfig,
+  ): Promise<TranscribeResult>
+}
+
 /** Discriminated union of every native provider shape a plugin can declare. */
-export type PluginProvider = LLMProvider | EmbeddingProvider | ImageProvider | SearchProvider
+export type PluginProvider =
+  | LLMProvider
+  | EmbeddingProvider
+  | ImageProvider
+  | SearchProvider
+  | TTSProvider
+  | STTProvider
 
 // ════════════════════════════════════════════════════════════════════════════
 //  Hooks
@@ -1696,15 +1962,18 @@ export interface PluginExports {
   /**
    * Native AI providers contributed by the plugin. KinBot's plugin loader
    * inspects each provider's shape (the `chat` / `embed` / `generate` /
-   * `search` method) and registers it into the matching native registry.
-   * The same `LLMProvider` / `EmbeddingProvider` / `ImageProvider` /
-   * `SearchProvider` interfaces back the built-in providers — there is
-   * no second shape for plugins.
+   * `search` / `speak` / `transcribe` method) and registers it into the
+   * matching native registry. The same `LLMProvider` / `EmbeddingProvider`
+   * / `ImageProvider` / `SearchProvider` / `TTSProvider` / `STTProvider`
+   * interfaces back the built-in providers — there is no second shape
+   * for plugins.
    *
    *   providers: [
-   *     new MyMistralProvider(),    // LLMProvider
-   *     new MyVoyageEmbedder(),     // EmbeddingProvider
-   *     new MyKagiSearchProvider(), // SearchProvider
+   *     new MyMistralProvider(),       // LLMProvider
+   *     new MyVoyageEmbedder(),        // EmbeddingProvider
+   *     new MyKagiSearchProvider(),    // SearchProvider
+   *     new MyElevenLabsTTS(),         // TTSProvider
+   *     new MyVoxtralSTT(),            // STTProvider
    *   ]
    */
   providers?: PluginProvider[]

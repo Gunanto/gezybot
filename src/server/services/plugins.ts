@@ -24,8 +24,10 @@ import { registerLLMProvider, unregisterLLMProvider } from '@/server/llm/llm/reg
 import { registerEmbeddingProvider, unregisterEmbeddingProvider } from '@/server/llm/embedding/registry'
 import { registerImageProvider, unregisterImageProvider } from '@/server/llm/image/registry'
 import { registerSearchProvider, unregisterSearchProvider } from '@/server/llm/search/registry'
+import { registerTTSProvider, unregisterTTSProvider } from '@/server/llm/tts/registry'
+import { registerSTTProvider, unregisterSTTProvider } from '@/server/llm/stt/registry'
 import { channelAdapters } from '@/server/channels/index'
-import type { LLMProvider, EmbeddingProvider, ImageProvider, SearchProvider, PluginProvider, ProviderCapability } from '@kinbot-developer/sdk'
+import type { LLMProvider, EmbeddingProvider, ImageProvider, SearchProvider, TTSProvider, STTProvider, PluginProvider, ProviderCapability } from '@kinbot-developer/sdk'
 import { emitPluginCard, updatePluginCard } from '@/server/services/plugin-cards'
 import type {
   PluginContext,
@@ -97,16 +99,18 @@ export class PluginPermissionError extends Error {
 
 /**
  * Detect which native provider family a plugin-exported provider implements,
- * based on the chat/embed/generate/search method it carries. Returns null
- * when the shape doesn't match any of the four native interfaces.
+ * based on the chat/embed/generate/search/speak/transcribe method it carries.
+ * Returns null when the shape doesn't match any of the six native interfaces.
  */
 function detectProviderFamily(
   p: PluginProvider,
-): 'llm' | 'embedding' | 'image' | 'search' | null {
+): 'llm' | 'embedding' | 'image' | 'search' | 'tts' | 'stt' | null {
   if (typeof (p as { chat?: unknown }).chat === 'function') return 'llm'
   if (typeof (p as { embed?: unknown }).embed === 'function') return 'embedding'
   if (typeof (p as { generate?: unknown }).generate === 'function') return 'image'
   if (typeof (p as { search?: unknown }).search === 'function') return 'search'
+  if (typeof (p as { speak?: unknown }).speak === 'function') return 'tts'
+  if (typeof (p as { transcribe?: unknown }).transcribe === 'function') return 'stt'
   return null
 }
 
@@ -541,14 +545,14 @@ export function validatePluginExports(
     }
   }
 
-  // Validate providers — must be an array of native LLMProvider /
-  // EmbeddingProvider / ImageProvider / SearchProvider instances. The
-  // plugin loader detects each provider's family at registration time
-  // by inspecting which method it carries (chat / embed / generate /
-  // search).
+  // Validate providers — must be an array of native provider instances
+  // matching one of the six SDK interfaces. The plugin loader detects
+  // each provider's family at registration time by inspecting which
+  // method it carries (chat / embed / generate / search / speak /
+  // transcribe).
   if (ex.providers !== undefined) {
     if (!Array.isArray(ex.providers)) {
-      errors.push('"providers" must be an array of LLMProvider | EmbeddingProvider | ImageProvider | SearchProvider')
+      errors.push('"providers" must be an array of LLMProvider | EmbeddingProvider | ImageProvider | SearchProvider | TTSProvider | STTProvider')
     } else {
       ex.providers.forEach((p, i) => {
         if (!p || typeof p !== 'object') {
@@ -569,19 +573,27 @@ export function validatePluginExports(
         const hasEmbed = typeof prov.embed === 'function'
         const hasGenerate = typeof prov.generate === 'function'
         const hasSearch = typeof prov.search === 'function'
-        // listModels is required for the model-bearing families but not
-        // for search providers (one provider == one endpoint, no models).
-        if (!hasSearch && typeof prov.listModels !== 'function') {
+        const hasSpeak = typeof prov.speak === 'function'
+        const hasTranscribe = typeof prov.transcribe === 'function'
+        const hasListVoices = typeof prov.listVoices === 'function'
+        // listModels is required for the model-bearing families. Search
+        // has no models (one provider == one endpoint); TTS uses
+        // listVoices() instead.
+        const usesListModels = !hasSearch && !hasSpeak
+        if (usesListModels && typeof prov.listModels !== 'function') {
           warnings.push(`providers[${i}] (${String(prov.type)}): missing listModels() method`)
         }
-        if (!hasChat && !hasEmbed && !hasGenerate && !hasSearch) {
+        if (hasSpeak && !hasListVoices) {
+          warnings.push(`providers[${i}] (${String(prov.type)}): TTSProvider must implement listVoices()`)
+        }
+        if (!hasChat && !hasEmbed && !hasGenerate && !hasSearch && !hasSpeak && !hasTranscribe) {
           warnings.push(
-            `providers[${i}] (${String(prov.type)}): must implement one of chat() (LLM), embed() (Embedding), generate() (Image), or search() (Search)`,
+            `providers[${i}] (${String(prov.type)}): must implement one of chat() (LLM), embed() (Embedding), generate() (Image), search() (Search), speak() (TTS), or transcribe() (STT)`,
           )
         }
-        if (hasSearch && (!prov.capabilities || typeof prov.capabilities !== 'object')) {
+        if ((hasSearch || hasSpeak || hasTranscribe) && (!prov.capabilities || typeof prov.capabilities !== 'object')) {
           warnings.push(
-            `providers[${i}] (${String(prov.type)}): SearchProvider must declare a "capabilities" object (use {} for none)`,
+            `providers[${i}] (${String(prov.type)}): SearchProvider / TTSProvider / STTProvider must declare a "capabilities" object (use {} for none)`,
           )
         }
       })
@@ -986,6 +998,8 @@ class PluginManager {
             else if (family === 'embedding') registerEmbeddingProvider(wrapped as EmbeddingProvider)
             else if (family === 'image') registerImageProvider(wrapped as ImageProvider)
             else if (family === 'search') registerSearchProvider(wrapped as SearchProvider)
+            else if (family === 'tts') registerTTSProvider(wrapped as TTSProvider)
+            else if (family === 'stt') registerSTTProvider(wrapped as STTProvider)
             plugin.registeredProviders.push({
               type: prefixedType,
               displayName: rawProvider.displayName,
@@ -1127,6 +1141,8 @@ class PluginManager {
       else if (family === 'embedding') unregisterEmbeddingProvider(prov.type)
       else if (family === 'image') unregisterImageProvider(prov.type)
       else if (family === 'search') unregisterSearchProvider(prov.type)
+      else if (family === 'tts') unregisterTTSProvider(prov.type)
+      else if (family === 'stt') unregisterSTTProvider(prov.type)
     }
     plugin.registeredProviders = []
 
