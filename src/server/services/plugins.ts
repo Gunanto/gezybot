@@ -1024,6 +1024,24 @@ class PluginManager {
             if (manifestEntry?.configSchema && !adapter.configSchema) {
               ;(adapter as { configSchema?: typeof manifestEntry.configSchema }).configSchema = manifestEntry.configSchema
             }
+            // Enrich the adapter's `meta` from the plugin manifest so
+            // the channels picker / cards show the plugin's brand
+            // assets without the adapter author having to repeat them.
+            // Adapter-level values still win when present — this is
+            // pure default-fill.
+            const manifestLogoUrl = plugin.manifest.iconUrl
+              ? `/api/plugins/${encodeURIComponent(name)}/logo`
+              : undefined
+            const enrichedMeta = {
+              displayName: adapter.meta?.displayName ?? plugin.manifest.displayName ?? channelName,
+              ...(adapter.meta?.brandColor ? { brandColor: adapter.meta.brandColor } : {}),
+              ...(adapter.meta?.iconUrl
+                ? { iconUrl: adapter.meta.iconUrl }
+                : manifestLogoUrl
+                  ? { iconUrl: manifestLogoUrl }
+                  : {}),
+            }
+            ;(adapter as { meta?: typeof enrichedMeta }).meta = enrichedMeta
             channelAdapters.registerPlugin(adapter)
             plugin.registeredChannels.push({
               platform: adapter.platform,
