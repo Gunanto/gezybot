@@ -143,12 +143,14 @@ export interface ToolCallEntry {
 
 /** Per-Kin tool authorization config (stored as JSON in kins.tool_config) */
 export interface KinToolConfig {
-  /** Native tool names that are DISABLED (deny-list — empty means all enabled) */
+  /** Native tool names that are DISABLED (deny-list, empty means all enabled) */
   disabledNativeTools: string[]
-  /** MCP server access — serverId → ['*'] (all tools) or specific tool names */
+  /** MCP server access, serverId -> ['*'] (all tools) or specific tool names */
   mcpAccess: Record<string, string[]>
   /** Native tool names that are explicitly ENABLED despite being defaultDisabled (allow-list) */
   enabledOptInTools?: string[]
+  /** Allow http_request to reach RFC1918 and local-network hostnames for this Kin */
+  allowPrivateNetworkHttpRequests?: boolean
 }
 
 /** Per-Kin compacting configuration (stored as JSON in kins.compacting_config) */

@@ -1,13 +1,56 @@
 /**
- * Tool types — re-exports from the SDK. Single source of truth in
- * `packages/sdk/src/index.ts`. Server-side code keeps the existing
- * import path (`@/server/tools/types`) for stability across the ~45
- * native tool files; plugin authors should import directly from
- * `@kinbot-developer/sdk` instead.
+ * Tool types — SDK re-exports plus a host-side extension to the
+ * execution context so native tools (`http_request`, etc.) can read
+ * per-Kin authorization fields without dropping into `unknown` casts.
+ *
+ * The SDK's `ToolExecutionContext` is the public plugin contract and
+ * stays minimal on purpose — plugins receive the same context shape
+ * at runtime but don't get typed access to host-internal fields they
+ * shouldn't be reading. Server-internal tool files import from this
+ * module instead of `@kinbot-developer/sdk` directly so they get the
+ * widened context.
  */
-export type {
-  ToolAvailability,
-  ToolExecutionContext,
-  ToolFactory,
-  ToolRegistration,
+
+import type {
+  ToolExecutionContext as SdkToolExecutionContext,
+  ToolFactory as SdkToolFactory,
+  ToolRegistration as SdkToolRegistration,
+  Tool,
 } from '@kinbot-developer/sdk'
+import type { KinToolConfig } from '@/shared/types'
+
+export type { ToolAvailability } from '@kinbot-developer/sdk'
+
+/**
+ * Server-side widened execution context. Same as the SDK's shape plus
+ * `toolConfig` — the parsed `kins.tool_config` row deserialized once
+ * per turn by the engine. Native tools read fields like
+ * `allowPrivateNetworkHttpRequests` from it.
+ *
+ * Plugin tools see the narrower SDK shape; the host still passes the
+ * full object at runtime, so a plugin that really needs to read
+ * `toolConfig` can cast.
+ */
+export interface ToolExecutionContext extends SdkToolExecutionContext {
+  /** Parsed per-Kin tool authorization config. Populated by the engine
+   *  for every native tool call; native tools read fields like
+   *  `allowPrivateNetworkHttpRequests` directly from here. */
+  toolConfig?: KinToolConfig | null
+}
+
+/** Factory bound to the server-widened execution context. */
+export type ToolFactory = (ctx: ToolExecutionContext) => Tool<any, any>
+
+/** Server-side ToolRegistration — same as the SDK shape but the
+ *  `create` factory accepts the widened ToolExecutionContext (with
+ *  `toolConfig`). Assignment-compatible with the SDK shape so plugin
+ *  tools registered against the SDK type slot in seamlessly. */
+export interface ToolRegistration extends Omit<SdkToolRegistration, 'create'> {
+  create: ToolFactory
+}
+
+/** Sanity check — the server factory must remain assignment-compatible
+ *  with the SDK one so callers that import from the SDK keep working. */
+type _AssignableToSdkFactory = ToolFactory extends SdkToolFactory ? true : false
+const _factoryAssignmentCheck: _AssignableToSdkFactory = true
+void _factoryAssignmentCheck
