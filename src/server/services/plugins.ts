@@ -1590,13 +1590,41 @@ class PluginManager {
     cmd: string[],
     opts: { cwd?: string; env?: Record<string, string>; timeoutMs?: number } = {},
   ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-    const proc = Bun.spawn(cmd, {
-      cwd: opts.cwd,
-      env: opts.env ? { ...process.env, ...opts.env } : undefined,
-      stdout: 'pipe',
-      stderr: 'pipe',
-      stdin: 'ignore',
-    })
+    let proc: ReturnType<typeof Bun.spawn>
+    try {
+      proc = Bun.spawn(cmd, {
+        cwd: opts.cwd,
+        env: opts.env ? { ...process.env, ...opts.env } : undefined,
+        stdout: 'pipe',
+        stderr: 'pipe',
+        stdin: 'ignore',
+      })
+    } catch (err) {
+      // Bun.spawn throws synchronously when the executable isn't in PATH.
+      // Wrap with an actionable message — the raw 'Executable not found
+      // in $PATH' is correct but doesn't tell the user where to install
+      // the missing binary, which matters most for `npm` (Docker users
+      // need to rebuild the image after the npm-in-Dockerfile fix; bare-
+      // metal self-hosters need Node.js installed).
+      const message = err instanceof Error ? err.message : String(err)
+      const bin = cmd[0]
+      if (/Executable not found/i.test(message) || /ENOENT/i.test(message)) {
+        if (bin === 'npm') {
+          throw new Error(
+            `Plugin installation requires \`npm\` to be available in PATH, but it isn't on this host. ` +
+              `Install Node.js (which ships npm) or, for Docker deployments, rebuild from the latest image — ` +
+              `the production Dockerfile now bundles npm specifically for plugin installs.`,
+          )
+        }
+        if (bin === 'git') {
+          throw new Error(
+            `Plugin installation from a git URL requires \`git\` to be available in PATH, but it isn't on this host. Install git and retry.`,
+          )
+        }
+        throw new Error(`Required executable not found in PATH: "${bin}". Install it and retry.`)
+      }
+      throw err
+    }
 
     let timedOut = false
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined
@@ -1607,9 +1635,13 @@ class PluginManager {
       }, opts.timeoutMs)
     }
 
+    // proc.stdout/stderr are typed as a union (number | ReadableStream)
+    // because the union we narrowed away earlier no longer participates
+    // in the return overload — at runtime they're always ReadableStreams
+    // since we passed `stdout: 'pipe', stderr: 'pipe'`.
     const [stdout, stderr] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
+      new Response(proc.stdout as ReadableStream<Uint8Array>).text(),
+      new Response(proc.stderr as ReadableStream<Uint8Array>).text(),
     ])
     const exitCode = await proc.exited
     if (timeoutHandle) clearTimeout(timeoutHandle)

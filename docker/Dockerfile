@@ -33,8 +33,12 @@ RUN sed -i '/"prepare":/d' package.json && \
     bun install --frozen-lockfile --production && \
     apt-get purge -y python3 make g++ && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
-# Install gosu for entrypoint privilege dropping
-RUN apt-get update && apt-get install -y --no-install-recommends gosu && rm -rf /var/lib/apt/lists/*
+# Install gosu (entrypoint privilege dropping) + npm (plugin install
+# at runtime — `installFromNpm` in services/plugins.ts spawns `npm
+# install` to resolve a plugin's tarball + deps; the oven/bun:1 base
+# image doesn't ship Node/npm so without this the marketplace install
+# flow fails with `Executable not found in $PATH: "npm"`).
+RUN apt-get update && apt-get install -y --no-install-recommends gosu npm && rm -rf /var/lib/apt/lists/*
 
 # Copy built frontend
 COPY --from=build /app/dist ./dist
