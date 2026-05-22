@@ -5,6 +5,7 @@ import { PaletteToggle } from '@/client/components/common/PaletteToggle'
 import { UserMenu } from '@/client/components/common/UserMenu'
 import { NotificationBell } from '@/client/components/notifications/NotificationBell'
 import { SSEStatusIndicator } from '@/client/components/common/SSEStatusIndicator'
+import { SetupChecklistButton } from '@/client/components/layout/SetupChecklistButton'
 
 interface AppTopBarProps {
   /** Open a settings section (or the default tab). */
@@ -42,6 +43,7 @@ export function AppTopBar({ onOpenSettings, onOpenAccount }: AppTopBarProps) {
       </button>
       <div className="flex flex-1 items-center justify-end gap-1">
         <SSEStatusIndicator />
+        {user && <SetupChecklistButton onOpenSettings={onOpenSettings} />}
         <PaletteToggle />
         <ThemeToggle />
         {user && <NotificationBell onOpenSettings={onOpenSettings} />}

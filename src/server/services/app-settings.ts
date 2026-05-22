@@ -129,6 +129,49 @@ export async function setDefaultImageProviderId(providerId: string | null): Prom
   return setSetting('default_image_provider_id', providerId)
 }
 
+// ─── Setup checklist (dismissed items) ──────────────────────────────────────
+
+/**
+ * Persisted per-instance list of setup-checklist item ids the user has
+ * dismissed ("Skip" on the dashboard checklist). Stored as a JSON
+ * array under a single app_settings row so we don't need a schema
+ * migration for the feature.
+ *
+ * Multi-user note: KinBot is "individual or small group" with shared
+ * configuration — this list is NOT per-user. A dismissed item stays
+ * dismissed for every admin viewing the dashboard. Reactivation
+ * happens from Settings → General → 'Show setup checklist'.
+ */
+export async function getDismissedSetupItems(): Promise<string[]> {
+  const raw = await getSetting('dismissed_setup_items')
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((s) => typeof s === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+export async function setDismissedSetupItems(items: string[]): Promise<void> {
+  // De-duplicate defensively so a sloppy client can't bloat the row.
+  const unique = [...new Set(items)]
+  if (unique.length === 0) return deleteSetting('dismissed_setup_items')
+  return setSetting('dismissed_setup_items', JSON.stringify(unique))
+}
+
+export async function dismissSetupItem(itemId: string): Promise<void> {
+  const items = await getDismissedSetupItems()
+  if (items.includes(itemId)) return
+  return setDismissedSetupItems([...items, itemId])
+}
+
+export async function restoreSetupItem(itemId: string): Promise<void> {
+  const items = await getDismissedSetupItems()
+  if (!items.includes(itemId)) return
+  return setDismissedSetupItems(items.filter((i) => i !== itemId))
+}
+
 // ─── Default Search Provider ─────────────────────────────────────────────────
 
 /**

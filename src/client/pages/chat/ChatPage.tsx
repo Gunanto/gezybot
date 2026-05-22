@@ -15,7 +15,7 @@ import { CommandPalette } from '@/client/components/common/CommandPalette'
 import { KeyboardShortcutsDialog } from '@/client/components/common/KeyboardShortcutsDialog'
 import { StatusNotifications } from '@/client/components/common/StatusNotifications'
 import { Button } from '@/client/components/ui/button'
-import { GettingStartedChecklist } from '@/client/components/common/GettingStartedChecklist'
+import { SetupChecklist } from '@/client/components/common/SetupChecklist'
 import { useDocumentTitle } from '@/client/hooks/useDocumentTitle'
 import { useUnreadWhileHidden } from '@/client/hooks/useUnreadWhileHidden'
 import { useFaviconBadge } from '@/client/hooks/useFaviconBadge'
@@ -276,10 +276,9 @@ export function ChatPage({ onOpenSettings, onOpenAccount }: ChatPageProps) {
                          flashing the onboarding checklist for a few hundred ms. */
                       null
                     ) : !onboardingComplete ? (
-                      /* ── Onboarding not finished: show checklist ── */
-                      <GettingStartedChecklist
-                        kinCount={kins.length}
-                        hasLlm={llmModels.length > 0}
+                      /* ── Onboarding not finished: show full setup checklist ── */
+                      <SetupChecklist
+                        variant="inline"
                         onCreateKin={handleOpenCreateModal}
                         onOpenSettings={handleOpenSettings}
                       />

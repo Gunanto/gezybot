@@ -1,4 +1,51 @@
 {
+  "setup": {
+    "button": {
+      "aria": "Checklist de configuration",
+      "title": "Checklist de configuration",
+      "tooltipPending_one": "{{count}} étape à configurer",
+      "tooltipPending_other": "{{count}} étapes à configurer",
+      "tooltipAllDone": "Checklist de configuration (tout est fait)"
+    },
+    "severity": {
+      "required": "Requis"
+    },
+    "actions": {
+      "configure": "Configurer",
+      "skip": "Passer",
+      "restore": "Restaurer"
+    },
+    "items": {
+      "add_llm_provider": {
+        "title": "Ajouter un fournisseur LLM",
+        "description": "Nécessaire pour parler avec les Kins. Sans ça, le moteur de chat n'a rien à appeler. Ajoute un fournisseur comme Anthropic, OpenAI, ou n'importe quel plugin (Mistral, etc.)."
+      },
+      "set_default_llm": {
+        "title": "Définir un LLM par défaut",
+        "description": "Utilisé comme modèle par défaut pour les nouveaux Kins et par le Wizard de création (génération IA). Sans ça, il faudra choisir un modèle manuellement à chaque fois."
+      },
+      "add_embedding_provider": {
+        "title": "Ajouter un fournisseur embedding",
+        "description": "Active la recherche sémantique dans la mémoire. Sans ça, la mémoire fonctionne en keyword-only (FTS) — opérationnel mais moins précis pour retrouver des souvenirs liés."
+      },
+      "add_image_provider": {
+        "title": "Ajouter un fournisseur d'image",
+        "description": "Active la génération d'avatars IA pour les Kins et l'outil `generate_image`. Sans ça, les Kins ont des avatars en initiales et ne peuvent pas générer d'images."
+      },
+      "add_search_provider": {
+        "title": "Ajouter un fournisseur de recherche",
+        "description": "Active l'outil `web_search` pour que les Kins puissent récupérer des infos live. Sans ça, web_search retourne une erreur explicite."
+      },
+      "add_voice_provider": {
+        "title": "Ajouter des fournisseurs voix (TTS / STT)",
+        "description": "Active les outils `text_to_speech` et `transcribe_audio`, ainsi que les vocaux sur les channels qui le supportent (ex. WhatsApp vocaux)."
+      },
+      "create_first_kin": {
+        "title": "Créer ton premier Kin",
+        "description": "Les Kins sont les agents IA avec qui tu discutes. Le wizard utilise ton LLM par défaut pour suggérer une personnalité depuis une courte description — ou tu peux tout configurer manuellement."
+      }
+    }
+  },
   "common": {
     "loading": "Chargement...",
     "save": "Enregistrer",

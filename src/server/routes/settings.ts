@@ -32,6 +32,9 @@ import {
   setDefaultTtsProviderId,
   getDefaultSttProviderId,
   setDefaultSttProviderId,
+  getDismissedSetupItems,
+  dismissSetupItem,
+  restoreSetupItem,
 } from '@/server/services/app-settings'
 import { sseManager } from '@/server/sse/index'
 import type { AppVariables } from '@/server/app'
@@ -332,6 +335,50 @@ settingsRoutes.put('/embedding-model', async (c) => {
   await setEmbeddingProviderId(providerId ?? null)
   log.info({ model: model.trim(), providerId }, 'Embedding model updated')
   return c.json({ embeddingModel: model.trim(), embeddingProviderId: providerId ?? null })
+})
+
+// ─── Setup checklist (dismissed items) ──────────────────────────────────────
+//
+// The dashboard checklist tracks which items the user has dismissed
+// ('Skip' button) so the UI doesn't keep nagging about features the
+// instance owner has consciously opted out of. Storage is global
+// app_settings (single shared state across all admins — KinBot is a
+// small-group product, not multi-tenant per-user).
+
+// GET /api/settings/dismissed-setup-items
+settingsRoutes.get('/dismissed-setup-items', async (c) => {
+  const items = await getDismissedSetupItems()
+  return c.json({ items })
+})
+
+// POST /api/settings/dismissed-setup-items/:itemId — dismiss (skip) an item
+settingsRoutes.post('/dismissed-setup-items/:itemId', async (c) => {
+  const itemId = c.req.param('itemId')
+  if (!itemId || typeof itemId !== 'string' || itemId.length > 64) {
+    return c.json(
+      { error: { code: 'INVALID_ITEM_ID', message: 'itemId must be a non-empty string under 64 chars' } },
+      400,
+    )
+  }
+  await dismissSetupItem(itemId)
+  const items = await getDismissedSetupItems()
+  log.info({ itemId }, 'Setup checklist item dismissed')
+  return c.json({ items })
+})
+
+// DELETE /api/settings/dismissed-setup-items/:itemId — un-dismiss (restore) an item
+settingsRoutes.delete('/dismissed-setup-items/:itemId', async (c) => {
+  const itemId = c.req.param('itemId')
+  if (!itemId || typeof itemId !== 'string') {
+    return c.json(
+      { error: { code: 'INVALID_ITEM_ID', message: 'itemId is required' } },
+      400,
+    )
+  }
+  await restoreSetupItem(itemId)
+  const items = await getDismissedSetupItems()
+  log.info({ itemId }, 'Setup checklist item restored')
+  return c.json({ items })
 })
 
 export { settingsRoutes }

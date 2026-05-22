@@ -1,4 +1,51 @@
 {
+  "setup": {
+    "button": {
+      "aria": "Setup checklist",
+      "title": "Setup checklist",
+      "tooltipPending_one": "{{count}} setup item to review",
+      "tooltipPending_other": "{{count}} setup items to review",
+      "tooltipAllDone": "Setup checklist (all done)"
+    },
+    "severity": {
+      "required": "Required"
+    },
+    "actions": {
+      "configure": "Configure",
+      "skip": "Skip",
+      "restore": "Restore"
+    },
+    "items": {
+      "add_llm_provider": {
+        "title": "Add an LLM provider",
+        "description": "Required to chat with Kins. Without it the chat engine has nothing to call. Add a provider like Anthropic, OpenAI, or any plugin (Mistral, etc.)."
+      },
+      "set_default_llm": {
+        "title": "Set a default LLM",
+        "description": "Used as the fallback model for new Kins and for the Kin Wizard's AI-assisted creation. Without it, you'll have to pick a model manually each time."
+      },
+      "add_embedding_provider": {
+        "title": "Add an embedding provider",
+        "description": "Unlocks semantic memory search. Without it, memory falls back to keyword-only (FTS) — still functional but less accurate at finding related memories."
+      },
+      "add_image_provider": {
+        "title": "Add an image provider",
+        "description": "Unlocks AI avatar generation for Kins and the `generate_image` tool. Without it, Kins use initials avatars and can't generate images."
+      },
+      "add_search_provider": {
+        "title": "Add a search provider",
+        "description": "Unlocks the `web_search` tool so Kins can fetch live information. Without it, web_search returns an explicit error message."
+      },
+      "add_voice_provider": {
+        "title": "Add voice providers (TTS / STT)",
+        "description": "Unlocks `text_to_speech` and `transcribe_audio` tools, plus voice messages on channels that support them (e.g. WhatsApp voice notes)."
+      },
+      "create_first_kin": {
+        "title": "Create your first Kin",
+        "description": "Kins are the AI agents you actually talk to. The wizard uses your default LLM to suggest a personality from a short description — or you can configure everything manually."
+      }
+    }
+  },
   "common": {
     "loading": "Loading...",
     "save": "Save",
