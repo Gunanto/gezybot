@@ -371,6 +371,8 @@
       "avatarPromptPlaceholder": "Décrivez l'avatar souhaité...",
       "avatarGenerating": "Génération de l'avatar...",
       "avatarNoImageProvider": "Aucun fournisseur d'image configuré",
+      "noLlm": "Aucun fournisseur LLM configuré",
+      "noLlmHint": "Le sélecteur de modèle ci-dessous restera vide tant qu'aucun fournisseur LLM n'est ajouté. Sans modèle, la sauvegarde est désactivée.",
       "submit": "Créer le Kin",
       "characterHint": "Définissez la personnalité, le ton et le style de communication. Cela influence la façon dont le Kin s'exprime et se comporte.",
       "expertiseHint": "Décrivez ce que le Kin sait et sur quoi il doit se concentrer. Cela guide ses réponses et ses domaines de compétence.",
@@ -506,7 +508,10 @@
       "refineSubmit": "Affiner",
       "refining": "Affinage...",
       "back": "Retour",
-      "generateError": "Échec de la génération. Veuillez réessayer ou créer manuellement."
+      "generateError": "Échec de la génération. Veuillez réessayer ou créer manuellement.",
+      "noLlm": "Assistant indisponible",
+      "noLlmHint": "La configuration assistée par IA nécessite un fournisseur LLM. Ajoutez-en un dans Paramètres → Fournisseurs, ou cliquez sur « Créer manuellement » pour remplir le formulaire vous-même.",
+      "noLlmAction": "Ouvrir Fournisseurs"
     },
     "queue": "{{count}} en file",
     "processing": "En cours...",

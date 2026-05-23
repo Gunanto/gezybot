@@ -371,6 +371,8 @@
       "avatarPromptPlaceholder": "Describe the avatar you want...",
       "avatarGenerating": "Generating avatar...",
       "avatarNoImageProvider": "No image provider configured",
+      "noLlm": "No LLM provider configured",
+      "noLlmHint": "The Model picker below will be empty until an LLM provider is added. Save is disabled without a model.",
       "submit": "Create Kin",
       "characterHint": "Define personality, tone, and communication style. This shapes how the Kin speaks and behaves in conversations.",
       "expertiseHint": "Describe what the Kin knows and what it should focus on. This guides its responses and areas of competence.",
@@ -506,7 +508,10 @@
       "refineSubmit": "Refine",
       "refining": "Refining...",
       "back": "Back",
-      "generateError": "Failed to generate configuration. Please try again or create manually."
+      "generateError": "Failed to generate configuration. Please try again or create manually.",
+      "noLlm": "Wizard unavailable",
+      "noLlmHint": "AI-assisted setup needs an LLM provider. Add one in Settings → Providers, or click 'Create manually' to fill the form yourself.",
+      "noLlmAction": "Open Providers"
     },
     "queue": "{{count}} in queue",
     "processing": "Processing...",
