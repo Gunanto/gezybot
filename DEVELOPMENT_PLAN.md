@@ -5,6 +5,9 @@
 > - Système de plugins (`packages/sdk`, `plugins/`)
 > - Consolidation "one row per provider account + `capabilities[]`" (l'ancien "one row per family" a été supprimé via les migrations 0072/0073)
 > - Image generation multi-input + per-model `params` découverts via `describe_image_model`
+> - **Suppression du Hub Kin** : tous les Kins sont égaux ; les channels se bindent directement sur n'importe quel Kin.
+> - **Onboarding redesign** : `completed = hasAdmin` uniquement. L'onboarding ne demande plus que Identité + Préférences (2 écrans). La configuration des providers, modèles par défaut et premier Kin est gérée post-onboarding via une **setup checklist** capability-aware (7 items, skip persisté globalement). Bannières "missing capability" inline aux points d'usage (ChatPanel, KinToolsTab, MemoryList, AvatarPickerModal, wizard KinFormModal). Voir [`idea.md` section 1](./idea.md) pour le détail.
+> - **Snapshot DB** : `bun run db:snapshot [label]` / `db:snapshot:list` / `db:snapshot:restore <name> --yes` — VACUUM INTO atomique, snapshots sous `data/snapshots/<timestamp>[__label]/`. Pratique pour boucler sur la validation onboarding avec une DB fraîche puis restaurer.
 >
 > Les noms de fichiers, structures de dossiers et certaines interfaces décrits ci-dessous ne reflètent plus la réalité. **Pour l'état actuel**, voir : [`structure.md`](./structure.md), [`packages/sdk/src/index.ts`](./packages/sdk/src/index.ts) (surface publique), [`src/server/llm/llm/registry.ts`](./src/server/llm/llm/registry.ts) (LLM providers), [`src/server/providers/index.ts`](./src/server/providers/index.ts) (dispatcher). Les sections ci-dessous restent utiles pour comprendre les décisions originales et le séquencement des phases ; suivre les checkboxes sans recouper avec le code actuel mènera à l'erreur.
 

@@ -56,7 +56,7 @@ Créé automatiquement par Better Auth.
 
 ### `GET /api/onboarding/status`
 
-Vérifie si l'onboarding a été complété (au moins un user + providers avec llm et embedding).
+Vérifie si l'onboarding initial a été complété. **`completed` est strictement `hasAdmin`** — la redesign onboarding (Phase 1) a découplé `completed` de la configuration des providers. Les champs `hasLlm` / `hasEmbedding` restent renvoyés a titre informatif (utilisés par la setup checklist du dashboard) mais ne gatent plus l'accès a l'app.
 
 ```typescript
 // Response 200
@@ -1121,21 +1121,36 @@ Search providers have no companion "model" — body is provider-only.
 
 The current default is read from `GET /api/settings/default-models` (see `defaultSearchProviderId` in that payload).
 
-### `GET /api/settings/hub`
+### `GET /api/settings/dismissed-setup-items`
+
+Liste des item IDs de la setup checklist que l'utilisateur a explicitement skippés. Stockage **global** (pas per-user) sous `app_settings.dismissed_setup_items` — KinBot est un produit individuel ou petit groupe avec configuration partagée.
 
 ```typescript
 // Response 200
-{ hubKinId: string | null, hubKinName: string | null, hubKinSlug: string | null }
+{ items: string[] }
 ```
 
-### `PUT /api/settings/hub`
+Item IDs reconnus côté UI : `add_llm_provider`, `set_default_llm`, `add_embedding_provider`, `set_default_embedding`, `add_image_provider`, `add_search_provider`, `create_first_kin`.
+
+### `POST /api/settings/dismissed-setup-items/:itemId`
+
+Marque un item comme skippé.
 
 ```typescript
-// Request
-{ kinId: string | null }
-
 // Response 200
-{ hubKinId: string | null }
+{ items: string[] }   // liste mise a jour
+
+// Errors
+// 400 INVALID_ITEM_ID — itemId vide ou > 64 caractères
+```
+
+### `DELETE /api/settings/dismissed-setup-items/:itemId`
+
+Restaure (un-skip) un item — utilisé par "Show setup checklist" dans Settings → General.
+
+```typescript
+// Response 200
+{ items: string[] }
 ```
 
 ---

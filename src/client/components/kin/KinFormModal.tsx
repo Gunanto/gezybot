@@ -29,10 +29,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/client/components/ui/select'
-import { Archive, ArrowLeft, Bot, Brain, Camera, Loader2, Network, Settings, ShieldCheck, Sparkles, Trash2, Upload, User, Wrench } from 'lucide-react'
+import { AlertTriangle, Archive, ArrowLeft, Bot, Brain, Camera, Loader2, Network, Settings, ShieldCheck, Sparkles, Trash2, Upload, User, Wrench } from 'lucide-react'
 import { InfoTip } from '@/client/components/common/InfoTip'
 import { UnsavedChangesDialog } from '@/client/components/common/UnsavedChangesDialog'
 import { useUnsavedChanges } from '@/client/hooks/useUnsavedChanges'
+import { useHasCapability } from '@/client/hooks/useHasCapability'
 import { cn } from '@/client/lib/utils'
 import { api, getErrorMessage } from '@/client/lib/api'
 import { getToolDomainMap } from '@/client/lib/tool-domain-lookup'
@@ -103,6 +104,10 @@ interface KinFormModalProps {
     character: string
     expertise: string
   }) => Promise<string>
+  /** Open the global settings modal at the given section. Passed through
+   *  to AvatarPickerModal so the 'no image provider' notice can offer a
+   *  jump-to-providers CTA. */
+  onOpenSettings?: (section?: string) => void
 }
 
 type TabId = 'general' | 'tools' | 'memory' | 'compaction' | 'thinking'
@@ -164,6 +169,7 @@ export function KinFormModal({
   onDeleteKin,
   onGenerateKinConfig,
   onGenerateAvatarPreviewFromConfig,
+  onOpenSettings,
 }: KinFormModalProps) {
   const { t, i18n } = useTranslation()
 
@@ -456,7 +462,12 @@ export function KinFormModal({
 
   const initials = name.slice(0, 2).toUpperCase()
 
-  // Check if wizard is available (has the generate config callback)
+  // Wizard requires an LLM provider to generate the config server-side.
+  // When none is configured we keep the wizard visible (so the user
+  // sees what they're missing) but disable the Generate button and
+  // surface an inline CTA pointing at Settings → Providers; the form
+  // step is always reachable via 'Skip manual'.
+  const hasLlm = useHasCapability('llm')
   const hasWizard = !!onGenerateKinConfig && !isEdit
 
   return (
@@ -512,6 +523,31 @@ export function KinFormModal({
 
                   <FormErrorAlert error={error} animate />
 
+                  {!hasLlm && (
+                    <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+                      <AlertTriangle className="size-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                          {t('kin.wizard.noLlm')}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {t('kin.wizard.noLlmHint')}
+                        </p>
+                      </div>
+                      {onOpenSettings && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0"
+                          onClick={() => onOpenSettings('providers')}
+                        >
+                          {t('kin.wizard.noLlmAction')}
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
                   <input
                     ref={importFileRef}
                     type="file"
@@ -546,7 +582,7 @@ export function KinFormModal({
                     <Button
                       type="button"
                       onClick={handleGenerate}
-                      disabled={isGenerating || !wizardDescription.trim()}
+                      disabled={isGenerating || !wizardDescription.trim() || !hasLlm}
                       className="btn-shine gradient-primary text-white"
                     >
                       {isGenerating ? (
@@ -615,8 +651,38 @@ export function KinFormModal({
                     <div className="p-6">
                       {activeTab === 'general' && (
                         <div className="space-y-4">
-                          {/* Refine bar — only for AI-generated configs in create mode */}
-                          {wasAiGenerated && !isEdit && (
+                          {/* No-LLM banner — surfaces the constraint up-front
+                              so the empty Model picker below is explained,
+                              and points the user at Settings → Providers. */}
+                          {!isEdit && !hasLlm && (
+                            <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+                              <AlertTriangle className="size-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                                  {t('kin.create.noLlm')}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {t('kin.create.noLlmHint')}
+                                </p>
+                              </div>
+                              {onOpenSettings && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="shrink-0"
+                                  onClick={() => onOpenSettings('providers')}
+                                >
+                                  {t('kin.wizard.noLlmAction')}
+                                </Button>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Refine bar — only for AI-generated configs in create
+                              mode, and only while an LLM provider remains
+                              configured (otherwise the refine call would 422). */}
+                          {wasAiGenerated && !isEdit && hasLlm && (
                             <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
                               <Sparkles className="size-4 shrink-0 text-primary" />
                               <Input
@@ -1062,6 +1128,7 @@ export function KinFormModal({
         imageModels={imageModels}
         onGenerateAvatarPreview={onGenerateAvatarPreview}
         onConfirm={handleAvatarConfirm}
+        onOpenSettings={onOpenSettings}
       />
 
       {/* Unsaved changes confirmation */}

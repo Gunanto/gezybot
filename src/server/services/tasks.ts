@@ -658,6 +658,50 @@ async function executeSubKin(taskId: string, isNudge = false) {
   })
 
   try {
+    // ─── Sub-task worktree setup ──────────────────────────────────────────
+    // For ticket tasks against a project with a ready GitHub clone, give the
+    // sub-Kin its own git worktree so concurrent sub-tasks can edit/commit/
+    // push without trampling each other (see worktree.ts). `effective*` are
+    // the values the rest of executeSubKin uses — they fall through to the
+    // Kin's static workspace when there's no clone (legacy / non-code work).
+    let workspaceOverride: { path: string; env?: Record<string, string> } | undefined
+    let effectiveWorkspacePath: string | null = kinIdentity.workspacePath
+    if (task.ticketId) {
+      const ticketRow = await db
+        .select()
+        .from(tickets)
+        .where(eq(tickets.id, task.ticketId))
+        .get()
+      if (ticketRow?.projectId) {
+        const projectRow = await db
+          .select()
+          .from(projects)
+          .where(eq(projects.id, ticketRow.projectId))
+          .get()
+        if (
+          projectRow?.githubRepo
+          && projectRow.cloneStatus === 'ready'
+          && typeof ticketRow.number === 'number'
+        ) {
+          const { createWorktree } = await import('@/server/services/worktree')
+          const wt = await createWorktree({
+            projectId: projectRow.id,
+            ticketNumber: ticketRow.number,
+            taskId: task.id,
+          })
+          workspaceOverride = {
+            path: wt.path,
+            env: { KINBOT_GH_TOKEN: wt.pat },
+          }
+          effectiveWorkspacePath = wt.path
+          log.info(
+            { taskId, projectId: projectRow.id, wtPath: wt.path, branch: wt.branch, baseBranch: wt.baseBranch },
+            'Sub-task worktree ready',
+          )
+        }
+      }
+    }
+
     // Cron context — prefer the frozen snapshot, fall back to live for legacy
     // tasks. We revive ISO timestamp strings back into Date objects because
     // `buildSystemPrompt`/`buildTaskTodosBlock` expect real Date values.
@@ -731,7 +775,7 @@ async function executeSubKin(taskId: string, isNudge = false) {
       cronLearnings,
       globalPrompt,
       userLanguage: 'en',
-      workspacePath: kinIdentity.workspacePath,
+      workspacePath: effectiveWorkspacePath,
       ticketAssignment: ticketAssignment ?? undefined,
       systemContext: getSystemContext(),
       taskTodos: getTodosForTask(taskId),
@@ -760,7 +804,10 @@ async function executeSubKin(taskId: string, isNudge = false) {
       ? JSON.parse(kinIdentity.toolConfig)
       : null
 
-    // Native tools resolved as the spawned Kin (same as a main Kin)
+    // Native tools resolved as the spawned Kin (same as a main Kin).
+    // `workspaceOverride` (set above for ticket-on-a-cloned-project tasks)
+    // scopes every filesystem + shell tool to the per-task worktree and
+    // injects KINBOT_GH_TOKEN into spawned subprocesses for git auth.
     const nativeTools = toolRegistry.resolve({
       kinId: kinIdentity.id,
       taskId,
@@ -770,6 +817,7 @@ async function executeSubKin(taskId: string, isNudge = false) {
       cronId: task.cronId ?? undefined,
       ticketId: task.ticketId ?? undefined,
       toolConfig: kinToolConfig,
+      workspaceOverride,
     })
 
     // Filter disabled native tools per Kin config (deny-list)
@@ -802,7 +850,9 @@ async function executeSubKin(taskId: string, isNudge = false) {
       delete nativeTools[name]
     }
 
-    // Sub-Kin-specific tools (scoped to parent for communication back)
+    // Sub-Kin-specific tools (scoped to parent for communication back).
+    // Same workspace override applies — these tools are mostly comms-only
+    // but `record_findings` and friends still write into the worktree.
     const subKinTools = toolRegistry.resolve({
       kinId: task.parentKinId,
       taskId,
@@ -811,6 +861,7 @@ async function executeSubKin(taskId: string, isNudge = false) {
       channelOriginId: task.channelOriginId ?? undefined,
       cronId: task.cronId ?? undefined,
       toolConfig: kinToolConfig,
+      workspaceOverride,
     })
 
     // On ticket sub-Kins the parent Kin has nothing actionable to do with
@@ -840,7 +891,7 @@ async function executeSubKin(taskId: string, isNudge = false) {
 
     const tools = wrapToolsWithSpill(
       { ...filteredNative, ...filteredSubKin, ...mcpTools, ...customToolDefs },
-      kinIdentity.workspacePath,
+      effectiveWorkspacePath,
     )
 
     if (preset) {
@@ -1460,14 +1511,38 @@ export async function resolveTask(
   // task resolution.
   if (task.ticketId) {
     try {
+      // Finalize the per-task git worktree (push branch, optional rebase,
+      // cleanup) for ticket sub-tasks that ran against a cloned project.
+      // The outcome enriches the auto-comment with the branch URL + any
+      // "needs manual merge" / "worktree kept for debug" notes.
+      const { finalizeTicketSubTaskWorktree, maybeRemoveFinalizedWorktree } = await import(
+        '@/server/services/worktree-finalize'
+      )
+      let suffix = ''
+      try {
+        const outcome = await finalizeTicketSubTaskWorktree({
+          taskId,
+          ticketId: task.ticketId,
+          status,
+        })
+        suffix = outcome.contentSuffix
+        // Fire-and-forget removal — a slow `git worktree remove` shouldn't
+        // hold up the comment / SSE flow.
+        void maybeRemoveFinalizedWorktree(taskId, task.ticketId, outcome).catch((err) => {
+          log.warn({ taskId, err }, 'Worktree removal after finalize failed')
+        })
+      } catch (err) {
+        log.warn({ taskId, err }, 'Worktree finalize threw — comment posted without git suffix')
+      }
+
       const { createTicketComment } = await import('@/server/services/ticket-comments')
-      const content = status === 'completed'
+      const base = status === 'completed'
         ? (result ?? '_Task completed without a result message._')
         : `**Task failed.**\n\n${error ?? 'Unknown error'}`
       await createTicketComment({
         ticketId: task.ticketId,
         author: { type: 'kin', id: executingKinId },
-        content,
+        content: `${base}${suffix}`,
         metadata: { fromTaskId: taskId, autoGenerated: true },
       })
     } catch (err) {

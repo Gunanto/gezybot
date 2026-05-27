@@ -24,10 +24,17 @@ import {
   countProjectKnowledge,
   PinCapExceededError,
 } from '@/server/services/project-knowledge'
+import {
+  resolvePat,
+  listAccessibleRepos,
+  searchRepos,
+  GitHubError,
+} from '@/server/services/github'
+import { startClone } from '@/server/services/repo-clone'
 import { config } from '@/server/config'
 import type { AppVariables } from '@/server/app'
 import { createLogger } from '@/server/logger'
-import { TICKET_STATUSES } from '@/shared/constants'
+import { TICKET_STATUSES, GITHUB_REPO_REGEX, isValidGitBranch } from '@/shared/constants'
 import type { TicketStatus, KinThinkingConfig, KinThinkingEffort } from '@/shared/types'
 
 const log = createLogger('routes:projects')
@@ -39,6 +46,53 @@ export const projectRoutes = new Hono<{ Variables: AppVariables }>()
 projectRoutes.get('/', async (c) => {
   const projects = await listProjects()
   return c.json({ projects })
+})
+
+// ─── GitHub integration ──────────────────────────────────────────────────────
+// NOTE: declared before `/:id` so Hono's router doesn't grab the static path
+// as a project id (which would return "Project not found" for any search).
+
+/**
+ * Repo picker backend. Given a `pat_vault_key` query, resolves the PAT
+ * via the vault and returns repos the user can see.
+ *
+ *   - empty `q` (or missing): repos the PAT can directly access (own,
+ *     collaborator, org member) sorted by most-recently-updated
+ *   - non-empty `q`: free-form search across all of GitHub
+ *
+ * The PAT itself is never echoed in the response.
+ */
+projectRoutes.get('/list-github-repos', async (c) => {
+  const patVaultKey = c.req.query('pat_vault_key')
+  if (!patVaultKey) {
+    return c.json({ error: { code: 'INVALID_INPUT', message: 'pat_vault_key is required' } }, 400)
+  }
+  const q = c.req.query('q') ?? ''
+  const perPageRaw = Number(c.req.query('per_page') ?? '50')
+  const perPage = Number.isFinite(perPageRaw) ? perPageRaw : 50
+  const pageRaw = Number(c.req.query('page') ?? '1')
+  const page = Number.isFinite(pageRaw) ? pageRaw : 1
+
+  const pat = await resolvePat(patVaultKey)
+  if (!pat) {
+    return c.json({ error: { code: 'VAULT_KEY_NOT_FOUND', message: 'No vault entry matches that key' } }, 404)
+  }
+  try {
+    const repos = q.trim()
+      ? await searchRepos(pat, q, { perPage, page })
+      : await listAccessibleRepos(pat, { perPage, page })
+    return c.json({ repos })
+  } catch (err) {
+    if (err instanceof GitHubError) {
+      const status = err.status === 401 || err.status === 403 || err.status === 404
+        ? err.status
+        : 502
+      return c.json({ error: { code: err.code, message: err.message } }, status)
+    }
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    log.warn({ err }, 'list-github-repos failed')
+    return c.json({ error: { code: 'INTERNAL', message: msg } }, 500)
+  }
 })
 
 projectRoutes.get('/:id', async (c) => {
@@ -58,8 +112,69 @@ projectRoutes.post('/', async (c) => {
   }
   const description = typeof body.description === 'string' ? body.description : undefined
   const githubUrl = typeof body.githubUrl === 'string' ? body.githubUrl : undefined
-  const project = await createProject({ title, description, githubUrl })
-  return c.json({ project }, 201)
+  const githubPatVaultKey = typeof body.githubPatVaultKey === 'string' ? body.githubPatVaultKey : undefined
+  let githubRepo: string | undefined
+  if (typeof body.githubRepo === 'string') {
+    const trimmed = body.githubRepo.trim()
+    if (trimmed && !GITHUB_REPO_REGEX.test(trimmed)) {
+      return c.json({ error: { code: 'INVALID_GITHUB_REPO', message: 'githubRepo must be "owner/name"' } }, 400)
+    }
+    githubRepo = trimmed || undefined
+  }
+  let defaultBranch: string | undefined
+  if (typeof body.defaultBranch === 'string' && body.defaultBranch.trim()) {
+    const trimmed = body.defaultBranch.trim()
+    if (!isValidGitBranch(trimmed)) {
+      return c.json({ error: { code: 'INVALID_GIT_BRANCH', message: 'defaultBranch contains invalid characters' } }, 400)
+    }
+    defaultBranch = trimmed
+  }
+  // model + providerId are coupled; thinkingConfig is independent. Same
+  // shape as the PATCH route below — kept inline rather than extracted
+  // because the validation is simple and pulling it out would obscure
+  // which fields each verb supports.
+  let model: string | null | undefined
+  let providerId: string | null | undefined
+  if (typeof body.model === 'string' && typeof body.providerId === 'string') {
+    model = body.model
+    providerId = body.providerId
+  }
+  let thinkingConfig: KinThinkingConfig | null | undefined
+  if (body.thinkingConfig && typeof body.thinkingConfig === 'object') {
+    const cfg = body.thinkingConfig as Record<string, unknown>
+    const enabled = cfg.enabled === true
+    const effort = typeof cfg.effort === 'string' && (VALID_EFFORTS as readonly string[]).includes(cfg.effort)
+      ? (cfg.effort as KinThinkingEffort)
+      : null
+    thinkingConfig = { enabled, ...(effort !== null ? { effort } : {}) }
+  }
+  try {
+    const project = await createProject({
+      title,
+      description,
+      githubUrl,
+      githubPatVaultKey,
+      githubRepo,
+      defaultBranch,
+      model,
+      providerId,
+      thinkingConfig,
+    })
+    return c.json({ project }, 201)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    if (msg === 'INVALID_GITHUB_REPO') {
+      return c.json({ error: { code: 'INVALID_GITHUB_REPO', message: 'githubRepo must be "owner/name"' } }, 400)
+    }
+    if (msg === 'INVALID_GIT_BRANCH') {
+      return c.json({ error: { code: 'INVALID_GIT_BRANCH', message: 'defaultBranch contains invalid characters' } }, 400)
+    }
+    if (msg === 'MODEL_AND_PROVIDER_MUST_BOTH_BE_SET') {
+      return c.json({ error: { code: 'MODEL_AND_PROVIDER_MUST_BOTH_BE_SET', message: 'model and providerId must be set together' } }, 400)
+    }
+    log.warn({ err }, 'createProject failed')
+    return c.json({ error: { code: 'INTERNAL', message: msg } }, 500)
+  }
 })
 
 const VALID_EFFORTS: readonly KinThinkingEffort[] = ['low', 'medium', 'high', 'max']
@@ -71,6 +186,9 @@ projectRoutes.patch('/:id', async (c) => {
     title?: string
     description?: string
     githubUrl?: string | null
+    githubPatVaultKey?: string | null
+    githubRepo?: string | null
+    defaultBranch?: string
     model?: string | null
     providerId?: string | null
     thinkingConfig?: KinThinkingConfig | null
@@ -79,6 +197,28 @@ projectRoutes.patch('/:id', async (c) => {
   if (typeof body.description === 'string') update.description = body.description
   if (body.githubUrl === null) update.githubUrl = null
   else if (typeof body.githubUrl === 'string') update.githubUrl = body.githubUrl
+  // GitHub integration: PAT vault key and "owner/name" can each be cleared
+  // independently with `null`. Setting `githubRepo` to a new value triggers
+  // a background clone via the service layer.
+  if (body.githubPatVaultKey === null) update.githubPatVaultKey = null
+  else if (typeof body.githubPatVaultKey === 'string') {
+    update.githubPatVaultKey = body.githubPatVaultKey.trim() || null
+  }
+  if (body.githubRepo === null) update.githubRepo = null
+  else if (typeof body.githubRepo === 'string') {
+    const trimmed = body.githubRepo.trim()
+    if (trimmed && !GITHUB_REPO_REGEX.test(trimmed)) {
+      return c.json({ error: { code: 'INVALID_GITHUB_REPO', message: 'githubRepo must be "owner/name"' } }, 400)
+    }
+    update.githubRepo = trimmed || null
+  }
+  if (typeof body.defaultBranch === 'string' && body.defaultBranch.trim()) {
+    const trimmed = body.defaultBranch.trim()
+    if (!isValidGitBranch(trimmed)) {
+      return c.json({ error: { code: 'INVALID_GIT_BRANCH', message: 'defaultBranch contains invalid characters' } }, 400)
+    }
+    update.defaultBranch = trimmed
+  }
   // Model + providerId are tightly coupled: clearing one clears both.
   if (body.model === null || body.providerId === null) {
     update.model = null
@@ -98,11 +238,55 @@ projectRoutes.patch('/:id', async (c) => {
       : null
     update.thinkingConfig = { enabled, ...(effort !== null ? { effort } : {}) }
   }
-  const project = await updateProject(id, update)
-  if (!project) {
+  try {
+    const project = await updateProject(id, update)
+    if (!project) {
+      return c.json({ error: { code: 'PROJECT_NOT_FOUND', message: 'Project not found' } }, 404)
+    }
+    return c.json({ project })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    if (msg === 'INVALID_GITHUB_REPO') {
+      return c.json({ error: { code: 'INVALID_GITHUB_REPO', message: 'githubRepo must be "owner/name"' } }, 400)
+    }
+    if (msg === 'INVALID_GIT_BRANCH') {
+      return c.json({ error: { code: 'INVALID_GIT_BRANCH', message: 'defaultBranch contains invalid characters' } }, 400)
+    }
+    if (msg === 'INVALID_PROJECT_SLUG') {
+      return c.json({ error: { code: 'INVALID_PROJECT_SLUG', message: 'slug must match the project slug regex' } }, 400)
+    }
+    if (msg === 'SLUG_LOCKED') {
+      return c.json({ error: { code: 'SLUG_LOCKED', message: 'Slug cannot be changed once the project has tickets' } }, 409)
+    }
+    if (msg === 'SLUG_TAKEN') {
+      return c.json({ error: { code: 'SLUG_TAKEN', message: 'Another project already uses this slug' } }, 409)
+    }
+    log.warn({ err }, 'updateProject failed')
+    return c.json({ error: { code: 'INTERNAL', message: msg } }, 500)
+  }
+})
+
+/**
+ * Retry a clone that previously errored (or attach idempotently when the
+ * dir is missing). Returns 202 with the latest project so the UI can
+ * reflect the immediate status transition (usually `'error' → 'cloning'`,
+ * or straight to `'error'` again on preflight issues like a missing PAT).
+ */
+projectRoutes.post('/:id/clone-retry', async (c) => {
+  const id = c.req.param('id')
+  const existing = await getProject(id)
+  if (!existing) {
     return c.json({ error: { code: 'PROJECT_NOT_FOUND', message: 'Project not found' } }, 404)
   }
-  return c.json({ project })
+  if (!existing.githubRepo) {
+    return c.json({ error: { code: 'NO_GITHUB_REPO', message: 'Project has no GitHub repo configured' } }, 400)
+  }
+  if (existing.cloneStatus === 'cloning') {
+    return c.json({ error: { code: 'CLONE_IN_PROGRESS', message: 'A clone is already running for this project' } }, 409)
+  }
+  await startClone(id, { force: true })
+  const project = await getProject(id)
+  return c.json({ project }, 202)
 })
 
 projectRoutes.delete('/:id', async (c) => {

@@ -864,6 +864,17 @@ export const projects = sqliteTable('projects', {
   title: text('title').notNull(),
   description: text('description').notNull().default(''),
   githubUrl: text('github_url'),
+  // GitHub integration for sub-task worktree isolation. See idea.md.
+  // `githubRepo` is the authoritative "owner/name" used by the clone +
+  // worktree pipeline; `githubUrl` (above) stays a free-form display link.
+  githubPatVaultKey: text('github_pat_vault_key'),
+  githubRepo: text('github_repo'),
+  defaultBranch: text('default_branch').notNull().default('main'),
+  // 'none' | 'cloning' | 'ready' | 'error'. 'none' means no repo configured
+  // OR repo configured but clone has not been kicked off yet.
+  cloneStatus: text('clone_status').notNull().default('none'),
+  cloneError: text('clone_error'),
+  clonedAt: integer('cloned_at', { mode: 'timestamp_ms' }),
   /** Optional default model for sub-Kin tasks spawned on tickets of this
    *  project. Frozen into `tasks.model` at spawn time when no explicit task
    *  override is provided. Falls back to the parent Kin's own model. */

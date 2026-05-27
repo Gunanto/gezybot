@@ -3,10 +3,10 @@ import { z } from 'zod'
 import { resolve, relative, extname, basename } from 'path'
 import { existsSync, statSync, readdirSync } from 'fs'
 import { readFile, writeFile, mkdir } from 'fs/promises'
-import { config } from '@/server/config'
 import { createLogger } from '@/server/logger'
 import { noteReadFile, formatReadRange, recordReadPath, hasReadPath, recordGuardFire } from '@/server/services/tool-call-tracker'
 import type { ToolRegistration } from '@/server/tools/types'
+import { resolveToolWorkspace } from '@/server/tools/workspace'
 
 const log = createLogger('filesystem-tools')
 
@@ -92,7 +92,7 @@ export const readFileTool: ToolRegistration = {
         limit: z.number().int().min(1).max(MAX_LINES).optional().describe(`Default/max: ${MAX_LINES}`),
       }),
       execute: async ({ path: filePath, offset, limit }) => {
-        const workspace = resolve(config.workspace.baseDir, ctx.kinId)
+        const workspace = resolveToolWorkspace(ctx)
         const absPath = resolveAndValidate(filePath, workspace)
 
         try {
@@ -217,7 +217,7 @@ export const writeFileTool: ToolRegistration = {
         createDirectories: z.boolean().optional().describe('Default: true'),
       }),
       execute: async ({ path: filePath, content, createDirectories }) => {
-        const workspace = resolve(config.workspace.baseDir, ctx.kinId)
+        const workspace = resolveToolWorkspace(ctx)
         const absPath = resolveAndValidate(filePath, workspace)
         const shouldCreateDirs = createDirectories !== false
 
@@ -285,7 +285,7 @@ export const editFileTool: ToolRegistration = {
           .describe('If true, replace ALL occurrences of oldText. Default: false'),
       }),
       execute: async ({ path: filePath, oldText, newText, replaceAll }) => {
-        const workspace = resolve(config.workspace.baseDir, ctx.kinId)
+        const workspace = resolveToolWorkspace(ctx)
         const absPath = resolveAndValidate(filePath, workspace)
 
         if (!hasReadPath(ctx.taskId, filePath)) {
@@ -465,7 +465,7 @@ export const listDirectoryTool: ToolRegistration = {
         pattern: z.string().optional().describe('Glob pattern (e.g. "*.ts")'),
       }),
       execute: async ({ path: dirPath, recursive, maxDepth, pattern }) => {
-        const workspace = resolve(config.workspace.baseDir, ctx.kinId)
+        const workspace = resolveToolWorkspace(ctx)
         const absPath = dirPath ? resolveAndValidate(dirPath, workspace) : workspace
 
         try {

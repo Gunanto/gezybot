@@ -14,6 +14,9 @@ const mockGetExtractionModel = mock(() => Promise.resolve(null as string | null)
 const mockSetExtractionModel = mock(() => Promise.resolve())
 const mockGetEmbeddingModel = mock(() => Promise.resolve(null as string | null))
 const mockSetEmbeddingModel = mock(() => Promise.resolve())
+const mockGetDismissedSetupItems = mock(() => Promise.resolve([] as string[]))
+const mockDismissSetupItem = mock((_id: string) => Promise.resolve())
+const mockRestoreSetupItem = mock((_id: string) => Promise.resolve())
 
 const mockSseBroadcast = mock(() => {})
 
@@ -48,6 +51,9 @@ mock.module('@/server/services/app-settings', () => ({
   setExtractionModel: mockSetExtractionModel,
   getEmbeddingModel: mockGetEmbeddingModel,
   setEmbeddingModel: mockSetEmbeddingModel,
+  getDismissedSetupItems: mockGetDismissedSetupItems,
+  dismissSetupItem: mockDismissSetupItem,
+  restoreSetupItem: mockRestoreSetupItem,
 }))
 
 mock.module('@/server/sse/index', () => ({
@@ -125,6 +131,12 @@ describe('settings routes', () => {
     mockSetExtractionModel.mockImplementation(() => Promise.resolve())
     mockGetEmbeddingModel.mockImplementation(() => Promise.resolve(null))
     mockSetEmbeddingModel.mockImplementation(() => Promise.resolve())
+    mockGetDismissedSetupItems.mockReset()
+    mockDismissSetupItem.mockReset()
+    mockRestoreSetupItem.mockReset()
+    mockGetDismissedSetupItems.mockImplementation(() => Promise.resolve([]))
+    mockDismissSetupItem.mockImplementation(() => Promise.resolve())
+    mockRestoreSetupItem.mockImplementation(() => Promise.resolve())
   })
 
   // ─── Admin Guard ────────────────────────────────────────────────────────
@@ -321,6 +333,80 @@ describe('settings routes', () => {
       const app = createApp()
       const res = await app.request('/api/settings/embedding-model', json({ model: true }))
       expect(res.status).toBe(400)
+    })
+  })
+
+  // ─── Dismissed setup checklist items (Phase 2 onboarding redesign) ──────
+  //
+  // The dashboard checklist (7 items: add LLM, set default LLM, etc.) lets
+  // the user skip items they don't care about. Skip-state is persisted
+  // *globally* under app_settings.dismissed_setup_items — KinBot is a
+  // small-group product with shared configuration, not multi-tenant
+  // per-user, so a dismissal applies to every admin.
+
+  describe('GET /dismissed-setup-items', () => {
+    itMocked('returns the current list', async () => {
+      const app = createApp()
+      mockGetDismissedSetupItems.mockImplementation(() =>
+        Promise.resolve(['add_image_provider', 'set_default_search']),
+      )
+
+      const res = await app.request('/api/settings/dismissed-setup-items')
+      expect(res.status).toBe(200)
+      const body = await res.json()
+      expect(body.items).toEqual(['add_image_provider', 'set_default_search'])
+    })
+
+    itMocked('returns an empty array on a fresh install', async () => {
+      const app = createApp()
+      const res = await app.request('/api/settings/dismissed-setup-items')
+      expect(res.status).toBe(200)
+      const body = await res.json()
+      expect(body.items).toEqual([])
+    })
+  })
+
+  describe('POST /dismissed-setup-items/:itemId', () => {
+    itMocked('dismisses an item and returns the updated list', async () => {
+      const app = createApp()
+      mockGetDismissedSetupItems.mockImplementation(() =>
+        Promise.resolve(['add_image_provider']),
+      )
+
+      const res = await app.request('/api/settings/dismissed-setup-items/add_image_provider', {
+        method: 'POST',
+      })
+      expect(res.status).toBe(200)
+      expect(mockDismissSetupItem).toHaveBeenCalledWith('add_image_provider')
+      const body = await res.json()
+      expect(body.items).toEqual(['add_image_provider'])
+    })
+
+    itMocked('returns 400 when itemId exceeds 64 chars', async () => {
+      const app = createApp()
+      const longId = 'x'.repeat(65)
+      const res = await app.request(`/api/settings/dismissed-setup-items/${longId}`, {
+        method: 'POST',
+      })
+      expect(res.status).toBe(400)
+      const body = await res.json()
+      expect(body.error.code).toBe('INVALID_ITEM_ID')
+      expect(mockDismissSetupItem).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('DELETE /dismissed-setup-items/:itemId', () => {
+    itMocked('restores a dismissed item and returns the updated list', async () => {
+      const app = createApp()
+      mockGetDismissedSetupItems.mockImplementation(() => Promise.resolve([]))
+
+      const res = await app.request('/api/settings/dismissed-setup-items/add_image_provider', {
+        method: 'DELETE',
+      })
+      expect(res.status).toBe(200)
+      expect(mockRestoreSetupItem).toHaveBeenCalledWith('add_image_provider')
+      const body = await res.json()
+      expect(body.items).toEqual([])
     })
   })
 

@@ -1,10 +1,9 @@
 import { tool } from '@/server/tools/tool-helper'
 import { z } from 'zod'
-import { resolve } from 'path'
-import { config } from '@/server/config'
 import { createLogger } from '@/server/logger'
 import { recordGuardFire } from '@/server/services/tool-call-tracker'
 import type { ToolRegistration } from '@/server/tools/types'
+import { resolveToolWorkspace, resolveToolEnv } from '@/server/tools/workspace'
 
 const log = createLogger('shell-tools')
 
@@ -243,7 +242,7 @@ export const runShellTool: ToolRegistration = {
           .describe(`Ms. Default: ${DEFAULT_TIMEOUT}, max: ${MAX_TIMEOUT}`),
       }),
       execute: async ({ command, cwd, timeout }) => {
-        const workspace = resolve(config.workspace.baseDir, ctx.kinId)
+        const workspace = resolveToolWorkspace(ctx)
         const effectiveCwd = cwd ?? workspace
         const effectiveTimeout = timeout ?? DEFAULT_TIMEOUT
         const start = Date.now()
@@ -298,11 +297,14 @@ export const runShellTool: ToolRegistration = {
             cwd: effectiveCwd,
             stdout: 'pipe',
             stderr: 'pipe',
-            env: {
+            // resolveToolEnv layers the per-task env (e.g. KINBOT_GH_TOKEN
+            // for worktree git ops) on top of the default base — the PAT
+            // never appears as a literal here.
+            env: resolveToolEnv(ctx, {
               ...process.env,
               KINBOT_KIN_ID: ctx.kinId,
               KINBOT_WORKSPACE: workspace,
-            },
+            }),
           })
 
           const timeoutPromise = new Promise<never>((_, reject) =>

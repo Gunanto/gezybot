@@ -14,56 +14,46 @@ KinBot est une application web auto-hébergée (a domicile ou sur un VPS), multi
 
 ## 1. Onboarding
 
-La première connexion a l'interface lance un wizard d'onboarding. Ce wizard permet de créer le premier utilisateur (administrateur) et d'effectuer la configuration minimale nécessaire au fonctionnement de la plateforme.
+La première connexion a l'interface lance un onboarding **minimaliste** dont le seul rôle est de créer le premier utilisateur (administrateur). Toute la configuration (providers AI, providers search, modèles par défaut, premier Kin…) est ensuite proposée depuis l'application elle-même, jamais comme un mur d'entrée bloquant.
+
+Principe : `completed = hasAdmin`. Tant qu'aucun administrateur n'existe, on est en onboarding ; dès qu'un profil admin est créé, on a accès a l'application entière.
 
 ### Ecran 1 - Identité de l'utilisateur
 
 Champs requis :
-- Photo / Avatar
+- Photo / Avatar (optionnel)
 - Prénom
 - Nom
 - Email
 - Pseudonyme
-- Langue (Français ou Anglais)
 - Mot de passe (avec confirmation)
 
-### Ecran 2 - Providers
+### Ecran 2 - Préférences
 
-Cet écran permet de configurer au moins un provider. Chaque provider est configuré **une seule fois** (type + API Key), et le système détecte automatiquement les capacités disponibles (voir section 13 — Architecture extensible).
+- Langue (Français ou Anglais)
+- Fuseau horaire (auto-détecté, modifiable)
 
-Providers supportés au lancement :
+A la sortie de l'écran 2, l'utilisateur arrive directement sur le dashboard principal (vue Kins + conversations). Aucun provider n'est requis pour franchir ce cap.
 
-| Provider | Authentification | Capacités |
+### Setup Checklist (post-onboarding, dans l'app)
+
+Sur le dashboard, tant que la configuration n'est pas complète, une **checklist d'amorçage** suit l'utilisateur pour le guider. Elle se présente sous deux formes : un encart inline sur l'écran vide d'une conversation, et un popover compact accessible depuis la navbar.
+
+La checklist contient 7 items, chacun **skippable individuellement** (le skip est persisté globalement dans `app_settings.dismissed_setup_items` — pas per-user, car KinBot est un produit individuel ou petit groupe avec configuration partagée) :
+
+| ID | Description | Impact si absent |
 |---|---|---|
-| **Anthropic** | API Key (Console) | `llm` |
-| **OpenAI** | API Key | `llm`, `embedding`, `image` |
-| **Gemini** | API Key | `llm`, `image` |
-| **Voyage AI** | API Key | `embedding` |
+| `add_llm_provider` | Configurer un provider LLM | Aucun Kin ne peut répondre |
+| `set_default_llm` | Choisir un LLM par défaut | Le wizard de création de Kin tombe en mode manuel |
+| `add_embedding_provider` | Configurer un provider d'embedding | La mémoire bascule en recherche keyword (FTS5) uniquement |
+| `set_default_embedding` | Choisir un modèle d'embedding par défaut | Idem — pas de recherche sémantique |
+| `add_image_provider` | Configurer un provider d'image | Pas de génération automatique d'avatars de Kins |
+| `add_search_provider` | Configurer un provider de recherche web | L'outil `web_search` renverra une erreur a l'appel |
+| `create_first_kin` | Créer son premier Kin | Aucune conversation possible |
 
-**Validation a l'écran 2** :
-- L'écran valide la connectivité avec chaque provider configuré
-- **Condition minimale pour continuer** : les providers configurés doivent couvrir au moins les capacités `llm` et `embedding`, indispensables au fonctionnement de la plateforme (complétion LLM + mémoire long terme)
-- Si un seul provider couvre les deux (ex: OpenAI), un seul suffit. Sinon, l'utilisateur doit en configurer plusieurs (ex: Anthropic pour `llm` + Voyage AI pour `embedding`)
-- La capacité `image` est optionnelle — si aucun provider configuré ne la supporte, les fonctionnalités de génération d'image (avatar auto-généré, etc.) seront indisponibles. L'utilisateur pourra ajouter un provider avec cette capacité plus tard dans les Settings
+Tant que `add_llm_provider` est en attente, la création de Kin via wizard est désactivée (le bouton Generate est gris) mais le mode manuel reste accessible. La même logique s'applique partout dans l'UI : **graceful degradation**, jamais de blocage opaque. Les bannières capability-aware (`useHasCapability('image' | 'search' | 'tts' | 'stt' | 'embedding')`) surfacent la cause exacte au point d'usage avec un CTA vers Settings → Providers.
 
-### Ecran 3 - Search Providers (optionnel)
-
-Cet écran permet de configurer un ou plusieurs **search providers** — des services de recherche web que les Kins pourront utiliser pour accéder a des informations en temps réel. Ce step est **optionnel** : l'utilisateur peut le passer et configurer ses search providers plus tard dans les Settings.
-
-Le fonctionnement est identique aux AI providers : configuration unique (type + API Key), test de connexion, et le système détecte la capacité `search`.
-
-Search providers supportés au lancement :
-
-| Provider | Authentification | Capacités |
-|---|---|---|
-| **Brave Search** | API Key (brave.com/search/api) | `search` |
-
-> **Note** : d'autres search providers pourront être ajoutés ultérieurement (SearXNG, Tavily, etc.) en implémentant la même interface.
-
-**Validation a l'écran 3** :
-- L'écran valide la connectivité avec chaque search provider configuré
-- Aucune condition minimale — le step est optionnel. Un bouton "Passer" permet de continuer sans configurer de search provider
-- Si aucun search provider n'est configuré, les outils de recherche web des Kins ne seront pas disponibles
+Restauration d'items dismissés : Settings → General → "Show setup checklist".
 
 ---
 
@@ -149,7 +139,14 @@ Le Vault est un coffre-fort centralisé permettant de stocker des secrets (clés
 
 ## 3. Création du premier Kin
 
-Une fois l'onboarding terminé, l'utilisateur dispose d'au moins les capacités `llm` et `embedding` couvertes par ses providers. La plateforme affiche automatiquement la modale de création d'un premier Kin, pour guider l'utilisateur vers l'action la plus naturelle après la configuration initiale.
+La création de Kin est portée par le `KinFormModal`, accessible depuis la sidebar ou depuis l'item `create_first_kin` de la setup checklist. Deux modes :
+
+- **Wizard** (par défaut, en mode création) : l'utilisateur décrit en langage naturel le Kin qu'il veut, et le serveur génère une config (`name`, `role`, `character`, `expertise`, modèle suggéré) via un appel LLM one-shot. Le mode Wizard est désactivé tant qu'aucun provider LLM n'est configuré (une bannière ambre l'explique, avec CTA vers Settings → Providers).
+- **Manuel** (toujours disponible) : remplissage direct des champs. Une bannière ambre rappelle l'absence de provider LLM si c'est le cas, et explique que le sélecteur de modèle restera vide tant qu'aucun provider n'est ajouté.
+
+L'avatar du Kin peut être uploadé (toujours dispo) ou généré (auto/prompt) si un provider d'image est configuré. Sinon, l'AvatarPicker affiche une bannière "No image provider configured" avec un CTA "Open Providers".
+
+Aucune création de Kin n'est automatiquement déclenchée après l'onboarding — l'utilisateur arrive sur le dashboard avec la setup checklist et choisit son rythme.
 
 ---
 

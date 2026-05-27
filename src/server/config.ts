@@ -426,6 +426,24 @@ export const config = {
     baseDir: process.env.WORKSPACE_BASE_DIR ?? `${dataDir}/workspaces`,
   },
 
+  repos: {
+    /** Local git clones used by sub-task worktrees, one subdir per project
+     *  slug (`<baseDir>/<slug>/`) and a shared `<baseDir>/worktrees/` tree
+     *  for ephemeral sub-task worktrees. */
+    baseDir: process.env.KINBOT_REPOS_DIR ?? `${dataDir}/repos`,
+    /** Max time we let `git clone` run before aborting (seconds). Default
+     *  10min covers most repos; large monorepos may need to bump this. */
+    cloneTimeoutSec: Number(process.env.KINBOT_CLONE_TIMEOUT_SEC ?? 600),
+    /** How long worktrees from failed/conflicted sub-tasks are kept on
+     *  disk before the cleanup sweep removes them (seconds). Default 1h.
+     *  Sub-tasks that succeed and merge cleanly are removed immediately
+     *  — this TTL only protects "needs human review" cases. */
+    worktreeKeepFailedSec: Number(process.env.KINBOT_WORKTREE_KEEP_FAILED_SEC ?? 3600),
+    /** How often the stale-worktree sweeper runs (minutes). Default 5.
+     *  Lower bound: 1min (anything faster is wasted IO). */
+    worktreeSweepIntervalMin: Number(process.env.KINBOT_WORKTREE_SWEEP_INTERVAL_MIN ?? 5),
+  },
+
   upload: {
     dir: process.env.UPLOAD_DIR ?? `${dataDir}/uploads`,
     maxFileSizeMb: Number(process.env.UPLOAD_MAX_FILE_SIZE ?? 50),

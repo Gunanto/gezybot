@@ -25,6 +25,9 @@ import { Label } from '@/client/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/client/components/ui/select'
 import { TagManager } from '@/client/components/project/TagManager'
 import { ModelPicker, modelPickerValue } from '@/client/components/common/ModelPicker'
+import { VaultPatPicker } from '@/client/components/project/VaultPatPicker'
+import { GithubRepoPicker } from '@/client/components/project/GithubRepoPicker'
+import { CloneStatusBlock } from '@/client/components/project/CloneStatusBadge'
 import { useModels } from '@/client/hooks/useModels'
 import { getErrorMessage } from '@/client/lib/api'
 import { toast } from 'sonner'
@@ -52,7 +55,9 @@ interface EditProjectModalProps {
   onSave: (input: {
     title?: string
     description?: string
-    githubUrl?: string | null
+    githubPatVaultKey?: string | null
+    githubRepo?: string | null
+    defaultBranch?: string
     model?: string | null
     providerId?: string | null
     thinkingConfig?: KinThinkingConfig | null
@@ -65,7 +70,9 @@ export function EditProjectModal({ open, onOpenChange, project, onSave, onDelete
   const { llmModels } = useModels()
   const [title, setTitle] = useState(project.title)
   const [description, setDescription] = useState(project.description)
-  const [githubUrl, setGithubUrl] = useState(project.githubUrl ?? '')
+  const [githubPatVaultKey, setGithubPatVaultKey] = useState<string | null>(project.githubPatVaultKey)
+  const [githubRepo, setGithubRepo] = useState<string | null>(project.githubRepo)
+  const [defaultBranch, setDefaultBranch] = useState(project.defaultBranch ?? 'main')
   const [model, setModel] = useState(project.model ?? '')
   const [providerId, setProviderId] = useState(project.providerId ?? '')
   const [thinkingChoice, setThinkingChoice] = useState<ThinkingChoice>(configToChoice(project.thinkingConfig))
@@ -78,7 +85,9 @@ export function EditProjectModal({ open, onOpenChange, project, onSave, onDelete
     if (open) {
       setTitle(project.title)
       setDescription(project.description)
-      setGithubUrl(project.githubUrl ?? '')
+      setGithubPatVaultKey(project.githubPatVaultKey)
+      setGithubRepo(project.githubRepo)
+      setDefaultBranch(project.defaultBranch ?? 'main')
       setModel(project.model ?? '')
       setProviderId(project.providerId ?? '')
       setThinkingChoice(configToChoice(project.thinkingConfig))
@@ -89,7 +98,9 @@ export function EditProjectModal({ open, onOpenChange, project, onSave, onDelete
   const hasChanges =
     title !== project.title ||
     description !== project.description ||
-    (githubUrl || null) !== project.githubUrl ||
+    githubPatVaultKey !== project.githubPatVaultKey ||
+    githubRepo !== project.githubRepo ||
+    defaultBranch !== (project.defaultBranch ?? 'main') ||
     (model || null) !== project.model ||
     (providerId || null) !== project.providerId ||
     thinkingChoice !== initialThinkingChoice
@@ -105,10 +116,12 @@ export function EditProjectModal({ open, onOpenChange, project, onSave, onDelete
       await onSave({
         title: trimmedTitle !== project.title ? trimmedTitle : undefined,
         description: description !== project.description ? description : undefined,
-        githubUrl:
-          (githubUrl || null) !== project.githubUrl
-            ? (githubUrl.trim() || null)
-            : undefined,
+        githubPatVaultKey:
+          githubPatVaultKey !== project.githubPatVaultKey ? githubPatVaultKey : undefined,
+        githubRepo:
+          githubRepo !== project.githubRepo ? githubRepo : undefined,
+        defaultBranch:
+          defaultBranch !== (project.defaultBranch ?? 'main') ? defaultBranch : undefined,
         model: modelChanged ? (model || null) : undefined,
         providerId: modelChanged ? (providerId || null) : undefined,
         thinkingConfig: thinkingChanged ? choiceToConfig(thinkingChoice) : undefined,
@@ -165,13 +178,56 @@ export function EditProjectModal({ open, onOpenChange, project, onSave, onDelete
               </p>
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-project-github">{t('projects.create.githubField')}</Label>
-              <Input
-                id="edit-project-github"
-                value={githubUrl}
-                onChange={(e) => setGithubUrl(e.target.value)}
-                placeholder="https://github.com/owner/repo"
+            {/* GitHub integration: PAT vault key + repo picker. When a repo
+                is set, the server kicks off a background clone whose status
+                is shown by <CloneStatusBlock> (with Retry on error). */}
+            <div className="space-y-3 border-t border-border pt-4">
+              <div className="space-y-0.5">
+                <Label>{t('projects.github.sectionTitle')}</Label>
+                <p className="text-xs text-muted-foreground">
+                  {t('projects.github.sectionHint')}
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>{t('projects.github.patField')}</Label>
+                <VaultPatPicker
+                  value={githubPatVaultKey}
+                  onValueChange={setGithubPatVaultKey}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>{t('projects.github.repoField')}</Label>
+                <GithubRepoPicker
+                  value={githubRepo}
+                  onValueChange={(repo, branch) => {
+                    setGithubRepo(repo)
+                    if (branch) setDefaultBranch(branch)
+                  }}
+                  patVaultKey={githubPatVaultKey}
+                />
+                {!githubPatVaultKey && (
+                  <p className="text-xs text-muted-foreground">
+                    {t('projects.github.repoNeedsPat')}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-project-default-branch">{t('projects.github.defaultBranchField')}</Label>
+                <Input
+                  id="edit-project-default-branch"
+                  value={defaultBranch}
+                  onChange={(e) => setDefaultBranch(e.target.value)}
+                  placeholder="main"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t('projects.github.defaultBranchHint')}
+                </p>
+              </div>
+              <CloneStatusBlock
+                projectId={project.id}
+                status={project.cloneStatus}
+                errorMessage={project.cloneError}
+                hasRepo={!!project.githubRepo}
               />
             </div>
 

@@ -371,6 +371,8 @@
       "avatarPromptPlaceholder": "Describe the avatar you want...",
       "avatarGenerating": "Generating avatar...",
       "avatarNoImageProvider": "No image provider configured",
+      "noLlm": "No LLM provider configured",
+      "noLlmHint": "The Model picker below will be empty until an LLM provider is added. Save is disabled without a model.",
       "submit": "Create Kin",
       "characterHint": "Define personality, tone, and communication style. This shapes how the Kin speaks and behaves in conversations.",
       "expertiseHint": "Describe what the Kin knows and what it should focus on. This guides its responses and areas of competence.",
@@ -419,7 +421,14 @@
       "connectionFailed": "Connection failed - unable to discover tools from this server.",
       "enableAll": "Enable all",
       "disableAll": "Disable all",
-      "optIn": "Opt-in"
+      "optIn": "Opt-in",
+      "missingCapability": {
+        "image": "Needs an image provider — toggle works but the tool will return an error until one is configured.",
+        "search": "Needs a search provider — toggle works but the tool will return an error until one is configured.",
+        "tts": "Needs a text-to-speech provider — toggle works but the tool will return an error until one is configured.",
+        "stt": "Needs a speech-to-text provider — toggle works but the tool will return an error until one is configured.",
+        "embedding": "Needs an embedding provider — memory recall and storage will fail until one is configured."
+      }
     },
     "defaults": {
       "character": "You are a friendly, thoughtful, and versatile assistant. You communicate clearly and adapt your tone to the context - casual when appropriate, precise when needed.\n\nYou are patient, curious, and genuinely enjoy helping. When you don't know something, you say so honestly. You ask clarifying questions when the request is ambiguous.\n\nYou keep your responses concise unless the user explicitly asks for detail.",
@@ -481,6 +490,7 @@
       "confirm": "Use this avatar",
       "generating": "Generating...",
       "noImageProvider": "No image provider configured. Add one in Settings.",
+      "noImageProviderAction": "Open Providers",
       "createFirst": "Save the Kin first to enable generation.",
       "uploadHint": "Click to select or drag & drop an image (any size)",
       "imageModel": "Image model",
@@ -498,13 +508,17 @@
       "refineSubmit": "Refine",
       "refining": "Refining...",
       "back": "Back",
-      "generateError": "Failed to generate configuration. Please try again or create manually."
+      "generateError": "Failed to generate configuration. Please try again or create manually.",
+      "noLlm": "Wizard unavailable",
+      "noLlmHint": "AI-assisted setup needs an LLM provider. Add one in Settings → Providers, or click 'Create manually' to fill the form yourself.",
+      "noLlmAction": "Open Providers"
     },
     "queue": "{{count}} in queue",
     "processing": "Processing...",
     "modelUnavailable": "Model unavailable",
     "modelUnavailableHint": "This Kin's model is no longer available. Update the model in Kin settings or add the provider back.",
     "modelUnavailableInput": "Cannot send messages - this Kin's model is unavailable",
+    "modelUnavailableAction": "Open Providers",
     "invalidJsonFile": "Invalid JSON file",
     "hub": "Hub",
     "delete": "Delete this Kin",
@@ -1311,6 +1325,8 @@
       "reembedInProgress": "Re-embedding memories...",
       "modelSaved": "Model saved",
       "empty": "No memories yet",
+      "noEmbedding": "Semantic search disabled",
+      "noEmbeddingHint": "Without an embedding provider, memory tools (recall, memorize) fail at call time and search falls back to keyword-only. Configure one in Settings → Models.",
       "add": "Add memory",
       "edit": "Edit memory",
       "content": "Content",
@@ -2520,8 +2536,7 @@
       "titlePlaceholder": "e.g. Backend refactor",
       "descriptionField": "Description",
       "descriptionPlaceholder": "Context, goals, links, constraints — anything useful for a Kin working on this project.",
-      "descriptionHint": "Markdown supported. This description is injected into the system prompt of any Kin that has this project active.",
-      "githubField": "GitHub URL (optional)"
+      "descriptionHint": "Markdown supported. This description is injected into the system prompt of any Kin that has this project active."
     },
     "ticket": {
       "create": {
@@ -2676,6 +2691,39 @@
     "tags": {
       "empty": "No tags yet — add some below.",
       "newLabel": "New tag label"
+    },
+    "github": {
+      "sectionTitle": "GitHub integration",
+      "sectionHint": "Pick a GitHub token and the repo to clone. Sub-task worktrees will be created from this clone so multiple tasks can run in parallel without stepping on each other.",
+      "patField": "GitHub token",
+      "patPlaceholder": "Pick a token from your vault",
+      "patSearchPlaceholder": "Search vault entries…",
+      "patNoneFound": "No credentials in your vault yet. Add one in Settings → Vault (entry type 'credential' or 'text').",
+      "patClear": "No token",
+      "patSectionTitle": "Suggested (GitHub-related)",
+      "patOtherSection": "Other credentials",
+      "repoField": "Repository",
+      "repoPlaceholder": "Pick a repo",
+      "repoSearchPlaceholder": "Search GitHub repos…",
+      "repoNoResults": "No repo matches \"{{query}}\".",
+      "repoNoneAccessible": "No repos accessible with this token. Check the token's scopes.",
+      "repoSearchResults": "Search results",
+      "repoAccessible": "Accessible repositories",
+      "repoNeedsPat": "Pick a token first to enable the repo picker.",
+      "repoReadOnly": "Read-only",
+      "defaultBranchField": "Default branch",
+      "defaultBranchHint": "Branch sub-task worktrees are created from. Defaults to the repo's default branch.",
+      "statusNone": "No clone",
+      "statusCloning": "Cloning",
+      "statusReady": "Ready",
+      "statusError": "Clone failed",
+      "statusBlock": {
+        "none": "No clone configured yet.",
+        "cloning": "Cloning the repo in the background — sub-tasks will be blocked until this finishes.",
+        "ready": "Local clone is ready. Sub-tasks can be spawned on this project.",
+        "error": "Clone failed. Check the message below and click Retry once the issue is fixed."
+      },
+      "retry": "Retry clone"
     }
   }
 }

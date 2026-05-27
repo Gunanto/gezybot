@@ -1248,6 +1248,20 @@ export async function startTicketTask(
   const kin = db.select({ id: kins.id }).from(kins).where(eq(kins.id, parentKinId)).get()
   if (!kin) throw new Error('KIN_NOT_FOUND')
 
+  // Gate: when the ticket's project has a GitHub repo wired up, refuse to
+  // spawn until the per-project clone is ready. Otherwise the sub-task
+  // runner would fail mid-setup trying to fork a worktree off a missing/
+  // broken clone — better to surface a clear error at the tool layer so
+  // the parent Kin can prompt the user to retry the clone from the UI.
+  const project = db
+    .select({ githubRepo: projects.githubRepo, cloneStatus: projects.cloneStatus })
+    .from(projects)
+    .where(eq(projects.id, ticket.projectId))
+    .get()
+  if (project?.githubRepo && project.cloneStatus !== 'ready') {
+    throw new Error('CLONE_NOT_READY')
+  }
+
   const trimmedRunPrompt = options.runPrompt?.trim() ?? ''
   const runPrompt = trimmedRunPrompt.length > 0
     ? trimmedRunPrompt.slice(0, TICKET_TASK_RUN_PROMPT_MAX)
