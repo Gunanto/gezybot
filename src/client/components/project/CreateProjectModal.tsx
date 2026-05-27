@@ -12,13 +12,24 @@ import { Button } from '@/client/components/ui/button'
 import { Input } from '@/client/components/ui/input'
 import { MarkdownEditor } from '@/client/components/ui/markdown-editor'
 import { Label } from '@/client/components/ui/label'
+import { VaultPatPicker } from '@/client/components/project/VaultPatPicker'
+import { GithubRepoPicker } from '@/client/components/project/GithubRepoPicker'
 import { getErrorMessage } from '@/client/lib/api'
 import { toast } from 'sonner'
+
+interface CreateProjectInputSubset {
+  title: string
+  description?: string
+  githubUrl?: string
+  githubPatVaultKey?: string | null
+  githubRepo?: string | null
+  defaultBranch?: string
+}
 
 interface CreateProjectModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCreate: (input: { title: string; description?: string; githubUrl?: string }) => Promise<{ id: string }>
+  onCreate: (input: CreateProjectInputSubset) => Promise<{ id: string }>
   onCreated?: (projectId: string) => void
 }
 
@@ -27,12 +38,18 @@ export function CreateProjectModal({ open, onOpenChange, onCreate, onCreated }: 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [githubUrl, setGithubUrl] = useState('')
+  const [githubPatVaultKey, setGithubPatVaultKey] = useState<string | null>(null)
+  const [githubRepo, setGithubRepo] = useState<string | null>(null)
+  const [defaultBranch, setDefaultBranch] = useState<string>('')
   const [submitting, setSubmitting] = useState(false)
 
   function reset() {
     setTitle('')
     setDescription('')
     setGithubUrl('')
+    setGithubPatVaultKey(null)
+    setGithubRepo(null)
+    setDefaultBranch('')
   }
 
   async function handleSubmit() {
@@ -44,6 +61,10 @@ export function CreateProjectModal({ open, onOpenChange, onCreate, onCreated }: 
         title: trimmed,
         description: description.trim() || undefined,
         githubUrl: githubUrl.trim() || undefined,
+        // Send only when set so we don't overwrite with empty strings.
+        githubPatVaultKey: githubPatVaultKey ?? undefined,
+        githubRepo: githubRepo ?? undefined,
+        defaultBranch: defaultBranch.trim() || undefined,
       })
       onCreated?.(project.id)
       reset()
@@ -92,6 +113,53 @@ export function CreateProjectModal({ open, onOpenChange, onCreate, onCreated }: 
               onChange={(e) => setGithubUrl(e.target.value)}
               placeholder="https://github.com/owner/repo"
             />
+          </div>
+
+          {/* GitHub integration: PAT + repo picker. Optional at create time
+              — leaving them blank yields a project with no sub-task worktree
+              support, which the user can wire up later from the edit modal. */}
+          <div className="space-y-3 border-t border-border pt-4">
+            <div className="space-y-0.5">
+              <Label>{t('projects.github.sectionTitle')}</Label>
+              <p className="text-xs text-muted-foreground">
+                {t('projects.github.sectionHint')}
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="project-pat">{t('projects.github.patField')}</Label>
+              <VaultPatPicker
+                value={githubPatVaultKey}
+                onValueChange={setGithubPatVaultKey}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="project-repo">{t('projects.github.repoField')}</Label>
+              <GithubRepoPicker
+                value={githubRepo}
+                onValueChange={(repo, branch) => {
+                  setGithubRepo(repo)
+                  if (branch) setDefaultBranch(branch)
+                }}
+                patVaultKey={githubPatVaultKey}
+              />
+              {!githubPatVaultKey && (
+                <p className="text-xs text-muted-foreground">
+                  {t('projects.github.repoNeedsPat')}
+                </p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="project-default-branch">{t('projects.github.defaultBranchField')}</Label>
+              <Input
+                id="project-default-branch"
+                value={defaultBranch}
+                onChange={(e) => setDefaultBranch(e.target.value)}
+                placeholder="main"
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('projects.github.defaultBranchHint')}
+              </p>
+            </div>
           </div>
         </div>
         <DialogFooter>

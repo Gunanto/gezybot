@@ -10,6 +10,7 @@ import { ProjectKanban } from '@/client/components/project/ProjectKanban'
 import { CreateProjectModal } from '@/client/components/project/CreateProjectModal'
 import { CreateTicketModal } from '@/client/components/project/CreateTicketModal'
 import { EditProjectModal } from '@/client/components/project/EditProjectModal'
+import { CloneStatusBadge } from '@/client/components/project/CloneStatusBadge'
 import { ActiveKinsIndicator } from '@/client/components/project/ActiveKinsIndicator'
 import { EmptyState } from '@/client/components/common/EmptyState'
 import { cn } from '@/client/lib/utils'
@@ -52,7 +53,7 @@ export function ProjectsPage() {
     }
   }, [routeProjectId, isLoading, projects, navigate])
 
-  async function handleCreateProject(input: { title: string; description?: string; githubUrl?: string }) {
+  async function handleCreateProject(input: Parameters<typeof createProject>[0]) {
     try {
       const project = await createProject(input)
       return project
@@ -120,6 +121,12 @@ export function ProjectsPage() {
                     >
                       {project.slug}
                     </span>
+                  )}
+                  {project.githubRepo && (
+                    <CloneStatusBadge
+                      status={project.cloneStatus}
+                      className="ml-1"
+                    />
                   )}
                 </div>
                 {project.description && (

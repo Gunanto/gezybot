@@ -36,6 +36,16 @@ export interface ToolExecutionContext extends SdkToolExecutionContext {
    *  for every native tool call; native tools read fields like
    *  `allowPrivateNetworkHttpRequests` directly from here. */
   toolConfig?: KinToolConfig | null
+  /** Per-task workspace override. Set by the sub-task runner when the
+   *  ticket's project has a ready clone — every filesystem + shell tool
+   *  scopes its cwd to `path` instead of the Kin's static workspace, and
+   *  `env` is merged into the env of any subprocess the tool spawns
+   *  (used to inject `KINBOT_GH_TOKEN` for git network ops without ever
+   *  writing the PAT to disk). */
+  workspaceOverride?: {
+    path: string
+    env?: Record<string, string>
+  }
 }
 
 /** Factory bound to the server-widened execution context. */

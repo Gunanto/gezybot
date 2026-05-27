@@ -2646,6 +2646,38 @@
     "tags": {
       "empty": "Aucun tag pour le moment — ajoutes-en ci-dessous.",
       "newLabel": "Nouveau label"
+    },
+    "github": {
+      "sectionTitle": "Intégration GitHub",
+      "sectionHint": "Choisis un token GitHub et le repo à cloner. Les worktrees des sub-tasks seront créés depuis ce clone, ce qui permet à plusieurs tâches de tourner en parallèle sans se marcher dessus.",
+      "patField": "Token GitHub",
+      "patPlaceholder": "Choisis un token dans ton vault",
+      "patSearchPlaceholder": "Rechercher dans le vault…",
+      "patNoneFound": "Aucune credential contenant « git » ou « github » dans ton vault. Ajoute-en une via Paramètres → Vault.",
+      "patClear": "Aucun token",
+      "patSectionTitle": "Credentials",
+      "repoField": "Dépôt",
+      "repoPlaceholder": "Choisis un dépôt",
+      "repoSearchPlaceholder": "Rechercher un dépôt GitHub…",
+      "repoNoResults": "Aucun dépôt ne correspond à « {{query}} ».",
+      "repoNoneAccessible": "Aucun dépôt accessible avec ce token. Vérifie les scopes du token.",
+      "repoSearchResults": "Résultats de recherche",
+      "repoAccessible": "Dépôts accessibles",
+      "repoNeedsPat": "Choisis d'abord un token pour activer la sélection du dépôt.",
+      "repoReadOnly": "Lecture seule",
+      "defaultBranchField": "Branche par défaut",
+      "defaultBranchHint": "Branche depuis laquelle les worktrees des sub-tasks seront créés. Par défaut : la branche par défaut du dépôt.",
+      "statusNone": "Pas de clone",
+      "statusCloning": "Clonage",
+      "statusReady": "Prêt",
+      "statusError": "Échec du clone",
+      "statusBlock": {
+        "none": "Aucun clone configuré pour l'instant.",
+        "cloning": "Clonage du dépôt en arrière-plan — les sub-tasks seront bloquées tant que ce n'est pas fini.",
+        "ready": "Le clone local est prêt. Les sub-tasks peuvent être lancées sur ce projet.",
+        "error": "Le clone a échoué. Regarde le message ci-dessous et clique sur Réessayer une fois le problème corrigé."
+      },
+      "retry": "Réessayer le clone"
     }
   }
 }

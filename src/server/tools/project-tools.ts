@@ -543,7 +543,15 @@ export const startTicketTaskTool: ToolRegistration = {
           })
           return result
         } catch (err) {
-          return { error: err instanceof Error ? err.message : 'Unknown error' }
+          const code = err instanceof Error ? err.message : 'Unknown error'
+          if (code === 'CLONE_NOT_READY') {
+            return {
+              error: code,
+              message:
+                'The project has a GitHub repo configured but its local clone is not ready (still cloning, or the last clone errored). Ask the user to check the clone status in the project header and retry it from project settings if needed — then retry start_ticket_task.',
+            }
+          }
+          return { error: code }
         }
       },
     }),

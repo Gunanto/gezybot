@@ -17,6 +17,7 @@ import { recoverPendingWakeups } from '@/server/services/wakeup-scheduler'
 import { Cron } from 'croner'
 import { cleanExpiredFiles } from '@/server/services/file-storage'
 import { startQuickSessionCleanup } from '@/server/services/quick-session-cleanup'
+import { startStaleWorktreeCleanup } from '@/server/services/worktree-cleanup'
 import { playwrightManager } from '@/server/services/playwright-manager'
 import { channelAdapters } from '@/server/channels/index'
 import { TelegramAdapter } from '@/server/channels/telegram'
@@ -93,6 +94,10 @@ recoverPendingWakeups().catch((err) => log.error({ err }, 'Failed to recover pen
 
 // Start quick session cleanup
 startQuickSessionCleanup()
+
+// Start the stale-worktree sweeper (reclaims sub-task worktrees that
+// outlived their TTL — see config.repos.worktreeKeepFailedSec).
+startStaleWorktreeCleanup()
 
 // Ensure all users have a linked contact
 ensureUserContactsExist().catch((err) => log.error({ err }, 'Failed to backfill user contacts'))

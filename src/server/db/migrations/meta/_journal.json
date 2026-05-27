@@ -519,6 +519,13 @@
       "when": 1779724800000,
       "tag": "0073_drop_provider_family",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "6",
+      "when": 1779811200000,
+      "tag": "0074_project_github_integration",
+      "breakpoints": true
     }
   ]
 }

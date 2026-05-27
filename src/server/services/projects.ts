@@ -6,7 +6,12 @@ import { sseManager } from '@/server/sse/index'
 import { config } from '@/server/config'
 import { DEFAULT_PROJECT_TAGS, TICKET_STATUSES, PROJECT_SLUG_REGEX } from '@/shared/constants'
 import { generateSlug, ensureUniqueSlug } from '@/server/utils/slug'
-import type { Project, ProjectSummary, ProjectTag, TicketStatus, KinThinkingConfig } from '@/shared/types'
+import { GITHUB_REPO_REGEX, isValidGitBranch } from '@/shared/constants'
+import { startClone, deleteClone } from '@/server/services/repo-clone'
+import { createLogger } from '@/server/logger'
+import type { Project, ProjectSummary, ProjectTag, TicketStatus, KinThinkingConfig, CloneStatus } from '@/shared/types'
+
+const log = createLogger('projects')
 import type { ActiveProjectPromptInfo } from '@/server/services/prompt-builder'
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
@@ -87,6 +92,8 @@ export async function listProjects(): Promise<ProjectSummary[]> {
       slug: row.slug ?? '',
       title: row.title,
       githubUrl: row.githubUrl,
+      githubRepo: row.githubRepo,
+      cloneStatus: (row.cloneStatus as CloneStatus) ?? 'none',
       ticketCount: t.all,
       openTicketCount: t.open,
       createdAt: toMillis(row.createdAt),
@@ -119,6 +126,12 @@ export async function getProject(projectId: string): Promise<Project | null> {
     title: row.title,
     description: row.description,
     githubUrl: row.githubUrl,
+    githubPatVaultKey: row.githubPatVaultKey,
+    githubRepo: row.githubRepo,
+    defaultBranch: row.defaultBranch,
+    cloneStatus: (row.cloneStatus as CloneStatus) ?? 'none',
+    cloneError: row.cloneError,
+    clonedAt: row.clonedAt ? toMillis(row.clonedAt) : null,
     model: row.model,
     providerId: row.providerId,
     thinkingConfig,
@@ -144,6 +157,14 @@ export interface CreateProjectInput {
   title: string
   description?: string
   githubUrl?: string | null
+  /** Vault key referencing the GitHub PAT to use for clone + push. */
+  githubPatVaultKey?: string | null
+  /** Canonical "owner/name" of the repo to clone for sub-task worktrees.
+   *  Triggers a background clone when set. Must match `GITHUB_REPO_REGEX`. */
+  githubRepo?: string | null
+  /** Override the branch sub-task worktrees are created from. Defaults to
+   *  'main' at the DB layer; sub-ticket 4 will auto-detect from the repo. */
+  defaultBranch?: string
   /** Optional explicit slug. If omitted, slug is auto-generated from title.
    *  Must match `PROJECT_SLUG_REGEX` when provided. */
   slug?: string
@@ -174,6 +195,18 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
   )
   const slug = ensureUniqueSlug(baseSlug, existingSlugs)
 
+  // Validate githubRepo shape early so the API surface returns a 400 instead
+  // of failing later inside the clone orchestrator.
+  if (input.githubRepo != null && !GITHUB_REPO_REGEX.test(input.githubRepo)) {
+    throw new Error('INVALID_GITHUB_REPO')
+  }
+  // defaultBranch is interpolated into `git fetch / rebase / worktree add`
+  // argv at sub-task time — reject anything that could be re-parsed as a
+  // git flag (e.g. `--upload-pack=...`) or escape the ref namespace.
+  if (input.defaultBranch !== undefined && !isValidGitBranch(input.defaultBranch)) {
+    throw new Error('INVALID_GIT_BRANCH')
+  }
+
   db.insert(projects)
     .values({
       id,
@@ -181,6 +214,10 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
       title: input.title,
       description: input.description ?? '',
       githubUrl: input.githubUrl ?? null,
+      githubPatVaultKey: input.githubPatVaultKey ?? null,
+      githubRepo: input.githubRepo ?? null,
+      defaultBranch: input.defaultBranch ?? 'main',
+      cloneStatus: 'none',
       createdAt: now,
       updatedAt: now,
     })
@@ -210,6 +247,15 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
     },
   })
 
+  // Fire-and-forget: clone runs in background, status updates via SSE.
+  // Failures are surfaced through `clone_status='error'`, never thrown
+  // out of createProject (which would block the user's "save" UX).
+  if (project.githubRepo) {
+    startClone(project.id).catch((err) => {
+      log.warn({ projectId: project.id, err: err instanceof Error ? err.message : err }, 'startClone threw on create')
+    })
+  }
+
   return project
 }
 
@@ -217,6 +263,14 @@ export interface UpdateProjectInput {
   title?: string
   description?: string
   githubUrl?: string | null
+  /** Vault key for the GitHub PAT. Pass null to clear. */
+  githubPatVaultKey?: string | null
+  /** Canonical "owner/name". Pass null to detach the repo (deletes the
+   *  local clone, resets status to 'none'). Must match `GITHUB_REPO_REGEX`
+   *  when set. */
+  githubRepo?: string | null
+  /** Override the default branch. */
+  defaultBranch?: string
   /** New slug. Editable only while the project has zero tickets (avoids
    *  breaking any external reference like `kinbot#42`). */
   slug?: string
@@ -241,6 +295,19 @@ export async function updateProject(
   if (input.title !== undefined) update.title = input.title
   if (input.description !== undefined) update.description = input.description
   if (input.githubUrl !== undefined) update.githubUrl = input.githubUrl
+  if (input.githubPatVaultKey !== undefined) update.githubPatVaultKey = input.githubPatVaultKey
+  if (input.githubRepo !== undefined) {
+    if (input.githubRepo !== null && !GITHUB_REPO_REGEX.test(input.githubRepo)) {
+      throw new Error('INVALID_GITHUB_REPO')
+    }
+    update.githubRepo = input.githubRepo
+  }
+  if (input.defaultBranch !== undefined) {
+    if (!isValidGitBranch(input.defaultBranch)) {
+      throw new Error('INVALID_GIT_BRANCH')
+    }
+    update.defaultBranch = input.defaultBranch
+  }
   if (input.model !== undefined) update.model = input.model
   if (input.providerId !== undefined) update.providerId = input.providerId
   if (input.thinkingConfig !== undefined) {
@@ -276,7 +343,35 @@ export async function updateProject(
     }
   }
 
+  // Decide what to do about the local clone BEFORE writing the row so we
+  // capture the previous repo value. Three cases drive it:
+  //   - cleared: githubRepo went from set to null → reset status + rm clone
+  //   - changed: githubRepo went from null/X to Y → re-clone (slug-keyed dir
+  //              is reused; runClone wipes any leftover before cloning)
+  //   - unchanged: nothing to do
+  const repoCleared = input.githubRepo === null && existing.githubRepo != null
+  const repoAttachedOrChanged =
+    input.githubRepo !== undefined &&
+    input.githubRepo !== null &&
+    input.githubRepo !== existing.githubRepo
+
+  if (repoCleared) {
+    update.cloneStatus = 'none'
+    update.cloneError = null
+    update.clonedAt = null
+  }
+
   db.update(projects).set(update).where(eq(projects.id, projectId)).run()
+
+  if (repoCleared && existing.slug) {
+    // Fire-and-forget so a large clone removal doesn't block the response.
+    deleteClone(existing.slug).catch((err) => {
+      log.warn(
+        { projectId, err: err instanceof Error ? err.message : err },
+        'deleteClone failed',
+      )
+    })
+  }
 
   const project = await getProject(projectId)
   if (!project) return null
@@ -285,6 +380,20 @@ export async function updateProject(
     type: 'project:updated',
     data: { project: toProjectSummary(project) },
   })
+
+  if (repoAttachedOrChanged) {
+    // Same fire-and-forget pattern as createProject. SSE will surface the
+    // 'cloning' → 'ready'/'error' transitions.
+    // NOTE: if another clone is in flight for this project (e.g. user spam-
+    // saved), the in-memory guard in repo-clone.ts drops this call silently.
+    // The user can hit Retry once the previous attempt completes.
+    startClone(projectId).catch((err) => {
+      log.warn(
+        { projectId, err: err instanceof Error ? err.message : err },
+        'startClone threw on update',
+      )
+    })
+  }
 
   return project
 }
@@ -476,9 +585,54 @@ function toProjectSummary(p: Project): ProjectSummary {
     slug: p.slug,
     title: p.title,
     githubUrl: p.githubUrl,
+    githubRepo: p.githubRepo,
+    cloneStatus: p.cloneStatus,
     ticketCount: total,
     openTicketCount: open,
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
   }
+}
+
+/**
+ * Patch the clone-lifecycle fields on a project and broadcast a
+ * `project:updated` SSE event so the UI (header badge, list view) reacts.
+ *
+ * Used by `repo-clone.ts` as the project state transitions
+ * `none` → `cloning` → `ready` | `error`. Splitting it out of
+ * `updateProject` keeps the clone orchestrator from having to know about
+ * the broader update surface and avoids any chance of triggering a clone
+ * recursively from inside a clone transition.
+ */
+export async function setCloneStatus(
+  projectId: string,
+  patch: {
+    status: CloneStatus
+    error?: string | null
+    clonedAt?: Date | null
+  },
+): Promise<Project | null> {
+  const existing = db.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId)).get()
+  if (!existing) return null
+
+  const update: Partial<typeof projects.$inferInsert> = {
+    cloneStatus: patch.status,
+    updatedAt: new Date(),
+  }
+  // `error` and `clonedAt` are nullable; only patch when explicitly provided
+  // so a "still cloning" transition doesn't accidentally wipe state.
+  if (patch.error !== undefined) update.cloneError = patch.error
+  if (patch.clonedAt !== undefined) update.clonedAt = patch.clonedAt
+
+  db.update(projects).set(update).where(eq(projects.id, projectId)).run()
+
+  const project = await getProject(projectId)
+  if (!project) return null
+
+  sseManager.broadcast({
+    type: 'project:updated',
+    data: { project: toProjectSummary(project) },
+  })
+
+  return project
 }

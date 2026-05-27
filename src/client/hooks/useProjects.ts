@@ -7,12 +7,18 @@ interface CreateProjectInput {
   title: string
   description?: string
   githubUrl?: string
+  githubPatVaultKey?: string | null
+  githubRepo?: string | null
+  defaultBranch?: string
 }
 
 interface UpdateProjectInput {
   title?: string
   description?: string
   githubUrl?: string | null
+  githubPatVaultKey?: string | null
+  githubRepo?: string | null
+  defaultBranch?: string
   model?: string | null
   providerId?: string | null
   thinkingConfig?: KinThinkingConfig | null

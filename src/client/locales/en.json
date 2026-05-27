@@ -2646,6 +2646,38 @@
     "tags": {
       "empty": "No tags yet — add some below.",
       "newLabel": "New tag label"
+    },
+    "github": {
+      "sectionTitle": "GitHub integration",
+      "sectionHint": "Pick a GitHub token and the repo to clone. Sub-task worktrees will be created from this clone so multiple tasks can run in parallel without stepping on each other.",
+      "patField": "GitHub token",
+      "patPlaceholder": "Pick a token from your vault",
+      "patSearchPlaceholder": "Search vault entries…",
+      "patNoneFound": "No credentials matching \"git\" or \"github\" in your vault. Add one in Settings → Vault.",
+      "patClear": "No token",
+      "patSectionTitle": "Credentials",
+      "repoField": "Repository",
+      "repoPlaceholder": "Pick a repo",
+      "repoSearchPlaceholder": "Search GitHub repos…",
+      "repoNoResults": "No repo matches \"{{query}}\".",
+      "repoNoneAccessible": "No repos accessible with this token. Check the token's scopes.",
+      "repoSearchResults": "Search results",
+      "repoAccessible": "Accessible repositories",
+      "repoNeedsPat": "Pick a token first to enable the repo picker.",
+      "repoReadOnly": "Read-only",
+      "defaultBranchField": "Default branch",
+      "defaultBranchHint": "Branch sub-task worktrees are created from. Defaults to the repo's default branch.",
+      "statusNone": "No clone",
+      "statusCloning": "Cloning",
+      "statusReady": "Ready",
+      "statusError": "Clone failed",
+      "statusBlock": {
+        "none": "No clone configured yet.",
+        "cloning": "Cloning the repo in the background — sub-tasks will be blocked until this finishes.",
+        "ready": "Local clone is ready. Sub-tasks can be spawned on this project.",
+        "error": "Clone failed. Check the message below and click Retry once the issue is fixed."
+      },
+      "retry": "Retry clone"
     }
   }
 }

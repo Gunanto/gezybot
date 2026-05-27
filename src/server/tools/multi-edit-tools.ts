@@ -3,11 +3,11 @@ import { z } from 'zod'
 import { resolve, extname, basename } from 'path'
 import { existsSync } from 'fs'
 import { readFile, writeFile } from 'fs/promises'
-import { config } from '@/server/config'
 import { createLogger } from '@/server/logger'
 import { resolveAndValidate } from '@/server/tools/filesystem-tools'
 import { hasReadPath, recordGuardFire } from '@/server/services/tool-call-tracker'
 import type { ToolRegistration } from '@/server/tools/types'
+import { resolveToolWorkspace } from '@/server/tools/workspace'
 
 const log = createLogger('multi-edit-tools')
 
@@ -52,7 +52,7 @@ export const multiEditTool: ToolRegistration = {
           .describe('Ordered list of edits. Each oldText must match exactly once in the content at that point.'),
       }),
       execute: async ({ path: filePath, edits }) => {
-        const workspace = resolve(config.workspace.baseDir, ctx.kinId)
+        const workspace = resolveToolWorkspace(ctx)
         const absPath = resolveAndValidate(filePath, workspace)
 
         if (!hasReadPath(ctx.taskId, filePath)) {

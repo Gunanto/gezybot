@@ -686,10 +686,35 @@ export interface ProjectSummary {
   slug: string
   title: string
   githubUrl: string | null
+  /** Surfaced in summaries so list views and the project header can show the
+   *  clone state badge without re-fetching the full Project. */
+  githubRepo: string | null
+  cloneStatus: CloneStatus
   ticketCount: number
   openTicketCount: number
   createdAt: number
   updatedAt: number
+}
+
+/** Lifecycle state of the per-project local git clone used by sub-task
+ *  worktrees. `'none'` covers both "no repo configured" and "configured
+ *  but clone not kicked off yet" — disambiguate via `githubRepo`. */
+export type CloneStatus = 'none' | 'cloning' | 'ready' | 'error'
+
+/** Subset of a GitHub repo returned by the repo-picker route. Mirrors the
+ *  server's `GitHubRepoSummary` (kept in sync with `src/server/services/github.ts`). */
+export interface GitHubRepoSummary {
+  /** Canonical "owner/name" — the value we persist on `projects.githubRepo`. */
+  fullName: string
+  owner: string
+  name: string
+  private: boolean
+  defaultBranch: string
+  description: string | null
+  htmlUrl: string
+  /** Whether the PAT can push. `null` on `/search/repositories` results
+   *  (GitHub omits permissions there). */
+  canPush: boolean | null
 }
 
 export interface Project {
@@ -699,6 +724,21 @@ export interface Project {
   title: string
   description: string
   githubUrl: string | null
+  /** Vault key (not value) referencing the PAT used to clone + push for this
+   *  project. The PAT itself is resolved on demand via the vault service and
+   *  is never embedded in `Project` payloads. */
+  githubPatVaultKey: string | null
+  /** Canonical "owner/name" of the GitHub repo backing this project. Drives
+   *  the local clone path (`<repos>/<slug>/`) and the worktree branch base. */
+  githubRepo: string | null
+  /** Branch sub-task worktrees are created from. Defaults to 'main'. */
+  defaultBranch: string
+  cloneStatus: CloneStatus
+  /** Last clone failure message, surfaced in the project header so the user
+   *  can retry. Cleared on a successful clone. */
+  cloneError: string | null
+  /** Unix ms of the last successful clone, or null if never cloned. */
+  clonedAt: number | null
   /** Optional default model for sub-Kin tasks spawned on tickets of this
    *  project. Frozen into the task at spawn time; falls back to the Kin's
    *  own model when null. An explicit model passed at spawn still wins. */

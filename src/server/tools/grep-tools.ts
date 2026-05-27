@@ -2,11 +2,11 @@ import { tool } from '@/server/tools/tool-helper'
 import { z } from 'zod'
 import { resolve, relative } from 'path'
 import { existsSync, statSync } from 'fs'
-import { config } from '@/server/config'
 import { createLogger } from '@/server/logger'
 import { resolveAndValidate } from '@/server/tools/filesystem-tools'
 import { noteCall, grepSignature } from '@/server/services/tool-call-tracker'
 import type { ToolRegistration } from '@/server/tools/types'
+import { resolveToolWorkspace } from '@/server/tools/workspace'
 
 const log = createLogger('grep-tools')
 
@@ -294,7 +294,7 @@ export const grepTool: ToolRegistration = {
         max_results,
         multiline,
       }) => {
-        const workspace = resolve(config.workspace.baseDir, ctx.kinId)
+        const workspace = resolveToolWorkspace(ctx)
         const outputMode: OutputMode = output_mode ?? 'content'
         const maxResults = max_results ?? DEFAULT_MAX_RESULTS
 

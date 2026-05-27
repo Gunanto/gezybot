@@ -226,6 +226,35 @@ export const PROJECT_SLUG_REGEX = /^[a-z][a-z0-9-]{1,31}$/
  *  end-of-string or non-word. Use with the `g` flag when scanning. */
 export const TICKET_MENTION_REGEX = /(?:^|(?<=[^\w-]))(?:([a-z][a-z0-9-]{1,31})#|#)(\d{1,10})(?=$|[^\w-])/g
 
+/** GitHub `owner/name` shape. GitHub itself allows letters, digits, `-`, `_`,
+ *  and `.` in both segments. We validate at the API boundary so we can safely
+ *  interpolate into a clone URL and a filesystem path. Length capped at 100
+ *  per segment to match GitHub's own limit. */
+export const GITHUB_REPO_REGEX = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/
+
+/** Conservative git branch name validator used at the API boundary so the
+ *  `defaultBranch` field can be safely interpolated into `git fetch / rebase
+ *  / worktree add` argv without git arg injection (e.g. `--upload-pack=…`).
+ *  Stricter than git's own rules: must start with `[A-Za-z0-9_]`, then the
+ *  usual ref-name char set, no `..`/`@{` substrings, capped at 128. */
+export const GIT_BRANCH_REGEX = /^[A-Za-z0-9_][A-Za-z0-9._/-]{0,127}$/
+
+/** Returns true if `name` is a safe git branch reference per the V1 policy.
+ *  Wrapper around `GIT_BRANCH_REGEX` plus the substring blacklist git itself
+ *  enforces — kept as a function so callers don't duplicate the post-checks. */
+export function isValidGitBranch(name: string): boolean {
+  if (!GIT_BRANCH_REGEX.test(name)) return false
+  if (name.includes('..')) return false
+  if (name.includes('@{')) return false
+  if (name.endsWith('.') || name.endsWith('/') || name.endsWith('.lock')) return false
+  return true
+}
+
+/** Lifecycle states of the per-project local clone. Kept as a `const` tuple
+ *  so the `CloneStatus` type in `types.ts` and any runtime guard stay in
+ *  sync. */
+export const CLONE_STATUSES = ['none', 'cloning', 'ready', 'error'] as const
+
 /** Tags applied to every newly created project. Editable by user/Kin afterward. */
 export const DEFAULT_PROJECT_TAGS: ReadonlyArray<{ label: string; color: string }> = [
   { label: 'bug', color: '#ef4444' },
