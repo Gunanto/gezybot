@@ -55,7 +55,6 @@ interface EditProjectModalProps {
   onSave: (input: {
     title?: string
     description?: string
-    githubUrl?: string | null
     githubPatVaultKey?: string | null
     githubRepo?: string | null
     defaultBranch?: string
@@ -71,7 +70,6 @@ export function EditProjectModal({ open, onOpenChange, project, onSave, onDelete
   const { llmModels } = useModels()
   const [title, setTitle] = useState(project.title)
   const [description, setDescription] = useState(project.description)
-  const [githubUrl, setGithubUrl] = useState(project.githubUrl ?? '')
   const [githubPatVaultKey, setGithubPatVaultKey] = useState<string | null>(project.githubPatVaultKey)
   const [githubRepo, setGithubRepo] = useState<string | null>(project.githubRepo)
   const [defaultBranch, setDefaultBranch] = useState(project.defaultBranch ?? 'main')
@@ -87,7 +85,6 @@ export function EditProjectModal({ open, onOpenChange, project, onSave, onDelete
     if (open) {
       setTitle(project.title)
       setDescription(project.description)
-      setGithubUrl(project.githubUrl ?? '')
       setGithubPatVaultKey(project.githubPatVaultKey)
       setGithubRepo(project.githubRepo)
       setDefaultBranch(project.defaultBranch ?? 'main')
@@ -101,7 +98,6 @@ export function EditProjectModal({ open, onOpenChange, project, onSave, onDelete
   const hasChanges =
     title !== project.title ||
     description !== project.description ||
-    (githubUrl || null) !== project.githubUrl ||
     githubPatVaultKey !== project.githubPatVaultKey ||
     githubRepo !== project.githubRepo ||
     defaultBranch !== (project.defaultBranch ?? 'main') ||
@@ -120,10 +116,6 @@ export function EditProjectModal({ open, onOpenChange, project, onSave, onDelete
       await onSave({
         title: trimmedTitle !== project.title ? trimmedTitle : undefined,
         description: description !== project.description ? description : undefined,
-        githubUrl:
-          (githubUrl || null) !== project.githubUrl
-            ? (githubUrl.trim() || null)
-            : undefined,
         githubPatVaultKey:
           githubPatVaultKey !== project.githubPatVaultKey ? githubPatVaultKey : undefined,
         githubRepo:
@@ -184,16 +176,6 @@ export function EditProjectModal({ open, onOpenChange, project, onSave, onDelete
               <p className="text-xs text-muted-foreground">
                 {t('projects.create.descriptionHint')}
               </p>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-project-github">{t('projects.create.githubField')}</Label>
-              <Input
-                id="edit-project-github"
-                value={githubUrl}
-                onChange={(e) => setGithubUrl(e.target.value)}
-                placeholder="https://github.com/owner/repo"
-              />
             </div>
 
             {/* GitHub integration: PAT vault key + repo picker. When a repo

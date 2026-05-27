@@ -2490,8 +2490,7 @@
       "titlePlaceholder": "ex. Refonte backend",
       "descriptionField": "Description",
       "descriptionPlaceholder": "Contexte, objectifs, liens, contraintes — tout ce qui sera utile à un Kin travaillant sur ce projet.",
-      "descriptionHint": "Markdown supporté. Cette description est injectée dans le prompt système de tout Kin ayant ce projet actif.",
-      "githubField": "URL GitHub (optionnel)"
+      "descriptionHint": "Markdown supporté. Cette description est injectée dans le prompt système de tout Kin ayant ce projet actif."
     },
     "ticket": {
       "create": {

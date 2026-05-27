@@ -20,7 +20,6 @@ import { toast } from 'sonner'
 interface CreateProjectInputSubset {
   title: string
   description?: string
-  githubUrl?: string
   githubPatVaultKey?: string | null
   githubRepo?: string | null
   defaultBranch?: string
@@ -37,7 +36,6 @@ export function CreateProjectModal({ open, onOpenChange, onCreate, onCreated }: 
   const { t } = useTranslation()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [githubUrl, setGithubUrl] = useState('')
   const [githubPatVaultKey, setGithubPatVaultKey] = useState<string | null>(null)
   const [githubRepo, setGithubRepo] = useState<string | null>(null)
   const [defaultBranch, setDefaultBranch] = useState<string>('')
@@ -46,7 +44,6 @@ export function CreateProjectModal({ open, onOpenChange, onCreate, onCreated }: 
   function reset() {
     setTitle('')
     setDescription('')
-    setGithubUrl('')
     setGithubPatVaultKey(null)
     setGithubRepo(null)
     setDefaultBranch('')
@@ -60,7 +57,6 @@ export function CreateProjectModal({ open, onOpenChange, onCreate, onCreated }: 
       const project = await onCreate({
         title: trimmed,
         description: description.trim() || undefined,
-        githubUrl: githubUrl.trim() || undefined,
         // Send only when set so we don't overwrite with empty strings.
         githubPatVaultKey: githubPatVaultKey ?? undefined,
         githubRepo: githubRepo ?? undefined,
@@ -105,16 +101,6 @@ export function CreateProjectModal({ open, onOpenChange, onCreate, onCreated }: 
               {t('projects.create.descriptionHint')}
             </p>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="project-github">{t('projects.create.githubField')}</Label>
-            <Input
-              id="project-github"
-              value={githubUrl}
-              onChange={(e) => setGithubUrl(e.target.value)}
-              placeholder="https://github.com/owner/repo"
-            />
-          </div>
-
           {/* GitHub integration: PAT + repo picker. Optional at create time
               — leaving them blank yields a project with no sub-task worktree
               support, which the user can wire up later from the edit modal. */}

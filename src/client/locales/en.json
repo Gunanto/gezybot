@@ -2490,8 +2490,7 @@
       "titlePlaceholder": "e.g. Backend refactor",
       "descriptionField": "Description",
       "descriptionPlaceholder": "Context, goals, links, constraints — anything useful for a Kin working on this project.",
-      "descriptionHint": "Markdown supported. This description is injected into the system prompt of any Kin that has this project active.",
-      "githubField": "GitHub URL (optional)"
+      "descriptionHint": "Markdown supported. This description is injected into the system prompt of any Kin that has this project active."
     },
     "ticket": {
       "create": {
