@@ -519,6 +519,13 @@
       "when": 1779724800000,
       "tag": "0073_drop_provider_family",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "6",
+      "when": 1779897600000,
+      "tag": "0075_project_knowledge",
+      "breakpoints": true
     }
   ]
 }

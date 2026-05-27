@@ -2456,6 +2456,52 @@
       "blocked": "Blocked",
       "done": "Done"
     },
+    "view": {
+      "kanban": "Kanban",
+      "knowledge": "Knowledge"
+    },
+    "knowledge": {
+      "add": "Add knowledge",
+      "searchPlaceholder": "Search project knowledge…",
+      "summary": "{{pinned}} pinned · {{total}} total",
+      "searchResults": "{{count}} match — {{total}} total",
+      "pagination": "{{from}}–{{to}} of {{total}}",
+      "pinnedBadge": "Pinned",
+      "byUser": "by you",
+      "byKin": "by {{name}}",
+      "pin": "Pin",
+      "unpin": "Unpin",
+      "edit": "Edit",
+      "delete": "Delete",
+      "confirmDelete": "Delete this knowledge entry? This cannot be undone.",
+      "filter": {
+        "all": "All",
+        "pinned": "Pinned",
+        "unpinned": "Unpinned"
+      },
+      "empty": {
+        "title": "No knowledge yet",
+        "description": "Capture architectural decisions, conventions, and gotchas here. Pinned entries are injected into every Kin's prompt for this project.",
+        "searchTitle": "No matches",
+        "searchDescription": "Try a different query — search uses both semantic similarity and keywords."
+      },
+      "dialog": {
+        "createTitle": "Add project knowledge",
+        "editTitle": "Edit project knowledge",
+        "description": "Visible to every Kin working on this project. Pinned entries are baked into the system prompt (max 10 per project).",
+        "contentLabel": "Content",
+        "contentPlaceholder": "A clear, standalone fact, decision, or convention…",
+        "categoryLabel": "Category (optional)",
+        "categoryPlaceholder": "e.g. arch, decision, gotcha, convention",
+        "pinnedLabel": "Pin to prompt",
+        "pinnedHint": "Pinned entries appear in the system prompt for every Kin acting on this project."
+      },
+      "toast": {
+        "created": "Knowledge entry added.",
+        "updated": "Knowledge entry updated.",
+        "deleted": "Knowledge entry deleted."
+      }
+    },
     "taskStatus": {
       "queued": "Queued",
       "pending": "Pending",

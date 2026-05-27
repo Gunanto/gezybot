@@ -448,6 +448,16 @@ export async function buildContextPreview(kinId: string): Promise<ContextPreview
     userLanguage = firstProfile.language as 'fr' | 'en'
   }
 
+  // Active project block — mirrors kin-engine.processKinQueue so the preview
+  // shows the exact prompt the Kin will receive (including pinned project
+  // knowledge). Without it, the preview misleads users editing knowledge in
+  // the UI because they wouldn't see their pins land in the prompt.
+  let activeProject: import('@/server/services/prompt-builder').ActiveProjectPromptInfo | null = null
+  if (kin.activeProjectId) {
+    const { buildActiveProjectInfo } = await import('@/server/services/projects')
+    activeProject = await buildActiveProjectInfo(kin.activeProjectId)
+  }
+
   // Build system prompt
   const systemPrompt = joinSystemPrompt(buildSystemPrompt({
     kin: { name: kin.name, slug: kin.slug, role: kin.role, character: kin.character, expertise: kin.expertise },
@@ -467,6 +477,7 @@ export async function buildContextPreview(kinId: string): Promise<ContextPreview
       hasCompactedHistory,
     },
     workspacePath: kin.workspacePath,
+    activeProject: activeProject ?? undefined,
   }))
 
   // Resolve tools
@@ -973,6 +984,14 @@ export async function buildQuickSessionContextPreview(kinId: string, sessionId: 
 
   const globalPrompt = await getGlobalPrompt()
 
+  // Mirror kin-engine's quick-session path: include the active project block
+  // (with pinned knowledge) so the preview matches the real prompt.
+  let quickSessionActiveProject: import('@/server/services/prompt-builder').ActiveProjectPromptInfo | null = null
+  if (kin.activeProjectId) {
+    const { buildActiveProjectInfo } = await import('@/server/services/projects')
+    quickSessionActiveProject = await buildActiveProjectInfo(kin.activeProjectId)
+  }
+
   const systemPrompt = joinSystemPrompt(buildSystemPrompt({
     kin: { name: kin.name, slug: kin.slug, role: kin.role, character: kin.character, expertise: kin.expertise },
     contacts: [],
@@ -984,6 +1003,7 @@ export async function buildQuickSessionContextPreview(kinId: string, sessionId: 
     globalPrompt,
     userLanguage,
     workspacePath: kin.workspacePath,
+    activeProject: quickSessionActiveProject ?? undefined,
   }))
 
   // Messages: only this session

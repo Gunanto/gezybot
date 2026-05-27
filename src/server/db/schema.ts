@@ -964,3 +964,31 @@ export const ticketAttachments = sqliteTable('ticket_attachments', {
   index('idx_ticket_attachments_ticket').on(table.ticketId),
   index('idx_ticket_attachments_ticket_created').on(table.ticketId, table.createdAt),
 ])
+
+/**
+ * Durable, curated knowledge entries scoped to a project. Shared across all
+ * Kins acting on the project (main Kin with active_project_id, or sub-Kin of
+ * a ticket-bound task). Distinct from `memories` (kin-scoped, decay-aware)
+ * and `knowledge_chunks` (kin-scoped, ingested docs).
+ *
+ * Pinned entries (max 10/project, enforced at the service layer) are injected
+ * into the system prompt's Active project / Ticket assignment block. The rest
+ * is reachable via the `search_project_knowledge` tool.
+ *
+ * authorKinId is nullable: a NULL value means the entry was created by the
+ * end-user via the REST API / UI rather than by a Kin tool call.
+ */
+export const projectKnowledge = sqliteTable('project_knowledge', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  content: text('content').notNull(),
+  embedding: blob('embedding'), // nullable — FTS5 still works if embedding fails
+  category: text('category'), // free-text (e.g. 'arch', 'decision', 'gotcha', 'convention')
+  pinned: integer('pinned', { mode: 'boolean' }).notNull().default(false),
+  authorKinId: text('author_kin_id').references(() => kins.id, { onDelete: 'set null' }),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+}, (table) => [
+  index('idx_project_knowledge_project').on(table.projectId),
+  index('idx_project_knowledge_project_pinned').on(table.projectId, table.pinned),
+])

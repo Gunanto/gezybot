@@ -1172,6 +1172,28 @@ export async function buildTicketAssignmentInfo(
   const { listRecentCommentsForPrompt } = await import('@/server/services/ticket-comments')
   const comments = await listRecentCommentsForPrompt(ticketId, 50)
 
+  // Capture pinned project knowledge into the snapshot. Frozen for cache
+  // stability — newly pinned entries appear only at the next ticket task spawn
+  // (or via live `search_project_knowledge` calls from inside the sub-Kin).
+  let pinnedKnowledge: TicketAssignmentInfo['pinnedKnowledge'] = []
+  let totalKnowledgeCount = 0
+  try {
+    const { getPinnedKnowledge, countProjectKnowledge } = await import('@/server/services/project-knowledge')
+    const [pinned, total] = await Promise.all([
+      getPinnedKnowledge(project.id),
+      countProjectKnowledge(project.id),
+    ])
+    pinnedKnowledge = pinned.map((p) => ({
+      id: p.id,
+      content: p.content,
+      category: p.category,
+      authorKinName: p.authorKinName,
+    }))
+    totalKnowledgeCount = total
+  } catch {
+    // ignore — best-effort
+  }
+
   return {
     ticketId: ticket.id,
     ticketNumber: ticket.number ?? null,
@@ -1187,6 +1209,8 @@ export async function buildTicketAssignmentInfo(
     taskHistory,
     comments,
     runPrompt: options.runPrompt ?? null,
+    pinnedKnowledge,
+    totalKnowledgeCount,
   }
 }
 

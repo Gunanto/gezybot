@@ -8,6 +8,7 @@ import { DEFAULT_PROJECT_TAGS, TICKET_STATUSES, PROJECT_SLUG_REGEX } from '@/sha
 import { generateSlug, ensureUniqueSlug } from '@/server/utils/slug'
 import type { Project, ProjectSummary, ProjectTag, TicketStatus, KinThinkingConfig } from '@/shared/types'
 import type { ActiveProjectPromptInfo } from '@/server/services/prompt-builder'
+import { getPinnedKnowledge, countProjectKnowledge } from '@/server/services/project-knowledge'
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
@@ -445,6 +446,26 @@ export async function buildActiveProjectInfo(projectId: string): Promise<ActiveP
     }
   }
 
+  // Fetch pinned project knowledge + total count for the prompt block.
+  // Failure here must not break prompt assembly — the project still loads.
+  let pinnedKnowledge: ActiveProjectPromptInfo['pinnedKnowledge'] = []
+  let totalKnowledgeCount = 0
+  try {
+    const [pinned, total] = await Promise.all([
+      getPinnedKnowledge(projectId),
+      countProjectKnowledge(projectId),
+    ])
+    pinnedKnowledge = pinned.map((p) => ({
+      id: p.id,
+      content: p.content,
+      category: p.category,
+      authorKinName: p.authorKinName,
+    }))
+    totalKnowledgeCount = total
+  } catch {
+    // ignore — pinned knowledge is best-effort
+  }
+
   return {
     id: row.id,
     slug: row.slug ?? '',
@@ -461,6 +482,8 @@ export async function buildActiveProjectInfo(projectId: string): Promise<ActiveP
       tagLabels: tagsByTicket.get(t.id) ?? [],
     })),
     totalOpenTickets,
+    pinnedKnowledge,
+    totalKnowledgeCount,
   }
 }
 

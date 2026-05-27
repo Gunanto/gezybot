@@ -154,6 +154,19 @@ export interface ActiveProjectPromptInfo {
   totalOpenTickets: number
   /** True if description was truncated to fit `config.projects.maxDescriptionPromptTokens`. */
   descriptionTruncated: boolean
+  /** Pinned project knowledge entries injected into the prompt. Capped at
+   *  `config.projectKnowledge.pinCap` (default 10). Sorted by updatedAt DESC
+   *  for deterministic, cache-stable rendering. */
+  pinnedKnowledge?: Array<{
+    id: string
+    content: string
+    category: string | null
+    authorKinName: string | null
+  }>
+  /** Total entries in `project_knowledge` for this project (pinned + not).
+   *  Used to render the "N more entries — call search_project_knowledge"
+   *  footer beneath the pinned list. */
+  totalKnowledgeCount?: number
 }
 
 export interface TicketAssignmentInfo {
@@ -199,6 +212,19 @@ export interface TicketAssignmentInfo {
    *  sub-task instructions, so the agent can scope its run to a slice of the
    *  ticket without conflating it with the ticket description itself. */
   runPrompt?: string | null
+  /** Pinned project knowledge captured at spawn time. Frozen into the
+   *  ticketAssignmentSnapshot to keep the sub-Kin prompt cache stable across
+   *  re-entries (request_input replies, sub-sub-task returns). Newly pinned
+   *  entries appear in the live `search_project_knowledge` results but not
+   *  in this list until the sub-Kin completes and the parent picks it up. */
+  pinnedKnowledge?: Array<{
+    id: string
+    content: string
+    category: string | null
+    authorKinName: string | null
+  }>
+  /** Total entries in the project's knowledge store at spawn time. */
+  totalKnowledgeCount?: number
 }
 
 /**
@@ -544,6 +570,54 @@ const LANGUAGE_NAMES: Record<string, string> = {
 
 // ─── Project blocks ──────────────────────────────────────────────────────────
 
+/**
+ * Render the pinned project knowledge sub-section. Shared between the main
+ * Kin's Active project block and the sub-Kin's Ticket assignment block —
+ * pin curation is project-scoped, so both surfaces show the same list.
+ *
+ * Without it (no pins) the sub-section is skipped entirely, except a footer
+ * hint is still emitted when the project has unpinned entries the Kin could
+ * surface via the search tool.
+ */
+function renderPinnedKnowledgeBlock(
+  pinned: ActiveProjectPromptInfo['pinnedKnowledge'],
+  total: number | undefined,
+): string | null {
+  const items = pinned ?? []
+  const totalCount = total ?? items.length
+  if (items.length === 0 && totalCount === 0) return null
+
+  const lines: string[] = []
+  if (items.length > 0) {
+    lines.push(`### Pinned knowledge (${items.length})`)
+    lines.push('')
+    for (const item of items) {
+      const categoryPart = item.category ? `[${item.category}] ` : ''
+      const authorPart = item.authorKinName ? ` (by ${item.authorKinName})` : ''
+      lines.push(`- ${categoryPart}${item.content}${authorPart}`)
+    }
+  } else {
+    lines.push('### Pinned knowledge')
+    lines.push('')
+    lines.push('_No pinned entries — but the project has searchable knowledge below._')
+  }
+
+  const remainder = Math.max(0, totalCount - items.length)
+  if (remainder > 0) {
+    lines.push('')
+    lines.push(
+      `> ${remainder} more knowledge ${remainder === 1 ? 'entry' : 'entries'} available — call \`search_project_knowledge(query)\` to retrieve relevant ones.`,
+    )
+  } else if (items.length > 0) {
+    lines.push('')
+    lines.push(
+      '> All project knowledge is pinned above. Use `add_project_knowledge` to capture new decisions, conventions, or gotchas.',
+    )
+  }
+
+  return lines.join('\n')
+}
+
 function buildActiveProjectBlock(info: ActiveProjectPromptInfo): string {
   const sections: string[] = []
 
@@ -568,6 +642,9 @@ function buildActiveProjectBlock(info: ActiveProjectPromptInfo): string {
     const tagLines = info.tags.map((t) => `- ${t.label} (${t.color})`).join('\n')
     sections.push(`### Tags\n\n${tagLines}`)
   }
+
+  const knowledgeBlock = renderPinnedKnowledgeBlock(info.pinnedKnowledge, info.totalKnowledgeCount)
+  if (knowledgeBlock) sections.push(knowledgeBlock)
 
   if (info.openTickets.length > 0) {
     const ticketLines = info.openTickets
@@ -655,6 +732,9 @@ function buildTicketAssignmentBlock(info: TicketAssignmentInfo): string {
     ? `\n\nDescription:\n${info.projectDescription}`
     : ''
   sections.push(`### Project context\n\n${projectHeader}${projectDesc}`)
+
+  const knowledgeBlock = renderPinnedKnowledgeBlock(info.pinnedKnowledge, info.totalKnowledgeCount)
+  if (knowledgeBlock) sections.push(knowledgeBlock)
 
   const tagsLine = info.ticketTags.length > 0 ? `\nTags: ${info.ticketTags.join(', ')}` : ''
   const descriptionLine = info.ticketDescription.trim().length > 0
@@ -825,6 +905,9 @@ export function buildSystemPrompt(params: PromptParams): BuiltSystemPrompt {
     } else {
       constraintsLines.push(`- Communicate via the ticket. Use update_ticket() to update status/description/tags; use prompt_human() to ask the user a question (the task is suspended with a yellow "awaiting input" badge on the ticket until they answer). For structured choices use prompt_human's confirm/select/multi_select; for free-form answers use prompt_type="text" — or call request_input() which routes through the same human-prompt flow on ticket tasks.`)
       constraintsLines.push(`- Do NOT report intermediate progress to a parent Kin — there is none on ticket tasks. Your audience is the user reading the ticket.`)
+      constraintsLines.push(
+        `- **Mine and feed the project knowledge base.** The pinned entries above (if any) are a snapshot frozen at spawn time — they are only the curated tip. At the start of your task, and whenever you enter an unfamiliar area, call search_project_knowledge(query) to retrieve relevant facts, decisions, conventions, and gotchas before assuming. When you discover something durable that future agents working on this project would need to know — an architectural decision you make, a non-obvious convention you uncover, a gotcha that cost you time — call add_project_knowledge(content, category?) to record it. Pin (pinned=true) only the few items every future agent must see up-front; leave the rest searchable. Knowledge is shared across all Kins and tasks on this project, so curate accordingly — no personal scratchpad, no transient task state.`,
+      )
     }
     constraintsLines.push(`- Be honest about uncertainty. Do not fabricate facts or details — use tools to verify when unsure.`)
     stableBlocks.push(
@@ -1134,6 +1217,20 @@ export function buildSystemPrompt(params: PromptParams): BuiltSystemPrompt {
       `- When you decide to take ownership of a ticket, update its status BEFORE starting work: update_ticket(id, { status: 'in_progress' }). This keeps the kanban honest about what is being worked on.\n` +
       `- After a task you spawned on a ticket completes, you will receive its result as a new turn. Decide explicitly: update_ticket(status: 'done') if the work is finished, 'blocked' if you need user input or external dependency, 'in_progress' if there is more to do (e.g., you will spawn another task), or back to 'todo' if you abandoned the attempt. Never leave the ticket in a stale state after a task returns.\n` +
       `- start_ticket_task always runs in await mode — you will get a turn when it finishes. Do not assume async/fire-and-forget for ticket-linked work.\n\n` +
+      // Project knowledge instructions are scoped to "has an active project":
+      // without one, add_/search_/list_/pin_project_knowledge all return
+      // NO_ACTIVE_PROJECT — instructing the Kin to use them would be misleading.
+      // Cost: a project toggle invalidates the cached stable prefix on the
+      // next turn. Project switches are rare, so this is acceptable.
+      (params.activeProject
+        ? `### Project knowledge (shared, durable facts about "${params.activeProject.title}")\n` +
+          `- The active project has a dedicated knowledge base, distinct from your personal memories. It is **shared across every Kin and every sub-task that works on this project**, now and in the future. Treat it as a collective wiki you are co-authoring with future agents.\n` +
+          `- **Capture knowledge proactively with add_project_knowledge() when you learn something durable** that another agent — yourself in a week, a sub-Kin spawned tomorrow, a different Kin entirely — would otherwise have to rediscover. Good candidates: architectural decisions ("we use Drizzle, not Prisma"), conventions ("commits don't use Co-Authored-By"), gotchas ("Better Auth manages user/session tables — never edit"), domain rules, non-obvious constraints, deliberate trade-offs. Bad candidates: your own current-task scratchpad, transient debugging state, anything that only matters within a single task — those belong in memories or task_todos.\n` +
+          `- **Pin (pinned=true) only the entries every future agent must see up-front** — the small set that would change how you approach the project from the first turn. Pinned entries are injected into the system prompt (see the "Pinned knowledge" sub-section in the Active project block above); the cap is small on purpose. Everything else is reachable via search_project_knowledge.\n` +
+          `- **Search before assuming.** When you start work on an unfamiliar area, when you are about to make a non-trivial decision, or when you suspect a convention exists but is not in your prompt, call search_project_knowledge(query) — the pinned set is intentionally tiny, so most of the project's accumulated knowledge lives behind that search.\n` +
+          `- Knowledge is project-scoped: these tools act on **"${params.activeProject.title}"** as long as it stays your active project. set_active_project() swaps the entire knowledge base.\n` +
+          `- Edit and prune: when a piece of knowledge is superseded, update or delete it. Stale knowledge is worse than no knowledge.\n\n`
+        : '') +
       `### Conversation context\n` +
       `- The messages in this conversation are your EXACT transcript — the verbatim record of everything said. You can read and quote them word for word.\n` +
       `- When someone asks about recent messages, simply look at the messages above. They are not a summary — they are the real messages, exactly as written.\n` +

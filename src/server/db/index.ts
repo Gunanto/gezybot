@@ -187,6 +187,51 @@ export function initVirtualTables() {
     log.warn('sqlite-vec: knowledge_chunks_vec creation failed - vector search disabled for knowledge')
   }
 
+  // FTS5 + triggers + vec for project_knowledge (curated, project-scoped facts)
+  try {
+    sqlite.run(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS project_knowledge_fts USING fts5(
+        content,
+        content_rowid='rowid',
+        tokenize='unicode61'
+      )
+    `)
+
+    sqlite.run(`
+      CREATE TRIGGER IF NOT EXISTS project_knowledge_fts_insert AFTER INSERT ON project_knowledge
+      WHEN new.content IS NOT NULL
+      BEGIN
+        INSERT INTO project_knowledge_fts(rowid, content) VALUES (new.rowid, new.content);
+      END
+    `)
+    sqlite.run(`
+      CREATE TRIGGER IF NOT EXISTS project_knowledge_fts_update AFTER UPDATE OF content ON project_knowledge
+      WHEN new.content IS NOT NULL
+      BEGIN
+        UPDATE project_knowledge_fts SET content = new.content WHERE rowid = old.rowid;
+      END
+    `)
+    sqlite.run(`
+      CREATE TRIGGER IF NOT EXISTS project_knowledge_fts_delete AFTER DELETE ON project_knowledge
+      BEGIN
+        DELETE FROM project_knowledge_fts WHERE rowid = old.rowid;
+      END
+    `)
+  } catch (e) {
+    log.warn('project_knowledge FTS5 setup failed — project knowledge full-text search disabled: %s', e)
+  }
+
+  try {
+    sqlite.run(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS project_knowledge_vec USING vec0(
+        knowledge_id text PRIMARY KEY,
+        embedding float[${config.memory.embeddingDimension}]
+      )
+    `)
+  } catch {
+    log.warn('sqlite-vec: project_knowledge_vec creation failed — vector search disabled for project knowledge')
+  }
+
   // Backfill slugs for existing kins that don't have one
   backfillSlugs()
   // Backfill project slugs + ticket numbers for the project/ticket tables

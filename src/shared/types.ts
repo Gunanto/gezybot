@@ -714,6 +714,32 @@ export interface Project {
   updatedAt: number
 }
 
+/**
+ * A curated piece of durable knowledge attached to a project (architectural
+ * decisions, conventions, gotchas, domain facts). Shared across Kins acting
+ * on the project. Pinned entries are injected into the system prompt; the
+ * rest is searchable via `search_project_knowledge`.
+ */
+export interface ProjectKnowledge {
+  id: string
+  projectId: string
+  content: string
+  /** Optional free-text bucket (e.g. 'arch', 'decision', 'gotcha'). */
+  category: string | null
+  pinned: boolean
+  /** Kin that created the entry, or null when created by the end-user via UI. */
+  authorKinId: string | null
+  /** Resolved Kin name for display (null when authorKinId is null = user). */
+  authorKinName: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+/** A single hit returned by `searchProjectKnowledge`. */
+export interface ProjectKnowledgeSearchHit extends ProjectKnowledge {
+  score: number
+}
+
 export interface RunningKinOnTicket {
   kinId: string
   kinName: string

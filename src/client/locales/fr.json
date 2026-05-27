@@ -2456,6 +2456,52 @@
       "blocked": "Bloqué",
       "done": "Terminé"
     },
+    "view": {
+      "kanban": "Kanban",
+      "knowledge": "Savoir"
+    },
+    "knowledge": {
+      "add": "Ajouter un savoir",
+      "searchPlaceholder": "Rechercher dans le savoir projet…",
+      "summary": "{{pinned}} épinglés · {{total}} au total",
+      "searchResults": "{{count}} résultat(s) — {{total}} au total",
+      "pagination": "{{from}}–{{to}} sur {{total}}",
+      "pinnedBadge": "Épinglé",
+      "byUser": "par vous",
+      "byKin": "par {{name}}",
+      "pin": "Épingler",
+      "unpin": "Désépingler",
+      "edit": "Modifier",
+      "delete": "Supprimer",
+      "confirmDelete": "Supprimer ce savoir ? Action irréversible.",
+      "filter": {
+        "all": "Tous",
+        "pinned": "Épinglés",
+        "unpinned": "Non épinglés"
+      },
+      "empty": {
+        "title": "Aucun savoir pour l'instant",
+        "description": "Capturez ici les décisions d'architecture, conventions et pièges. Les entrées épinglées sont injectées dans le prompt de chaque Kin travaillant sur ce projet.",
+        "searchTitle": "Aucun résultat",
+        "searchDescription": "Essayez une autre requête — la recherche combine similarité sémantique et mots-clés."
+      },
+      "dialog": {
+        "createTitle": "Ajouter un savoir projet",
+        "editTitle": "Modifier le savoir projet",
+        "description": "Visible par chaque Kin travaillant sur ce projet. Les entrées épinglées sont injectées dans le prompt système (max 10 par projet).",
+        "contentLabel": "Contenu",
+        "contentPlaceholder": "Un fait, une décision ou une convention clair et autonome…",
+        "categoryLabel": "Catégorie (optionnel)",
+        "categoryPlaceholder": "ex. arch, décision, piège, convention",
+        "pinnedLabel": "Épingler au prompt",
+        "pinnedHint": "Les entrées épinglées apparaissent dans le prompt système de chaque Kin agissant sur ce projet."
+      },
+      "toast": {
+        "created": "Savoir ajouté.",
+        "updated": "Savoir mis à jour.",
+        "deleted": "Savoir supprimé."
+      }
+    },
     "taskStatus": {
       "queued": "En file",
       "pending": "En attente",

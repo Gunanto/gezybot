@@ -2,19 +2,23 @@ import { useEffect, useState, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { lazyWithRetry as lazy } from '@/client/lib/lazy-with-retry'
-import { Kanban } from 'lucide-react'
+import { Kanban, BookOpen } from 'lucide-react'
 import { useProjects, useProject } from '@/client/hooks/useProjects'
 import { useTickets } from '@/client/hooks/useTickets'
 import { ProjectsSidebar } from '@/client/components/project/ProjectsSidebar'
 import { ProjectKanban } from '@/client/components/project/ProjectKanban'
+import { ProjectKnowledgePanel } from '@/client/pages/projects/ProjectKnowledgePanel'
 import { CreateProjectModal } from '@/client/components/project/CreateProjectModal'
 import { CreateTicketModal } from '@/client/components/project/CreateTicketModal'
 import { EditProjectModal } from '@/client/components/project/EditProjectModal'
 import { ActiveKinsIndicator } from '@/client/components/project/ActiveKinsIndicator'
 import { EmptyState } from '@/client/components/common/EmptyState'
+import { Button } from '@/client/components/ui/button'
 import { cn } from '@/client/lib/utils'
 import { getErrorMessage } from '@/client/lib/api'
 import { toast } from 'sonner'
+
+type ProjectView = 'kanban' | 'knowledge'
 
 // Side panel viewer — same component used in ChatPage, rendered here too so
 // that openTask/openTicket from the kanban actually shows something.
@@ -32,6 +36,7 @@ export function ProjectsPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [createTicketOpen, setCreateTicketOpen] = useState(false)
   const [editProjectOpen, setEditProjectOpen] = useState(false)
+  const [view, setView] = useState<ProjectView>('kanban')
 
   // Auto-select the first project if none is selected and projects are available
   useEffect(() => {
@@ -154,13 +159,41 @@ export function ProjectsPage() {
                   </span>
                 </div>
               </div>
-              <ActiveKinsIndicator projectId={routeProjectId} size="size-7" maxVisible={5} />
+              <div className="flex shrink-0 items-center gap-2">
+                <div className="flex rounded-md border border-border p-0.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={view === 'kanban' ? 'default' : 'ghost'}
+                    onClick={() => setView('kanban')}
+                    className="h-7 px-2"
+                  >
+                    <Kanban className="size-4" />
+                    {t('projects.view.kanban')}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={view === 'knowledge' ? 'default' : 'ghost'}
+                    onClick={() => setView('knowledge')}
+                    className="h-7 px-2"
+                  >
+                    <BookOpen className="size-4" />
+                    {t('projects.view.knowledge')}
+                  </Button>
+                </div>
+                <ActiveKinsIndicator projectId={routeProjectId} size="size-7" maxVisible={5} />
+              </div>
             </header>
             <div className="flex-1 overflow-hidden">
-              <ProjectKanban
-                projectId={routeProjectId}
-                onNewTicket={() => setCreateTicketOpen(true)}
-              />
+              {view === 'kanban' ? (
+                <ProjectKanban
+                  projectId={routeProjectId}
+                  onNewTicket={() => setCreateTicketOpen(true)}
+                />
+              ) : (
+                <ProjectKnowledgePanel projectId={routeProjectId} />
+              )}
             </div>
           </div>
           )

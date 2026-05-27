@@ -342,6 +342,17 @@ export const config = {
     }
   })(),
 
+  projectKnowledge: {
+    /** Max number of entries that can be pinned per project. Pinned entries
+     *  are injected into the system prompt; the rest is searchable via the
+     *  search_project_knowledge tool. Without it, a single project could grow
+     *  an unbounded prompt-injected section. */
+    pinCap: Number(process.env.PROJECT_KNOWLEDGE_PIN_CAP ?? 10),
+    /** Max results returned by search_project_knowledge (used both for the
+     *  Kin tool and the REST endpoint). */
+    maxSearchResults: Number(process.env.PROJECT_KNOWLEDGE_MAX_SEARCH_RESULTS ?? 10),
+  },
+
   queue: {
     userPriority: 100,
     kinPriority: 50,

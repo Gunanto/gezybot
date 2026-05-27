@@ -14,6 +14,17 @@ import {
   listTickets,
   createTicket,
 } from '@/server/services/tickets'
+import {
+  createProjectKnowledge,
+  updateProjectKnowledge,
+  deleteProjectKnowledge,
+  listProjectKnowledge,
+  searchProjectKnowledge,
+  getProjectKnowledge,
+  countProjectKnowledge,
+  PinCapExceededError,
+} from '@/server/services/project-knowledge'
+import { config } from '@/server/config'
 import type { AppVariables } from '@/server/app'
 import { createLogger } from '@/server/logger'
 import { TICKET_STATUSES } from '@/shared/constants'
@@ -180,4 +191,117 @@ projectRoutes.post('/:projectId/tickets', async (c) => {
     log.warn({ err }, 'createTicket failed')
     return c.json({ error: { code: 'INTERNAL', message: msg } }, 500)
   }
+})
+
+// ─── Project knowledge ────────────────────────────────────────────────────────
+//
+// Entries created here have `authorKinId = null`, marking them as user-authored
+// (vs. entries created by Kin tool calls). UI/prompt rendering shows `by user`
+// for these.
+
+projectRoutes.get('/:projectId/knowledge', async (c) => {
+  const projectId = c.req.param('projectId')
+  const project = await getProject(projectId)
+  if (!project) {
+    return c.json({ error: { code: 'PROJECT_NOT_FOUND', message: 'Project not found' } }, 404)
+  }
+
+  const q = c.req.query('q')?.trim()
+  const category = c.req.query('category')?.trim() || undefined
+  const pinnedParam = c.req.query('pinned')
+  const pinned = pinnedParam === 'true' ? true : pinnedParam === 'false' ? false : undefined
+  const limit = Number(c.req.query('limit') ?? 50)
+  const offset = Number(c.req.query('offset') ?? 0)
+  const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 200) : 50
+  const safeOffset = Number.isFinite(offset) ? Math.max(offset, 0) : 0
+
+  if (q) {
+    // Search path: ignore pinned/category/offset (the search ranking governs
+    // what comes back). UI can filter the result client-side if needed.
+    const results = await searchProjectKnowledge(projectId, q, Math.min(safeLimit, config.projectKnowledge.maxSearchResults))
+    const total = await countProjectKnowledge(projectId)
+    return c.json({ entries: results, total, mode: 'search' as const })
+  }
+
+  const entries = await listProjectKnowledge(projectId, { category, pinned, limit: safeLimit, offset: safeOffset })
+  const total = await countProjectKnowledge(projectId)
+  return c.json({ entries, total, mode: 'list' as const })
+})
+
+projectRoutes.post('/:projectId/knowledge', async (c) => {
+  const projectId = c.req.param('projectId')
+  const project = await getProject(projectId)
+  if (!project) {
+    return c.json({ error: { code: 'PROJECT_NOT_FOUND', message: 'Project not found' } }, 404)
+  }
+  const body = await c.req.json().catch(() => ({}))
+  const content = typeof body.content === 'string' ? body.content.trim() : ''
+  if (!content) {
+    return c.json({ error: { code: 'INVALID_INPUT', message: 'content is required' } }, 400)
+  }
+  const category = typeof body.category === 'string' ? body.category.trim() || null : null
+  const pinned = body.pinned === true
+
+  try {
+    const entry = await createProjectKnowledge({ projectId, content, category, pinned, authorKinId: null })
+    return c.json({ entry }, 201)
+  } catch (err) {
+    if (err instanceof PinCapExceededError) {
+      return c.json({ error: { code: 'PIN_CAP_EXCEEDED', message: err.message } }, 409)
+    }
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    log.warn({ err }, 'createProjectKnowledge failed')
+    return c.json({ error: { code: 'INTERNAL', message: msg } }, 500)
+  }
+})
+
+projectRoutes.patch('/:projectId/knowledge/:id', async (c) => {
+  const projectId = c.req.param('projectId')
+  const id = c.req.param('id')
+  const existing = await getProjectKnowledge(id)
+  if (!existing || existing.projectId !== projectId) {
+    return c.json({ error: { code: 'KNOWLEDGE_NOT_FOUND', message: 'Knowledge entry not found' } }, 404)
+  }
+
+  const body = await c.req.json().catch(() => ({}))
+  const updates: { content?: string; category?: string | null; pinned?: boolean } = {}
+  if (typeof body.content === 'string') {
+    const trimmed = body.content.trim()
+    if (!trimmed) {
+      return c.json({ error: { code: 'INVALID_INPUT', message: 'content cannot be empty' } }, 400)
+    }
+    updates.content = trimmed
+  }
+  if (body.category === null) updates.category = null
+  else if (typeof body.category === 'string') updates.category = body.category.trim() || null
+  if (typeof body.pinned === 'boolean') updates.pinned = body.pinned
+
+  try {
+    const entry = await updateProjectKnowledge(id, updates)
+    if (!entry) {
+      return c.json({ error: { code: 'KNOWLEDGE_NOT_FOUND', message: 'Knowledge entry not found' } }, 404)
+    }
+    return c.json({ entry })
+  } catch (err) {
+    if (err instanceof PinCapExceededError) {
+      return c.json({ error: { code: 'PIN_CAP_EXCEEDED', message: err.message } }, 409)
+    }
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    log.warn({ err }, 'updateProjectKnowledge failed')
+    return c.json({ error: { code: 'INTERNAL', message: msg } }, 500)
+  }
+})
+
+projectRoutes.delete('/:projectId/knowledge/:id', async (c) => {
+  const projectId = c.req.param('projectId')
+  const id = c.req.param('id')
+  const existing = await getProjectKnowledge(id)
+  if (!existing || existing.projectId !== projectId) {
+    return c.json({ error: { code: 'KNOWLEDGE_NOT_FOUND', message: 'Knowledge entry not found' } }, 404)
+  }
+  const ok = await deleteProjectKnowledge(id)
+  if (!ok) {
+    return c.json({ error: { code: 'KNOWLEDGE_NOT_FOUND', message: 'Knowledge entry not found' } }, 404)
+  }
+  return c.json({ success: true })
 })
