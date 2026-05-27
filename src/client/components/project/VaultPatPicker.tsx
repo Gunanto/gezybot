@@ -35,10 +35,17 @@ interface VaultPatPickerProps {
   className?: string
 }
 
-function matchesGitHubHeuristic(entry: VaultEntrySummary): boolean {
-  if (entry.entryType !== 'credential') return false
+/** Vault entry types that obviously aren't tokens. We exclude these
+ *  rather than allow-list a small set — that way user-defined custom
+ *  types (`secret`, `api-key`, `pat`, …) are picked up automatically. */
+const NON_TOKEN_TYPES = new Set(['card', 'note', 'identity'])
+
+/** Soft hint: bubble GitHub-themed entries to the top of the list so the
+ *  user finds the right PAT in one glance even with a large vault.
+ *  Does NOT filter — non-matching entries still appear below. */
+function isGitHubFlavored(entry: VaultEntrySummary): boolean {
   const haystack = `${entry.key} ${entry.description ?? ''}`.toLowerCase()
-  return haystack.includes('git')
+  return haystack.includes('git') || haystack.includes('gh_') || haystack.includes('pat')
 }
 
 export function VaultPatPicker({ value, onValueChange, disabled, className }: VaultPatPickerProps) {
@@ -54,19 +61,30 @@ export function VaultPatPicker({ value, onValueChange, disabled, className }: Va
     if (!open || loading) return
     setLoading(true)
     api
-      .get<{ entries: VaultEntrySummary[] }>('/vault/entries?type=credential')
+      .get<{ entries: VaultEntrySummary[] }>('/vault/entries')
       .then((data) => setEntries(data.entries))
       .catch((err) => toast.error(getErrorMessage(err)))
       .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
-  const filtered = useMemo(() => {
-    if (!entries) return []
-    return entries.filter(matchesGitHubHeuristic)
+  // Two tiers: GitHub-flavored entries first (alphabetical inside), then
+  // any other secret-like entries. The Command component still fuzzy-
+  // searches the rendered items via CommandInput.
+  const { suggested, others } = useMemo(() => {
+    if (!entries) return { suggested: [] as VaultEntrySummary[], others: [] as VaultEntrySummary[] }
+    const eligible = entries.filter((e) => !NON_TOKEN_TYPES.has(e.entryType))
+    const byKey = (a: VaultEntrySummary, b: VaultEntrySummary) => a.key.localeCompare(b.key)
+    return {
+      suggested: eligible.filter(isGitHubFlavored).sort(byKey),
+      others: eligible.filter((e) => !isGitHubFlavored(e)).sort(byKey),
+    }
   }, [entries])
 
-  const selected = filtered.find((e) => e.key === value) ?? null
+  const selected =
+    suggested.find((e) => e.key === value)
+    ?? others.find((e) => e.key === value)
+    ?? null
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -129,9 +147,9 @@ export function VaultPatPicker({ value, onValueChange, disabled, className }: Va
                 </span>
               </CommandItem>
             </CommandGroup>
-            {filtered.length > 0 && (
+            {suggested.length > 0 && (
               <CommandGroup heading={t('projects.github.patSectionTitle')}>
-                {filtered.map((entry) => (
+                {suggested.map((entry) => (
                   <CommandItem
                     key={entry.id}
                     value={entry.key}
@@ -140,19 +158,35 @@ export function VaultPatPicker({ value, onValueChange, disabled, className }: Va
                       setOpen(false)
                     }}
                   >
-                    <Check
-                      className={cn(
-                        'size-4 shrink-0',
-                        entry.key === value ? 'opacity-100' : 'opacity-0',
-                      )}
-                    />
+                    <Check className={cn('size-4 shrink-0', entry.key === value ? 'opacity-100' : 'opacity-0')} />
                     <KeyRound className="size-4 shrink-0 opacity-70" />
                     <div className="flex min-w-0 flex-col">
                       <span className="truncate">{entry.key}</span>
                       {entry.description && (
-                        <span className="truncate text-xs text-muted-foreground">
-                          {entry.description}
-                        </span>
+                        <span className="truncate text-xs text-muted-foreground">{entry.description}</span>
+                      )}
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+            {others.length > 0 && (
+              <CommandGroup heading={t('projects.github.patOtherSection')}>
+                {others.map((entry) => (
+                  <CommandItem
+                    key={entry.id}
+                    value={entry.key}
+                    onSelect={() => {
+                      onValueChange(entry.key)
+                      setOpen(false)
+                    }}
+                  >
+                    <Check className={cn('size-4 shrink-0', entry.key === value ? 'opacity-100' : 'opacity-0')} />
+                    <KeyRound className="size-4 shrink-0 opacity-70" />
+                    <div className="flex min-w-0 flex-col">
+                      <span className="truncate">{entry.key}</span>
+                      {entry.description && (
+                        <span className="truncate text-xs text-muted-foreground">{entry.description}</span>
                       )}
                     </div>
                   </CommandItem>
