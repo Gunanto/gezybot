@@ -165,6 +165,12 @@ export interface CreateProjectInput {
   /** Override the branch sub-task worktrees are created from. Defaults to
    *  'main' at the DB layer; sub-ticket 4 will auto-detect from the repo. */
   defaultBranch?: string
+  /** Default model id for sub-Kin tasks of this project. Must be paired
+   *  with `providerId` — clearing one clears both. */
+  model?: string | null
+  providerId?: string | null
+  /** Default thinking config for sub-Kin tasks of this project. */
+  thinkingConfig?: KinThinkingConfig | null
   /** Optional explicit slug. If omitted, slug is auto-generated from title.
    *  Must match `PROJECT_SLUG_REGEX` when provided. */
   slug?: string
@@ -207,6 +213,14 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
     throw new Error('INVALID_GIT_BRANCH')
   }
 
+  // model + providerId are tightly coupled at the DB layer (one being set
+  // without the other means "inherit from Kin"). Refuse the partial case.
+  const modelSet = input.model !== undefined && input.model !== null && input.model !== ''
+  const providerSet = input.providerId !== undefined && input.providerId !== null && input.providerId !== ''
+  if (modelSet !== providerSet) {
+    throw new Error('MODEL_AND_PROVIDER_MUST_BOTH_BE_SET')
+  }
+
   db.insert(projects)
     .values({
       id,
@@ -218,6 +232,9 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
       githubRepo: input.githubRepo ?? null,
       defaultBranch: input.defaultBranch ?? 'main',
       cloneStatus: 'none',
+      model: modelSet ? input.model : null,
+      providerId: providerSet ? input.providerId : null,
+      thinkingConfig: input.thinkingConfig ? JSON.stringify(input.thinkingConfig) : null,
       createdAt: now,
       updatedAt: now,
     })

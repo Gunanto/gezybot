@@ -118,6 +118,25 @@ projectRoutes.post('/', async (c) => {
     }
     defaultBranch = trimmed
   }
+  // model + providerId are coupled; thinkingConfig is independent. Same
+  // shape as the PATCH route below — kept inline rather than extracted
+  // because the validation is simple and pulling it out would obscure
+  // which fields each verb supports.
+  let model: string | null | undefined
+  let providerId: string | null | undefined
+  if (typeof body.model === 'string' && typeof body.providerId === 'string') {
+    model = body.model
+    providerId = body.providerId
+  }
+  let thinkingConfig: KinThinkingConfig | null | undefined
+  if (body.thinkingConfig && typeof body.thinkingConfig === 'object') {
+    const cfg = body.thinkingConfig as Record<string, unknown>
+    const enabled = cfg.enabled === true
+    const effort = typeof cfg.effort === 'string' && (VALID_EFFORTS as readonly string[]).includes(cfg.effort)
+      ? (cfg.effort as KinThinkingEffort)
+      : null
+    thinkingConfig = { enabled, ...(effort !== null ? { effort } : {}) }
+  }
   try {
     const project = await createProject({
       title,
@@ -126,6 +145,9 @@ projectRoutes.post('/', async (c) => {
       githubPatVaultKey,
       githubRepo,
       defaultBranch,
+      model,
+      providerId,
+      thinkingConfig,
     })
     return c.json({ project }, 201)
   } catch (err) {
@@ -135,6 +157,9 @@ projectRoutes.post('/', async (c) => {
     }
     if (msg === 'INVALID_GIT_BRANCH') {
       return c.json({ error: { code: 'INVALID_GIT_BRANCH', message: 'defaultBranch contains invalid characters' } }, 400)
+    }
+    if (msg === 'MODEL_AND_PROVIDER_MUST_BOTH_BE_SET') {
+      return c.json({ error: { code: 'MODEL_AND_PROVIDER_MUST_BOTH_BE_SET', message: 'model and providerId must be set together' } }, 400)
     }
     log.warn({ err }, 'createProject failed')
     return c.json({ error: { code: 'INTERNAL', message: msg } }, 500)

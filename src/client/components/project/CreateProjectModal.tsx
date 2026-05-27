@@ -12,10 +12,22 @@ import { Button } from '@/client/components/ui/button'
 import { Input } from '@/client/components/ui/input'
 import { MarkdownEditor } from '@/client/components/ui/markdown-editor'
 import { Label } from '@/client/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/client/components/ui/select'
+import { ModelPicker, modelPickerValue } from '@/client/components/common/ModelPicker'
+import { useModels } from '@/client/hooks/useModels'
 import { VaultPatPicker } from '@/client/components/project/VaultPatPicker'
 import { GithubRepoPicker } from '@/client/components/project/GithubRepoPicker'
 import { getErrorMessage } from '@/client/lib/api'
 import { toast } from 'sonner'
+import type { KinThinkingConfig, KinThinkingEffort } from '@/shared/types'
+
+type ThinkingChoice = 'inherit' | 'off' | KinThinkingEffort
+
+function choiceToConfig(choice: ThinkingChoice): KinThinkingConfig | null {
+  if (choice === 'inherit') return null
+  if (choice === 'off') return { enabled: false }
+  return { enabled: true, effort: choice }
+}
 
 interface CreateProjectInputSubset {
   title: string
@@ -23,6 +35,9 @@ interface CreateProjectInputSubset {
   githubPatVaultKey?: string | null
   githubRepo?: string | null
   defaultBranch?: string
+  model?: string | null
+  providerId?: string | null
+  thinkingConfig?: KinThinkingConfig | null
 }
 
 interface CreateProjectModalProps {
@@ -34,11 +49,15 @@ interface CreateProjectModalProps {
 
 export function CreateProjectModal({ open, onOpenChange, onCreate, onCreated }: CreateProjectModalProps) {
   const { t } = useTranslation()
+  const { llmModels } = useModels()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [githubPatVaultKey, setGithubPatVaultKey] = useState<string | null>(null)
   const [githubRepo, setGithubRepo] = useState<string | null>(null)
   const [defaultBranch, setDefaultBranch] = useState<string>('')
+  const [model, setModel] = useState('')
+  const [providerId, setProviderId] = useState('')
+  const [thinkingChoice, setThinkingChoice] = useState<ThinkingChoice>('inherit')
   const [submitting, setSubmitting] = useState(false)
 
   function reset() {
@@ -47,6 +66,9 @@ export function CreateProjectModal({ open, onOpenChange, onCreate, onCreated }: 
     setGithubPatVaultKey(null)
     setGithubRepo(null)
     setDefaultBranch('')
+    setModel('')
+    setProviderId('')
+    setThinkingChoice('inherit')
   }
 
   async function handleSubmit() {
@@ -54,6 +76,9 @@ export function CreateProjectModal({ open, onOpenChange, onCreate, onCreated }: 
     if (!trimmed) return
     setSubmitting(true)
     try {
+      // model/providerId are coupled — only send when both are set so the
+      // server's MODEL_AND_PROVIDER_MUST_BOTH_BE_SET guard never fires.
+      const bothSet = !!model && !!providerId
       const project = await onCreate({
         title: trimmed,
         description: description.trim() || undefined,
@@ -61,6 +86,9 @@ export function CreateProjectModal({ open, onOpenChange, onCreate, onCreated }: 
         githubPatVaultKey: githubPatVaultKey ?? undefined,
         githubRepo: githubRepo ?? undefined,
         defaultBranch: defaultBranch.trim() || undefined,
+        model: bothSet ? model : undefined,
+        providerId: bothSet ? providerId : undefined,
+        thinkingConfig: thinkingChoice !== 'inherit' ? choiceToConfig(thinkingChoice) : undefined,
       })
       onCreated?.(project.id)
       reset()
@@ -101,6 +129,54 @@ export function CreateProjectModal({ open, onOpenChange, onCreate, onCreated }: 
               {t('projects.create.descriptionHint')}
             </p>
           </div>
+
+          {/* Sub-Kin defaults: model + thinking effort. Pre-setting them at
+              creation time mirrors the edit modal so the user doesn't have
+              to reopen the project to wire them up before spawning tasks. */}
+          <div className="space-y-1.5">
+            <Label>{t('projects.edit.modelField')}</Label>
+            <ModelPicker
+              models={llmModels}
+              value={modelPickerValue(model, providerId)}
+              onValueChange={(modelId, pid) => {
+                setModel(modelId)
+                setProviderId(pid)
+              }}
+              placeholder={t('projects.edit.modelPlaceholder')}
+              allowClear
+            />
+            <p className="text-xs text-muted-foreground">
+              {t('projects.edit.modelHint')}
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>{t('projects.edit.thinkingField')}</Label>
+            <Select
+              value={thinkingChoice}
+              onValueChange={(v) => setThinkingChoice(v as ThinkingChoice)}
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="inherit">
+                  <span className="italic text-muted-foreground">
+                    {t('projects.edit.thinkingInherit')}
+                  </span>
+                </SelectItem>
+                <SelectItem value="off">{t('chat.thinkingPicker.effort.off')}</SelectItem>
+                <SelectItem value="low">{t('chat.thinkingPicker.effort.low')}</SelectItem>
+                <SelectItem value="medium">{t('chat.thinkingPicker.effort.medium')}</SelectItem>
+                <SelectItem value="high">{t('chat.thinkingPicker.effort.high')}</SelectItem>
+                <SelectItem value="max">{t('chat.thinkingPicker.effort.max')}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {t('projects.edit.thinkingHint')}
+            </p>
+          </div>
+
           {/* GitHub integration: PAT + repo picker. Optional at create time
               — leaving them blank yields a project with no sub-task worktree
               support, which the user can wire up later from the edit modal. */}
