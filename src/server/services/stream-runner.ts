@@ -115,8 +115,10 @@ export interface StreamStepContext {
   /** Mutated in place when a thinking block ends (one entry per segment). */
   reasoningSegments?: Array<{ offset: number; text: string }>
   /** Live snapshot whose `.content` field is updated on each committed text
-   *  flush. The in-flight buffer is NEVER written here. */
-  contentSnapshot?: { content: string }
+   *  flush. The in-flight buffer is NEVER written here. `outputTokens` holds
+   *  the real provider-reported total from completed prior steps — used as the
+   *  base for the live token estimate emitted during the current step. */
+  contentSnapshot?: { content: string; outputTokens?: number }
   /** Optional periodic persistence (sub-Kin only). Fires every `intervalMs`
    *  while the step runs. */
   checkpoint?: { intervalMs: number; persist: () => void | Promise<void> }
@@ -177,6 +179,26 @@ export async function runStreamStep(
     inReasoning = false
     send('chat:reasoning-done', { messageId: ctx.assistantMessageId })
   }
+
+  // Emit a smoothly-rising output-token estimate while the step generates so
+  // the thinking-bubble counter increments live. Text deltas are buffered here
+  // (never streamed), and reasoning only streams in thinking mode, so the
+  // client can't estimate on its own — only the server sees the in-flight
+  // content. The real per-step usage from each `finish` chunk reconciles the
+  // count upward; the client keeps the running max, so a slight under-estimate
+  // (≈4 chars/token) self-corrects and the counter never visibly ticks back.
+  const baseOutputTokens = ctx.contentSnapshot?.outputTokens ?? 0
+  const usageEstimateTimer = setInterval(() => {
+    const estCurrentStep = Math.ceil((buffered.length + currentReasoning.length) / 4)
+    const total = baseOutputTokens + estCurrentStep
+    if (total > 0) {
+      send('chat:token-usage', {
+        messageId: ctx.assistantMessageId,
+        outputTokens: total,
+        estimated: true,
+      })
+    }
+  }, 200)
 
   try {
     for await (const chunk of stream) {
@@ -269,6 +291,7 @@ export async function runStreamStep(
     }
   } finally {
     if (checkpointTimer !== null) clearInterval(checkpointTimer)
+    clearInterval(usageEstimateTimer)
   }
 
   // DECISION POINT — classify the step.
