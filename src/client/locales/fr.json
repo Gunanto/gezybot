@@ -610,6 +610,11 @@
     },
     "empty": "Aucun message. Dites bonjour !",
     "streaming": "Réflexion...",
+    "thinking": {
+      "tokens": "~{{value}} tokens",
+      "tokensHint": "Estimation des tokens générés jusqu'ici",
+      "toolsHint": "Outils utilisés ce tour — cliquer pour voir"
+    },
     "contextUsage": "Contexte : ~{{tokens}} / {{max}} tokens ({{percent}} %), inclut prompt système, historique et outils",
     "contextNoData": "L'utilisation du contexte apparaîtra après le premier message traité",
     "stepLimitReached": "Réponse tronquée : limite d'étapes atteinte. Demandez-moi de continuer.",

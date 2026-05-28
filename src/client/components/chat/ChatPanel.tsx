@@ -82,7 +82,7 @@ export function ChatPanel({ kin, llmModels, modelUnavailable = false, queueState
   const { user } = useAuth()
   const userInitials = user ? getUserInitials(user) : 'U'
   const { messages, streamingMessage, streamingReasoning, liveTasks, liveCompacting, isLoading, isStreaming, hasMore, isLoadingMore, tokenStalled, sendMessage, stopStreaming, clearConversation, fetchOlderMessages } = useChat(kin.id)
-  const { toolCalls, toolCallCount, toolCallsByMessage } = useToolCalls(kin.id, messages)
+  const { toolCalls, toolCallCount, streamingToolCallCount, toolCallsByMessage } = useToolCalls(kin.id, messages)
   const { prompts: pendingPrompts, respond: respondToPrompt, isResponding } = useHumanPrompts(kin.id)
   const { content: draftContent, setContent: setDraftContent, clearDraft } = useDraftMessage(kin.id)
   const { items: queueItems, removeItem: removeQueueItem, injectItem: injectQueueItem, isRemoving: isRemovingQueueItem } = useQueueItems(kin.id)
@@ -162,6 +162,16 @@ export function ChatPanel({ kin, llmModels, modelUnavailable = false, queueState
   const initialLoadDoneRef = useRef(false)
 
   const toggleToolCalls = useCallback(() => setIsToolCallsOpen((prev) => !prev), [])
+  const openToolCalls = useCallback(() => setIsToolCallsOpen(true), [])
+
+  // Live, client-side estimate of output tokens produced so far this turn.
+  // No SSE event carries running token usage (only `chat:done` has the final
+  // count), so we approximate from the streamed text + reasoning at ~4 chars
+  // per token. Drives the incrementing counter in the thinking bubble.
+  const liveOutputTokens = useMemo(() => {
+    const chars = (streamingMessage?.content?.length ?? 0) + streamingReasoning.length
+    return chars > 0 ? Math.max(1, Math.round(chars / 4)) : 0
+  }, [streamingMessage?.content, streamingReasoning])
   const toggleSearch = useCallback(() => {
     setIsSearchOpen((prev) => {
       if (prev) {
@@ -986,7 +996,14 @@ export function ChatPanel({ kin, llmModels, modelUnavailable = false, queueState
                   />
                 ))}
                 {queueState?.isProcessing && !(streamingMessage && streamingMessage.content.length > 0 && !tokenStalled) && (
-                  <TypingIndicator kinName={kin.name} kinAvatarUrl={kin.avatarUrl} startedAt={queueState?.processingStartedAt} />
+                  <TypingIndicator
+                    kinName={kin.name}
+                    kinAvatarUrl={kin.avatarUrl}
+                    startedAt={queueState?.processingStartedAt}
+                    tokenCount={liveOutputTokens}
+                    toolCallCount={streamingToolCallCount}
+                    onOpenToolCalls={openToolCalls}
+                  />
                 )}
               </div>
             )}

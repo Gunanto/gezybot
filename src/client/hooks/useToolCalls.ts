@@ -172,6 +172,10 @@ export function useToolCalls(kinId: string | null, messages: ChatMessage[]) {
   return {
     toolCalls: allToolCalls,
     toolCallCount: allToolCalls.length,
+    // Tool calls emitted during the current in-flight turn only (cleared on
+    // `chat:done`). Drives the live counter in the thinking bubble — distinct
+    // from `toolCallCount`, which spans the whole conversation.
+    streamingToolCallCount: streamingToolCalls.size,
     toolCallsByMessage,
   }
 }

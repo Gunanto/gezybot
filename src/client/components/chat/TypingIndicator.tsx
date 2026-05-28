@@ -1,15 +1,36 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Wrench } from 'lucide-react'
 import { ChatAvatar } from '@/client/components/chat/ChatAvatar'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/client/components/ui/tooltip'
 
 interface TypingIndicatorProps {
   kinName?: string
   kinAvatarUrl?: string | null
   /** Server-side epoch (ms) when processing started — timer resumes correctly after navigation */
   startedAt?: number
+  /** Live estimate of output tokens generated so far this turn (0 hides the counter) */
+  tokenCount?: number
+  /** Number of tool calls in the current turn (0 hides the counter) */
+  toolCallCount?: number
+  /** Opens the tool-calls side panel when the tool counter is clicked */
+  onOpenToolCalls?: () => void
 }
 
-export function TypingIndicator({ kinName, kinAvatarUrl, startedAt }: TypingIndicatorProps) {
+/** Compact token formatting: 1234 → "1.2k", 980 → "980". */
+function formatTokens(n: number): string {
+  if (n < 1000) return String(n)
+  return `${(n / 1000).toFixed(n < 10000 ? 1 : 0)}k`
+}
+
+export function TypingIndicator({
+  kinName,
+  kinAvatarUrl,
+  startedAt,
+  tokenCount = 0,
+  toolCallCount = 0,
+  onOpenToolCalls,
+}: TypingIndicatorProps) {
   const { t } = useTranslation()
   const [elapsed, setElapsed] = useState(0)
   const startRef = useRef(startedAt ?? Date.now())
@@ -49,6 +70,34 @@ export function TypingIndicator({ kinName, kinAvatarUrl, startedAt }: TypingIndi
             <span className="text-xs text-muted-foreground/60 tabular-nums">
               {formatElapsed(elapsed)}
             </span>
+          )}
+
+          {tokenCount > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-xs text-muted-foreground/60 tabular-nums border-l border-border/60 pl-2">
+                  {t('chat.thinking.tokens', { value: formatTokens(tokenCount) })}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top">{t('chat.thinking.tokensHint')}</TooltipContent>
+            </Tooltip>
+          )}
+
+          {toolCallCount > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={onOpenToolCalls}
+                  disabled={!onOpenToolCalls}
+                  className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground/70 border-l border-border/60 transition-colors hover:text-foreground enabled:hover:bg-muted-foreground/10 disabled:cursor-default"
+                >
+                  <Wrench className="size-3" />
+                  {toolCallCount}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">{t('chat.thinking.toolsHint')}</TooltipContent>
+            </Tooltip>
           )}
         </div>
       </div>

@@ -610,6 +610,11 @@
       "inSubtext": "This Kin now has this channel."
     },
     "streaming": "Thinking...",
+    "thinking": {
+      "tokens": "~{{value}} tokens",
+      "tokensHint": "Estimated output tokens generated so far",
+      "toolsHint": "Tool calls this turn — click to view"
+    },
     "contextUsage": "Context: ~{{tokens}} / {{max}} tokens ({{percent}}%), includes system prompt, history & tools",
     "contextNoData": "Context usage will appear after the first message is processed",
     "stepLimitReached": "Response truncated: tool step limit reached. Ask me to continue.",
