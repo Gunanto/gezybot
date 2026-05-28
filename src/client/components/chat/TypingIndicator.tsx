@@ -76,10 +76,10 @@ export function TypingIndicator({
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="text-xs text-muted-foreground/60 tabular-nums border-l border-border/60 pl-2">
-                  {t('chat.thinking.tokens', { value: formatTokens(tokenCount) })}
+                  {t('chat.thinkingTokens', { value: formatTokens(tokenCount) })}
                 </span>
               </TooltipTrigger>
-              <TooltipContent side="top">{t('chat.thinking.tokensHint')}</TooltipContent>
+              <TooltipContent side="top">{t('chat.thinkingTokensHint')}</TooltipContent>
             </Tooltip>
           )}
 
@@ -96,7 +96,7 @@ export function TypingIndicator({
                   {toolCallCount}
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="top">{t('chat.thinking.toolsHint')}</TooltipContent>
+              <TooltipContent side="top">{t('chat.thinkingToolsHint')}</TooltipContent>
             </Tooltip>
           )}
         </div>
