@@ -32,6 +32,7 @@ import { GeneratedImageRenderer } from '@/client/components/chat/renderers/Gener
 import { KnowledgeResultRenderer } from '@/client/components/chat/renderers/KnowledgeResultRenderer'
 import { BrowseUrlRenderer } from '@/client/components/chat/renderers/BrowseUrlRenderer'
 import { ContactResultRenderer } from '@/client/components/chat/renderers/ContactResultRenderer'
+import { TaskSpawnRenderer } from '@/client/components/chat/renderers/TaskSpawnRenderer'
 
 registerRenderer('run_shell', ShellResultRenderer)
 registerRenderer('http_request', HttpRequestRenderer)
@@ -56,6 +57,11 @@ registerRenderer('search_contacts', ContactResultRenderer)
 registerRenderer('create_contact', ContactResultRenderer)
 registerRenderer('update_contact', ContactResultRenderer)
 registerRenderer('find_contact_by_identifier', ContactResultRenderer)
+
+// Tasks — spawn confirmation / task detail card
+registerRenderer('spawn_self', TaskSpawnRenderer)
+registerRenderer('spawn_kin', TaskSpawnRenderer)
+registerRenderer('get_task_detail', TaskSpawnRenderer)
 
 // Browser tools — screenshot-shaped results (image thumbnail with click-to-zoom)
 registerRenderer('screenshot_url', BrowserScreenshotRenderer)

@@ -2253,7 +2253,11 @@
       "contactCount_plural": "{{count}} contacts",
       "contactUnnamed": "Contact sans nom",
       "contactNotFound": "Aucun contact correspondant",
-      "contactNoResults": "Aucun contact trouvé"
+      "contactNoResults": "Aucun contact trouvé",
+      "taskSpawned": "Tâche",
+      "taskResult": "Résultat",
+      "taskMessages": "{{count}} message",
+      "taskMessages_plural": "{{count}} messages"
     }
   },
   "invite": {
