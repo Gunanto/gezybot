@@ -1,8 +1,6 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "8fe3c885-0bd6-4b7d-a701-15b52179968f",
-  "prevId": "0ba5b0f7-fbe2-4b1f-8f73-614cad63882f",
   "tables": {
     "account": {
       "name": "account",
@@ -4148,6 +4146,131 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "project_knowledge": {
+      "name": "project_knowledge",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "embedding": {
+          "name": "embedding",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "pinned": {
+          "name": "pinned",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "author_kin_id": {
+          "name": "author_kin_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_project_knowledge_project": {
+          "name": "idx_project_knowledge_project",
+          "columns": [
+            "project_id"
+          ],
+          "isUnique": false
+        },
+        "idx_project_knowledge_project_pinned": {
+          "name": "idx_project_knowledge_project_pinned",
+          "columns": [
+            "project_id",
+            "pinned"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "project_knowledge_project_id_projects_id_fk": {
+          "name": "project_knowledge_project_id_projects_id_fk",
+          "tableFrom": "project_knowledge",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "project_knowledge_author_kin_id_kins_id_fk": {
+          "name": "project_knowledge_author_kin_id_kins_id_fk",
+          "tableFrom": "project_knowledge",
+          "tableTo": "kins",
+          "columnsFrom": [
+            "author_kin_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "project_tags": {
       "name": "project_tags",
       "columns": {
@@ -4269,6 +4392,50 @@
           "notNull": false,
           "autoincrement": false
         },
+        "github_pat_vault_key": {
+          "name": "github_pat_vault_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "github_repo": {
+          "name": "github_repo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "default_branch": {
+          "name": "default_branch",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'main'"
+        },
+        "clone_status": {
+          "name": "clone_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'none'"
+        },
+        "clone_error": {
+          "name": "clone_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cloned_at": {
+          "name": "cloned_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "model": {
           "name": "model",
           "type": "text",
@@ -4336,6 +4503,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "name": {
           "name": "name",
           "type": "text",
@@ -4394,7 +4568,15 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "providers_slug_unique": {
+          "name": "providers_slug_unique",
+          "columns": [
+            "slug"
+          ],
+          "isUnique": true
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -5111,6 +5293,20 @@
           "notNull": false,
           "autoincrement": false
         },
+        "started_at": {
+          "name": "started_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ended_at": {
+          "name": "ended_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -5660,6 +5856,13 @@
         "reporter_kin_id": {
           "name": "reporter_kin_id",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "in_progress_at": {
+          "name": "in_progress_at",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -6510,11 +6713,12 @@
   "views": {},
   "enums": {},
   "_meta": {
-    "schemas": {},
     "tables": {},
     "columns": {}
   },
   "internal": {
     "indexes": {}
-  }
+  },
+  "id": "0e282031-f095-4c26-9288-1077ae1f1a09",
+  "prevId": "51d33cdc-fbe6-4a51-81b1-2e4197e00817"
 }
