@@ -2168,7 +2168,15 @@
       "text_to_speech": "Synthèse vocale",
       "list_stt_providers": "Lister les fournisseurs STT",
       "list_stt_models": "Lister les modèles de transcription",
-      "transcribe_audio": "Transcription audio"
+      "transcribe_audio": "Transcription audio",
+      "reload_mini_app": "Recharger la Mini-App",
+      "add_project_knowledge": "Ajouter une connaissance projet",
+      "search_project_knowledge": "Rechercher dans les connaissances projet",
+      "list_project_knowledge": "Lister les connaissances projet",
+      "get_project_knowledge": "Lire une connaissance projet",
+      "update_project_knowledge": "Modifier une connaissance projet",
+      "delete_project_knowledge": "Supprimer une connaissance projet",
+      "pin_project_knowledge": "Épingler une connaissance projet"
     },
     "renderers": {
       "rawJson": "JSON brut",

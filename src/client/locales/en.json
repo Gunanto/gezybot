@@ -2168,7 +2168,15 @@
       "text_to_speech": "Text to Speech",
       "list_stt_providers": "List STT Providers",
       "list_stt_models": "List Transcription Models",
-      "transcribe_audio": "Transcribe Audio"
+      "transcribe_audio": "Transcribe Audio",
+      "reload_mini_app": "Reload Mini-App",
+      "add_project_knowledge": "Add Project Knowledge",
+      "search_project_knowledge": "Search Project Knowledge",
+      "list_project_knowledge": "List Project Knowledge",
+      "get_project_knowledge": "Get Project Knowledge",
+      "update_project_knowledge": "Update Project Knowledge",
+      "delete_project_knowledge": "Delete Project Knowledge",
+      "pin_project_knowledge": "Pin Project Knowledge"
     },
     "renderers": {
       "rawJson": "Raw JSON",
