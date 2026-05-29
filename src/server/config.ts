@@ -396,6 +396,19 @@ export const config = {
     kanbanPositionStep: Number(process.env.PROJECTS_KANBAN_POSITION_STEP ?? 1024),
   },
 
+  llm: {
+    // Anthropic adaptive thinking: the modern effort API
+    // (`thinking:{type:'adaptive'}` + `output_config.effort` + beta
+    // `effort-2025-11-24`) instead of the legacy fixed `budget_tokens`. Adaptive
+    // lets the model decide how much to think per step (≈0 on a trivial tool
+    // call) — it matches Claude Code and removes the fat thinking block the
+    // legacy API forced before EVERY step (the main task-latency cause; see
+    // task-latency-analysis.md). The SDK itself deprecates `type:'enabled'` in
+    // favor of `adaptive`. Default on; set KINBOT_ADAPTIVE_THINKING=false to
+    // revert to fixed budgets.
+    adaptiveThinking: process.env.KINBOT_ADAPTIVE_THINKING !== 'false',
+  },
+
   tools: {
     maxSteps: Number(process.env.TOOLS_MAX_STEPS ?? 0), // 0 (default) = truly unlimited (no cap); > 0 = hard cap at this value
     // Max parallel concurrency-safe tool calls within a single batch.

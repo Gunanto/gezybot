@@ -22,11 +22,13 @@ import type {
   ThinkingBlockParam,
   Tool,
   ThinkingConfigParam,
+  OutputConfig,
   RawMessageStreamEvent,
   StopReason,
   Base64ImageSource,
 } from '@anthropic-ai/sdk/resources/messages'
 
+import { config } from '@/server/config'
 import type { Usage, FinishReason } from '@/server/llm/core/types'
 import {
   AuthError,
@@ -217,27 +219,67 @@ export function toolsToAnthropic(tools: ChatRequest['tools']): Tool[] | undefine
   }))
 }
 
-export function thinkingConfig(
+/**
+ * Resolve a requested effort down to the nearest lower effort the model
+ * actually supports (or the model's lowest if the request is below all of
+ * them). Returns undefined when no effort was requested or the model has no
+ * thinking support.
+ */
+function resolveEffort(
   model: LLMModel,
   effort: ThinkingEffort | undefined,
-): ThinkingConfigParam | undefined {
+): ThinkingEffort | undefined {
   if (!effort) return undefined
   const supported = model.thinking?.efforts ?? []
   if (supported.length === 0) return undefined
   const order: ThinkingEffort[] = ['low', 'medium', 'high', 'max']
   const requestedIdx = order.indexOf(effort)
-  let chosen: ThinkingEffort | undefined
   for (let i = requestedIdx; i >= 0; i--) {
-    if (supported.includes(order[i]!)) {
-      chosen = order[i]
-      break
-    }
+    if (supported.includes(order[i]!)) return order[i]
   }
-  if (!chosen) chosen = supported[0]
-  return {
-    type: 'enabled',
-    budget_tokens: EFFORT_TO_BUDGET[chosen!],
+  return supported[0]
+}
+
+/**
+ * Legacy fixed-budget thinking config (`type:'enabled'`). Retained for the
+ * `KINBOT_ADAPTIVE_THINKING=false` path and direct unit coverage; the live
+ * request path goes through `buildThinkingParams`.
+ */
+export function thinkingConfig(
+  model: LLMModel,
+  effort: ThinkingEffort | undefined,
+): ThinkingConfigParam | undefined {
+  const chosen = resolveEffort(model, effort)
+  if (!chosen) return undefined
+  return { type: 'enabled', budget_tokens: EFFORT_TO_BUDGET[chosen] }
+}
+
+/** Resolved thinking params for a request: the `thinking` block and, in
+ *  adaptive mode, the top-level `output_config` effort dial. */
+export interface ResolvedThinkingParams {
+  thinking?: ThinkingConfigParam
+  outputConfig?: OutputConfig
+}
+
+/**
+ * Build the thinking-related request params for the chosen effort.
+ *
+ * Adaptive mode (default, `config.llm.adaptiveThinking`): emits
+ * `thinking:{type:'adaptive'}` + `output_config.effort` — the model decides how
+ * much to think per step (≈0 on trivial tool calls), matching Claude Code.
+ * Legacy mode: emits the fixed `budget_tokens` block, forcing that budget on
+ * every step. See task-latency-analysis.md for why adaptive is the default.
+ */
+export function buildThinkingParams(
+  model: LLMModel,
+  effort: ThinkingEffort | undefined,
+): ResolvedThinkingParams {
+  const chosen = resolveEffort(model, effort)
+  if (!chosen) return {}
+  if (config.llm.adaptiveThinking) {
+    return { thinking: { type: 'adaptive' }, outputConfig: { effort: chosen } }
   }
+  return { thinking: { type: 'enabled', budget_tokens: EFFORT_TO_BUDGET[chosen] } }
 }
 
 // ─── Streaming (Anthropic events → ChatChunk) ────────────────────────────────

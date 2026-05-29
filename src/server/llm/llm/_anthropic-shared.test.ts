@@ -1,13 +1,15 @@
-import { describe, expect, it } from 'bun:test'
+import { afterEach, describe, expect, it } from 'bun:test'
 import { APIError } from '@anthropic-ai/sdk'
 import {
   messagesToAnthropic,
   systemToAnthropic,
   toolsToAnthropic,
   thinkingConfig,
+  buildThinkingParams,
   mapAnthropicApiError,
   streamChat,
 } from './_anthropic-shared'
+import { config } from '@/server/config'
 import {
   AuthError,
   RateLimitError,
@@ -195,6 +197,65 @@ describe('thinkingConfig', () => {
     }
     expect(thinkingConfig(limited, 'max')).toEqual({ type: 'enabled', budget_tokens: 8192 })
     expect(thinkingConfig(limited, 'high')).toEqual({ type: 'enabled', budget_tokens: 8192 })
+  })
+})
+
+// ─── buildThinkingParams ─────────────────────────────────────────────────────
+
+describe('buildThinkingParams', () => {
+  const modelWithAll: LLMModel = {
+    id: 'claude-sonnet-4',
+    name: 'Sonnet 4',
+    contextWindow: 200_000,
+    thinking: { efforts: ['low', 'medium', 'high', 'max'] },
+  }
+  // In the full suite another test file mocks @/server/config with a partial
+  // object that lacks `llm`, and the mock leaks here (cross-file mock.module
+  // pollution). Be defensive: ensure the `llm` section exists on whatever config
+  // object is live (the same one buildThinkingParams reads), then restore to the
+  // real default. Don't read config.llm at collection time — it may be undefined.
+  const cfg = config as unknown as { llm?: { adaptiveThinking: boolean } }
+  const setAdaptive = (v: boolean) => {
+    cfg.llm = { ...(cfg.llm ?? {}), adaptiveThinking: v }
+  }
+  afterEach(() => setAdaptive(true))
+
+  it('returns {} when no effort is requested', () => {
+    setAdaptive(true)
+    expect(buildThinkingParams(modelWithAll, undefined)).toEqual({})
+  })
+
+  it('returns {} when the model does not support thinking', () => {
+    const haiku: LLMModel = { id: 'claude-haiku-3', name: 'Haiku', contextWindow: 200_000 }
+    setAdaptive(true)
+    expect(buildThinkingParams(haiku, 'medium')).toEqual({})
+  })
+
+  it('adaptive mode: emits thinking:adaptive + output_config.effort (no budget)', () => {
+    setAdaptive(true)
+    expect(buildThinkingParams(modelWithAll, 'high')).toEqual({
+      thinking: { type: 'adaptive' },
+      outputConfig: { effort: 'high' },
+    })
+  })
+
+  it('adaptive mode: downgrades effort to the closest supported one', () => {
+    const limited: LLMModel = {
+      id: 'mid', name: 'Mid', contextWindow: 100_000,
+      thinking: { efforts: ['low', 'medium'] },
+    }
+    setAdaptive(true)
+    expect(buildThinkingParams(limited, 'max')).toEqual({
+      thinking: { type: 'adaptive' },
+      outputConfig: { effort: 'medium' },
+    })
+  })
+
+  it('legacy mode: falls back to the fixed budget block, no output_config', () => {
+    setAdaptive(false)
+    expect(buildThinkingParams(modelWithAll, 'medium')).toEqual({
+      thinking: { type: 'enabled', budget_tokens: 8192 },
+    })
   })
 })
 

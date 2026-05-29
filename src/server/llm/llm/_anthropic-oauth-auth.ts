@@ -269,6 +269,10 @@ export const OAUTH_HEADERS = {
     'fine-grained-tool-streaming-2025-05-14',
     'prompt-caching-scope-2026-01-05',
     'advisor-tool-2026-03-01',
+    // Enables the adaptive-thinking effort dial (`output_config.effort` +
+    // `thinking:{type:'adaptive'}`). Claude Code sends this; required for the
+    // server to honor effort instead of the legacy fixed budget.
+    'effort-2025-11-24',
   ].join(','),
   'user-agent': `claude-cli/${CLAUDE_CODE_VERSION} (external, cli)`,
   'x-app': 'cli',

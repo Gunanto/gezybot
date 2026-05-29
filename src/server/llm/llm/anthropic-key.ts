@@ -29,7 +29,7 @@ import {
   messagesToAnthropic,
   systemToAnthropic,
   toolsToAnthropic,
-  thinkingConfig,
+  buildThinkingParams,
   streamChat,
   mapAnthropicApiError,
 } from '@/server/llm/llm/_anthropic-shared'
@@ -146,8 +146,9 @@ export const anthropicKeyProvider: LLMProvider = {
     const tools = toolsToAnthropic(request.tools)
     if (tools) params.tools = tools
     if (request.temperature != null) params.temperature = request.temperature
-    const thinking = thinkingConfig(model, request.thinkingEffort)
+    const { thinking, outputConfig } = buildThinkingParams(model, request.thinkingEffort)
     if (thinking) params.thinking = thinking
+    if (outputConfig) params.output_config = outputConfig
     if (request.metadata?.userId) {
       params.metadata = { user_id: request.metadata.userId }
     }
