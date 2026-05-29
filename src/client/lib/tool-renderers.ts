@@ -31,6 +31,7 @@ import { WebSearchRenderer } from '@/client/components/chat/renderers/WebSearchR
 import { GeneratedImageRenderer } from '@/client/components/chat/renderers/GeneratedImageRenderer'
 import { KnowledgeResultRenderer } from '@/client/components/chat/renderers/KnowledgeResultRenderer'
 import { BrowseUrlRenderer } from '@/client/components/chat/renderers/BrowseUrlRenderer'
+import { ContactResultRenderer } from '@/client/components/chat/renderers/ContactResultRenderer'
 
 registerRenderer('run_shell', ShellResultRenderer)
 registerRenderer('http_request', HttpRequestRenderer)
@@ -48,6 +49,13 @@ registerRenderer('search_knowledge', KnowledgeResultRenderer)
 registerRenderer('search_project_knowledge', KnowledgeResultRenderer)
 registerRenderer('list_project_knowledge', KnowledgeResultRenderer)
 registerRenderer('browse_url', BrowseUrlRenderer)
+
+// Contacts — single-contact / contact-list shaped results
+registerRenderer('get_contact', ContactResultRenderer)
+registerRenderer('search_contacts', ContactResultRenderer)
+registerRenderer('create_contact', ContactResultRenderer)
+registerRenderer('update_contact', ContactResultRenderer)
+registerRenderer('find_contact_by_identifier', ContactResultRenderer)
 
 // Browser tools — screenshot-shaped results (image thumbnail with click-to-zoom)
 registerRenderer('screenshot_url', BrowserScreenshotRenderer)

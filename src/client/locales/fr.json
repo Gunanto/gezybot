@@ -2248,7 +2248,12 @@
       "knowledgeMatch": "{{score}} %",
       "browseContentLength": "{{count}} caractère",
       "browseContentLength_plural": "{{count}} caractères",
-      "browseFetchTime": "{{ms}} ms"
+      "browseFetchTime": "{{ms}} ms",
+      "contactCount": "{{count}} contact",
+      "contactCount_plural": "{{count}} contacts",
+      "contactUnnamed": "Contact sans nom",
+      "contactNotFound": "Aucun contact correspondant",
+      "contactNoResults": "Aucun contact trouvé"
     }
   },
   "invite": {
