@@ -2257,7 +2257,19 @@
       "taskSpawned": "Task",
       "taskResult": "Result",
       "taskMessages": "{{count}} message",
-      "taskMessages_plural": "{{count}} messages"
+      "taskMessages_plural": "{{count}} messages",
+      "cronCount": "{{count}} scheduled task",
+      "cronCount_plural": "{{count}} scheduled tasks",
+      "cronRuns": "{{count}} run",
+      "cronRuns_plural": "{{count}} runs",
+      "cronUnnamed": "Unnamed task",
+      "cronActive": "Active",
+      "cronInactive": "Inactive",
+      "cronRunOnce": "Run once",
+      "cronApproval": "Awaiting approval",
+      "cronLastRun": "Last run: {{date}}",
+      "cronNoRuns": "No runs yet",
+      "cronNoResults": "No scheduled tasks"
     }
   },
   "invite": {

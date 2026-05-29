@@ -2257,7 +2257,19 @@
       "taskSpawned": "Tâche",
       "taskResult": "Résultat",
       "taskMessages": "{{count}} message",
-      "taskMessages_plural": "{{count}} messages"
+      "taskMessages_plural": "{{count}} messages",
+      "cronCount": "{{count}} tâche planifiée",
+      "cronCount_plural": "{{count}} tâches planifiées",
+      "cronRuns": "{{count}} exécution",
+      "cronRuns_plural": "{{count}} exécutions",
+      "cronUnnamed": "Tâche sans nom",
+      "cronActive": "Active",
+      "cronInactive": "Inactive",
+      "cronRunOnce": "Une seule fois",
+      "cronApproval": "En attente d'approbation",
+      "cronLastRun": "Dernière exécution : {{date}}",
+      "cronNoRuns": "Aucune exécution",
+      "cronNoResults": "Aucune tâche planifiée"
     }
   },
   "invite": {

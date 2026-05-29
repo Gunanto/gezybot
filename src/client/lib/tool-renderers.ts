@@ -33,6 +33,7 @@ import { KnowledgeResultRenderer } from '@/client/components/chat/renderers/Know
 import { BrowseUrlRenderer } from '@/client/components/chat/renderers/BrowseUrlRenderer'
 import { ContactResultRenderer } from '@/client/components/chat/renderers/ContactResultRenderer'
 import { TaskSpawnRenderer } from '@/client/components/chat/renderers/TaskSpawnRenderer'
+import { CronResultRenderer } from '@/client/components/chat/renderers/CronResultRenderer'
 
 registerRenderer('run_shell', ShellResultRenderer)
 registerRenderer('http_request', HttpRequestRenderer)
@@ -62,6 +63,12 @@ registerRenderer('find_contact_by_identifier', ContactResultRenderer)
 registerRenderer('spawn_self', TaskSpawnRenderer)
 registerRenderer('spawn_kin', TaskSpawnRenderer)
 registerRenderer('get_task_detail', TaskSpawnRenderer)
+
+// Crons — single cron / cron list / execution journal
+registerRenderer('create_cron', CronResultRenderer)
+registerRenderer('update_cron', CronResultRenderer)
+registerRenderer('list_crons', CronResultRenderer)
+registerRenderer('get_cron_journal', CronResultRenderer)
 
 // Browser tools — screenshot-shaped results (image thumbnail with click-to-zoom)
 registerRenderer('screenshot_url', BrowserScreenshotRenderer)
