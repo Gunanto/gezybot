@@ -21,6 +21,36 @@ import type { ToolRegistration } from '@/server/tools/types'
 const log = createLogger('tools:tasks')
 
 /**
+ * Resolve an array of toolbox **names** (as accepted by the spawn tools) into
+ * toolbox **ids** to freeze onto the task row. When `toolboxes` is absent but
+ * the deprecated `tool_preset` alias is present, the preset name is used as a
+ * single-element list (mapping to the built-in toolbox of the same name).
+ *
+ * Unknown names are skipped with a warning. Returns `undefined` when nothing
+ * resolves, so `spawnTask` falls back to its own default (ticket → 'code',
+ * else 'all') at execution time.
+ */
+async function resolveToolboxNamesToIds(
+  names: string[] | undefined,
+  toolPreset: string | undefined,
+): Promise<string[] | undefined> {
+  const requested = names && names.length > 0 ? names : toolPreset ? [toolPreset] : []
+  if (requested.length === 0) return undefined
+
+  const { getToolboxByName } = await import('@/server/services/toolboxes')
+  const ids: string[] = []
+  for (const name of requested) {
+    const box = getToolboxByName(name.trim())
+    if (box) {
+      ids.push(box.id)
+    } else {
+      log.warn({ name }, 'spawn: unknown toolbox name ignored')
+    }
+  }
+  return ids.length > 0 ? ids : undefined
+}
+
+/**
  * spawn_self — clone the current Kin with a specific mission.
  * Available to main agents and sub-kin tasks (enables router → worker pattern).
  */
@@ -50,11 +80,13 @@ export const spawnSelfTool: ToolRegistration = {
           .describe('Max concurrent tasks in this group. Required if concurrency_group is set. Default: 1'),
         thinking: z.boolean().optional()
           .describe('Enable extended thinking/reasoning for this task. Omit to inherit from parent Kin config.'),
+        toolboxes: z.array(z.string()).optional()
+          .describe('Names of the toolboxes whose tools the sub-Kin may use. The sub-Kin\'s native toolset is the mandatory core floor unioned with every chosen toolbox\'s tools. Built-ins: "code", "research", "ops", "scout" (read-only), "all" (full surface). Use list_toolboxes to discover available toolboxes. Omit to default (ticket → "code", else "all").'),
         tool_preset: z.enum(['code', 'research', 'ops', 'all']).optional()
-          .describe('Override the auto-picked sub-Kin tool surface. Omit to default (ticket → "code", else full). "code" = file ops + project/ticket + web docs (default for ticket sub-Kins). "research" = web + history + memory. "ops" = secrets + http_request. "all" = full surface (no filtering).'),
+          .describe('DEPRECATED — use `toolboxes` instead. When set and `toolboxes` is absent, it maps to the built-in toolbox of the same name.'),
       }),
-      execute: async ({ title, task_description, mode, model, provider_id, allow_human_prompt, concurrency_group, concurrency_max, thinking, tool_preset }) => {
-        log.debug({ kinId: ctx.kinId, mode, spawnType: 'self', preset: tool_preset }, 'Task spawn requested (spawn_self)')
+      execute: async ({ title, task_description, mode, model, provider_id, allow_human_prompt, concurrency_group, concurrency_max, thinking, toolboxes, tool_preset }) => {
+        log.debug({ kinId: ctx.kinId, mode, spawnType: 'self', toolboxes, preset: tool_preset }, 'Task spawn requested (spawn_self)')
         if (model && !provider_id) {
           throw new Error(
             'When overriding the parent Kin\'s model, you must pass provider_id too. ' +
@@ -62,6 +94,7 @@ export const spawnSelfTool: ToolRegistration = {
               '(e.g. an OpenAI API key and a Codex CLI subscription), and kinbot cannot guess which one you mean.',
           )
         }
+        const toolboxIds = await resolveToolboxNamesToIds(toolboxes, tool_preset)
         const { taskId, queued } = await spawnTask({
           parentKinId: ctx.kinId,
           title,
@@ -77,6 +110,7 @@ export const spawnSelfTool: ToolRegistration = {
           concurrencyGroup: concurrency_group,
           concurrencyMax: concurrency_max ?? (concurrency_group ? 1 : undefined),
           thinkingConfig: thinking !== undefined ? { enabled: thinking } : undefined,
+          toolboxIds,
           toolPreset: tool_preset,
         })
         return { taskId, status: queued ? 'queued' : 'pending' }
@@ -115,10 +149,12 @@ export const spawnKinTool: ToolRegistration = {
           .describe('Max concurrent tasks in this group. Required if concurrency_group is set. Default: 1'),
         thinking: z.boolean().optional()
           .describe('Enable extended thinking/reasoning for this task. Omit to inherit from parent Kin config.'),
+        toolboxes: z.array(z.string()).optional()
+          .describe('Names of the toolboxes whose tools the sub-Kin may use. The sub-Kin\'s native toolset is the mandatory core floor unioned with every chosen toolbox\'s tools. Use list_toolboxes to discover available toolboxes. Omit to default (ticket → "code", else "all"). See spawn_self for built-in descriptions.'),
         tool_preset: z.enum(['code', 'research', 'ops', 'all']).optional()
-          .describe('Override the auto-picked sub-Kin tool surface. Omit to default (ticket → "code", else full). See spawn_self for preset descriptions.'),
+          .describe('DEPRECATED — use `toolboxes` instead. When set and `toolboxes` is absent, it maps to the built-in toolbox of the same name.'),
       }),
-      execute: async ({ kin_slug, title, task_description, mode, model, provider_id, allow_human_prompt, concurrency_group, concurrency_max, thinking, tool_preset }) => {
+      execute: async ({ kin_slug, title, task_description, mode, model, provider_id, allow_human_prompt, concurrency_group, concurrency_max, thinking, toolboxes, tool_preset }) => {
         if (model && !provider_id) {
           return {
             error:
@@ -131,7 +167,8 @@ export const spawnKinTool: ToolRegistration = {
         if (!kinId) {
           return { error: `Kin not found for slug "${kin_slug}"` }
         }
-        log.debug({ kinId: ctx.kinId, targetKinId: kinId, mode, spawnType: 'other', preset: tool_preset }, 'Task spawn requested (spawn_kin)')
+        log.debug({ kinId: ctx.kinId, targetKinId: kinId, mode, spawnType: 'other', toolboxes, preset: tool_preset }, 'Task spawn requested (spawn_kin)')
+        const toolboxIds = await resolveToolboxNamesToIds(toolboxes, tool_preset)
         const { taskId, queued } = await spawnTask({
           parentKinId: ctx.kinId,
           title,
@@ -148,6 +185,7 @@ export const spawnKinTool: ToolRegistration = {
           concurrencyGroup: concurrency_group,
           concurrencyMax: concurrency_max ?? (concurrency_group ? 1 : undefined),
           thinkingConfig: thinking !== undefined ? { enabled: thinking } : undefined,
+          toolboxIds,
           toolPreset: tool_preset,
         })
         return { taskId, status: queued ? 'queued' : 'pending' }

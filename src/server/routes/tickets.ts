@@ -212,8 +212,22 @@ ticketRoutes.post('/:id/start-task', async (c) => {
     )
   }
 
+  // Optional toolbox selection (array of toolbox ids). When omitted the task
+  // service falls back to the legacy preset → built-in mapping ('code' for
+  // tickets). Validate the shape; unknown ids are tolerated downstream.
+  let toolboxIds: string[] | undefined
+  if (body.toolboxIds !== undefined) {
+    if (!Array.isArray(body.toolboxIds) || body.toolboxIds.some((id: unknown) => typeof id !== 'string')) {
+      return c.json(
+        { error: { code: 'INVALID_TOOLBOX_IDS', message: 'toolboxIds must be an array of strings' } },
+        400,
+      )
+    }
+    toolboxIds = (body.toolboxIds as string[]).map((id) => id.trim()).filter((id) => id.length > 0)
+  }
+
   try {
-    const task = await startTicketTask(ticketId, kinId, { runPrompt: rawRunPrompt })
+    const task = await startTicketTask(ticketId, kinId, { runPrompt: rawRunPrompt, toolboxIds })
     return c.json({ task }, 201)
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error'

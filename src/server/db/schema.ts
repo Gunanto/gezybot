@@ -330,6 +330,12 @@ export const tasks = sqliteTable('tasks', {
    *  (defaultPresetForTask). 'all' explicitly disables filtering. Null
    *  falls back to the auto-picker behaviour (ticket → code, else full). */
   toolPreset: text('tool_preset'), // 'code' | 'research' | 'ops' | 'all' | null
+  /** Optional array of toolbox ids (JSON string[]) defining the task's native
+   *  toolset. The resolved native allow-list is CORE_TOOLS unioned with every
+   *  referenced toolbox's tool_names ("*" expands to all native tools). Null
+   *  falls back to the built-in toolbox matching the legacy `toolPreset`
+   *  (or 'code' for tickets / 'all' otherwise) to preserve old behaviour. */
+  toolboxIds: text('toolbox_ids'), // JSON string[] of toolbox ids
   /** Optional run-specific instructions provided at task spawn (ticket tasks).
    *  Injected as a dedicated block in the sub-Kin's brief so the agent can be
    *  scoped to a slice of the ticket (e.g. "focus only on backend",
@@ -669,6 +675,22 @@ export const appSettings = sqliteTable('app_settings', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),
   updatedAt: integer('updated_at').notNull(), // Unix ms
+})
+
+// ─── Toolboxes ────────────────────────────────────────────────────────────────
+// Global, user-defined (and built-in) named sets of native tools. A task
+// references an array of toolbox ids; the resolved native toolset is
+// CORE_TOOLS unioned with every referenced toolbox's tool_names. The special
+// value "*" inside tool_names expands to all registered native tool names.
+
+export const toolboxes = sqliteTable('toolboxes', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull().unique(),
+  description: text('description'),
+  toolNames: text('tool_names'), // JSON string[] of native tool names ("*" = all)
+  builtin: integer('builtin', { mode: 'boolean' }).notNull().default(false),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
 })
 
 // ─── Mini-Apps ──────────────────────────────────────────────────────────────

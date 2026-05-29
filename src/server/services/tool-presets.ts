@@ -1,6 +1,17 @@
 /**
  * Tool presets for sub-Kin tasks.
  *
+ * DEPRECATED (Stage 2 — global toolboxes): `applyPreset` and
+ * `defaultPresetForTask` are no longer used by the task runner — sub-Kin tool
+ * resolution now goes through the global toolboxes system (see
+ * services/toolboxes.ts and the resolution block in services/tasks.ts). The
+ * built-in toolboxes 'code' / 'research' / 'ops' replicate the `extras` of the
+ * matching preset below verbatim, and CORE_TOOLS remains the single source of
+ * truth for the mandatory floor (imported by the toolboxes service). This file
+ * is kept only so CORE_TOOLS stays in one place and for any remaining
+ * inspection callers; the preset functions can be removed once nothing
+ * references them.
+ *
  * KinBot registers ~120 native tools. A sub-Kin spawned to "implement
  * feature X" inherits the parent Kin's full toolset by default, which means
  * the model has to scan a long list of irrelevant tools (mini-apps,

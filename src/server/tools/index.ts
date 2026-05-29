@@ -111,6 +111,29 @@ class ToolRegistry {
     return this.tools.get(name)?.registration.destructive === true
   }
 
+  /**
+   * Best-effort extraction of a tool's LLM-facing description.
+   *
+   * The description lives on the `Tool` object returned by the registration's
+   * `create()` factory (the SDK's `ToolRegistration` carries no static
+   * description — see packages/sdk). Native factories build the tool with a
+   * literal description and only touch the execution context inside `execute`,
+   * so instantiating with a throwaway stub context is cheap and side-effect
+   * free. Wrapped in try/catch so a factory that does read ctx at build time
+   * degrades to `undefined` rather than throwing — this is metadata only.
+   */
+  describe(name: string): string | undefined {
+    const entry = this.tools.get(name)
+    if (!entry) return undefined
+    try {
+      const stub: ToolExecutionContext = { kinId: '', isSubKin: false }
+      const built = entry.registration.create(stub) as { description?: string }
+      return typeof built.description === 'string' ? built.description : undefined
+    } catch {
+      return undefined
+    }
+  }
+
   /** List all registered tool names with their availability + domain (for API/UI). */
   list(): Array<{
     name: string

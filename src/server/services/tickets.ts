@@ -1260,7 +1260,7 @@ export const TICKET_TASK_RUN_PROMPT_MAX = 500
 export async function startTicketTask(
   ticketId: string,
   parentKinId: string,
-  options: { runPrompt?: string | null } = {},
+  options: { runPrompt?: string | null; toolboxIds?: string[] } = {},
 ): Promise<StartTicketTaskResult> {
   const ticket = db.select().from(tickets).where(eq(tickets.id, ticketId)).get()
   if (!ticket) throw new Error('TICKET_NOT_FOUND')
@@ -1299,6 +1299,10 @@ export async function startTicketTask(
     spawnType: 'self',
     ticketId,
     runPrompt,
+    // Freeze the user-chosen toolbox selection onto the task. When omitted,
+    // spawnTask/resolveTaskToolboxIds falls back to the 'code' built-in for
+    // ticket tasks (back-compat with the old preset behaviour).
+    toolboxIds: options.toolboxIds && options.toolboxIds.length > 0 ? options.toolboxIds : undefined,
   })
 
   // Re-read the row to expose status + createdAt without coupling to spawnTask's return shape.

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, getErrorMessage } from '@/client/lib/api'
 import {
@@ -13,7 +13,9 @@ import { Button } from '@/client/components/ui/button'
 import { Label } from '@/client/components/ui/label'
 import { Textarea } from '@/client/components/ui/textarea'
 import { KinSelector } from '@/client/components/common/KinSelector'
+import { ToolboxMultiSelect } from '@/client/components/toolbox/ToolboxMultiSelect'
 import { useTickets } from '@/client/hooks/useTickets'
+import { useToolboxes } from '@/client/hooks/useToolboxes'
 import { toast } from 'sonner'
 
 interface KinFromApi {
@@ -36,9 +38,11 @@ const RUN_PROMPT_MAX = 500
 export function StartTaskDialog({ open, onOpenChange, ticketId, projectId }: StartTaskDialogProps) {
   const { t } = useTranslation()
   const { startTicketTask } = useTickets(projectId)
+  const { toolboxes } = useToolboxes()
   const [kins, setKins] = useState<KinFromApi[]>([])
   const [selectedKinId, setSelectedKinId] = useState<string>('')
   const [runPrompt, setRunPrompt] = useState('')
+  const [selectedToolboxIds, setSelectedToolboxIds] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
@@ -65,11 +69,35 @@ export function StartTaskDialog({ open, onOpenChange, ticketId, projectId }: Sta
     if (!open) setRunPrompt('')
   }, [open])
 
+  // Default the toolbox selection to the 'code' built-in for ticket tasks
+  // (mirrors the legacy preset default). Applied exactly once per open session
+  // — guarded by a ref so deselecting every toolbox is respected and never
+  // re-seeded behind the user's back.
+  const defaultAppliedRef = useRef(false)
+  useEffect(() => {
+    if (!open) {
+      setSelectedToolboxIds([])
+      defaultAppliedRef.current = false
+      return
+    }
+    if (defaultAppliedRef.current) return
+    const code = toolboxes.find((tb) => tb.builtin && tb.name === 'code')
+    if (code) {
+      setSelectedToolboxIds([code.id])
+      defaultAppliedRef.current = true
+    }
+  }, [open, toolboxes])
+
   async function handleSubmit() {
     if (!selectedKinId) return
     setSubmitting(true)
     try {
-      await startTicketTask(ticketId, selectedKinId, runPrompt.trim() || undefined)
+      await startTicketTask(
+        ticketId,
+        selectedKinId,
+        runPrompt.trim() || undefined,
+        selectedToolboxIds.length > 0 ? selectedToolboxIds : undefined,
+      )
       onOpenChange(false)
     } catch (err) {
       toast.error(getErrorMessage(err))
@@ -130,6 +158,18 @@ export function StartTaskDialog({ open, onOpenChange, ticketId, projectId }: Sta
               </p>
             </div>
           </div>
+          {toolboxes.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>{t('projects.startTask.toolboxesField')}</Label>
+              <ToolboxMultiSelect
+                toolboxes={toolboxes}
+                selected={selectedToolboxIds}
+                onChange={setSelectedToolboxIds}
+                disabled={submitting}
+              />
+              <p className="text-xs text-muted-foreground">{t('projects.startTask.toolboxesHelp')}</p>
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>

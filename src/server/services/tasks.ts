@@ -27,6 +27,108 @@ import type { TaskStatus, TaskMode, KinToolConfig, KinThinkingConfig } from '@/s
 const log = createLogger('tasks')
 
 /**
+ * Minimal safety floor of native tools that genuinely cannot run inside a
+ * sub-Kin, regardless of the toolboxes a task references. These are removed
+ * AFTER the toolbox allow-list is computed, so even a toolbox that lists one
+ * of them (e.g. the built-in 'all') cannot smuggle it into a task.
+ *
+ * The list is deliberately minimal — it only covers tools that require the
+ * main session (cron admin, MCP admin, Kin management, custom-tool admin, and
+ * the task-control tools that operate on the parent's task list). Note that
+ * `spawn_self` and `spawn_kin` are intentionally NOT here: they become
+ * includable via a toolbox, unlocking sub-task delegation.
+ */
+export const HARD_EXCLUDED_FROM_SUBKIN: readonly string[] = [
+  // Task control that needs the main session.
+  'respond_to_task',
+  'cancel_task',
+  'list_tasks',
+  // Inter-Kin reply protocol (main-session only).
+  'reply',
+  // Cron admin.
+  'create_cron',
+  'update_cron',
+  'delete_cron',
+  'list_crons',
+  // MCP admin.
+  'add_mcp_server',
+  'update_mcp_server',
+  'remove_mcp_server',
+  'list_mcp_servers',
+  // Custom-tool admin.
+  'register_tool',
+  'list_custom_tools',
+  // Kin management.
+  'create_kin',
+  'update_kin',
+  'delete_kin',
+  'get_kin_details',
+]
+
+/** Parse a `tasks.toolbox_ids` JSON column into a clean string[] (or undefined
+ *  when null/malformed/empty). Used to forward a task's frozen toolbox
+ *  selection on retry. */
+function parseTaskToolboxIds(raw: string | null): string[] | undefined {
+  if (!raw) return undefined
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed)) {
+      const ids = parsed.filter((x): x is string => typeof x === 'string')
+      return ids.length > 0 ? ids : undefined
+    }
+  } catch {
+    // Malformed — treat as absent.
+  }
+  return undefined
+}
+
+/**
+ * Resolve the toolbox ids that define a task's native toolset.
+ *
+ * Priority:
+ *   1. Explicit `tasks.toolbox_ids` (JSON string[]) frozen at spawn.
+ *   2. Back-compat: map the legacy `tasks.tool_preset` to the built-in
+ *      toolbox of the same name.
+ *   3. Default: 'code' for ticket tasks, 'all' otherwise.
+ *
+ * Returns an array of toolbox **ids** (resolving built-in names to ids via the
+ * toolboxes service). The empty array is returned only when a referenced
+ * built-in cannot be found (should not happen once seeding has run).
+ */
+export async function resolveTaskToolboxIds(task: {
+  toolboxIds: string | null
+  toolPreset: string | null
+  ticketId: string | null
+}): Promise<string[]> {
+  // 1. Explicit toolbox ids on the task row.
+  if (task.toolboxIds) {
+    try {
+      const parsed = JSON.parse(task.toolboxIds)
+      if (Array.isArray(parsed)) {
+        const ids = parsed.filter((x): x is string => typeof x === 'string')
+        if (ids.length > 0) return ids
+      }
+    } catch {
+      // Malformed JSON — fall through to the legacy / default path.
+    }
+  }
+
+  const { getToolboxByName } = await import('@/server/services/toolboxes')
+
+  // 2. Legacy tool_preset → built-in toolbox of the same name.
+  const presetName = task.toolPreset?.trim()
+  if (presetName) {
+    const box = getToolboxByName(presetName)
+    if (box) return [box.id]
+  }
+
+  // 3. Default: 'code' for tickets, 'all' otherwise.
+  const defaultName = task.ticketId ? 'code' : 'all'
+  const box = getToolboxByName(defaultName)
+  return box ? [box.id] : []
+}
+
+/**
  * Strip execute functions from tools so the SDK only collects tool call intents
  * without executing them. This allows our custom loop to execute tools
  * sequentially between LLM steps, preventing hallucinated tool results.
@@ -291,10 +393,17 @@ interface SpawnParams {
   thinkingConfig?: KinThinkingConfig
   concurrencyGroup?: string
   concurrencyMax?: number
-  /** Optional sub-Kin tool preset override. When set, replaces the
-   *  auto-picked preset (ticket → 'code', else full surface). Use 'all' to
+  /** Optional sub-Kin tool preset override (DEPRECATED — superseded by
+   *  `toolboxIds`). When set and `toolboxIds` is absent, it is mapped to the
+   *  built-in toolbox of the same name at execution time. Use 'all' to
    *  explicitly disable filtering on a ticket task. */
   toolPreset?: 'code' | 'research' | 'ops' | 'all'
+  /** Optional array of toolbox ids defining the task's native toolset. Frozen
+   *  onto the task row at spawn. When set, the resolved native allow-list is
+   *  CORE_TOOLS unioned with every referenced toolbox's tool names ("*"
+   *  expands to all native tools). When absent, falls back to the built-in
+   *  matching `toolPreset` (or 'code' for tickets / 'all' otherwise). */
+  toolboxIds?: string[]
   /** Optional run-specific sur-prompt persisted on the task row and injected
    *  into the ticket-assignment block at prompt-build time. Ticket tasks only. */
   runPrompt?: string | null
@@ -535,6 +644,10 @@ export async function spawnTask(params: SpawnParams) {
     allowHumanPrompt: params.allowHumanPrompt ?? true,
     thinkingConfig: effectiveThinkingConfig ? JSON.stringify(effectiveThinkingConfig) : null,
     toolPreset: params.toolPreset ?? null,
+    toolboxIds:
+      params.toolboxIds && params.toolboxIds.length > 0
+        ? JSON.stringify(params.toolboxIds)
+        : null,
     runPrompt: params.runPrompt ?? null,
     concurrencyGroup,
     concurrencyMax,
@@ -854,17 +967,27 @@ async function executeSubKin(taskId: string, isNudge = false) {
       }
     }
 
-    // Remove tools not appropriate for sub-Kins
-    const SUB_KIN_EXCLUDED_TOOLS = [
-      'spawn_self', 'spawn_kin',
-      'respond_to_task', 'cancel_task', 'list_tasks',
-      'reply',
-      'create_cron', 'update_cron', 'delete_cron', 'list_crons',
-      'add_mcp_server', 'update_mcp_server', 'remove_mcp_server', 'list_mcp_servers',
-      'register_tool', 'list_custom_tools',
-      'create_kin', 'update_kin', 'delete_kin', 'get_kin_details',
-    ]
-    for (const name of SUB_KIN_EXCLUDED_TOOLS) {
+    // Toolbox-based native filtering. The task's resolved native allow-list is
+    // CORE_TOOLS unioned with every referenced toolbox's tool names ("*"
+    // expands to all native tools). The toolbox ids are resolved from the
+    // task row (explicit toolbox_ids → legacy tool_preset → default), then
+    // the union floor is layered on top.
+    const { CORE_TOOLS, resolveToolboxNames } = await import('@/server/services/toolboxes')
+    const taskToolboxIds = await resolveTaskToolboxIds({
+      toolboxIds: task.toolboxIds as string | null,
+      toolPreset: task.toolPreset as string | null,
+      ticketId: task.ticketId ?? null,
+    })
+    const allowedNative = new Set<string>([...CORE_TOOLS, ...resolveToolboxNames(taskToolboxIds)])
+
+    // Keep only the native tools the toolboxes (+ core floor) allow, then
+    // subtract the hard safety floor that can never run in a sub-Kin. The
+    // HARD list is applied AFTER the allow-list so even an 'all' toolbox can't
+    // smuggle a main-session-only tool through.
+    for (const name of Object.keys(nativeTools)) {
+      if (!allowedNative.has(name)) delete nativeTools[name]
+    }
+    for (const name of HARD_EXCLUDED_FROM_SUBKIN) {
       delete nativeTools[name]
     }
 
@@ -893,38 +1016,27 @@ async function executeSubKin(taskId: string, isNudge = false) {
     const mcpTools = await resolveMCPTools(kinIdentity.id, kinToolConfig)
     const customToolDefs = await resolveCustomTools(kinIdentity.id)
 
-    // Right-size the native-tool surface via a preset (mandatory core +
-    // task-flavored extras). Explicit `toolPreset` on the task row wins;
-    // otherwise the auto-picker (ticket → 'code', else full surface) takes
-    // over. MCP and per-Kin custom tools are intentionally excluded from
-    // the preset filter — those have already been curated at the Kin level.
-    const { applyPreset, defaultPresetForTask } = await import('@/server/services/tool-presets')
-    const explicitPreset = task.toolPreset as 'code' | 'research' | 'ops' | 'all' | null
-    const preset = explicitPreset ?? defaultPresetForTask({
-      ticketId: task.ticketId ?? null,
-      cronId: task.cronId ?? null,
-    })
-    const filteredNative = applyPreset(nativeTools, preset)
-    const filteredSubKin = applyPreset(subKinTools, preset)
-
+    // Native tools have already been right-sized above by the toolbox
+    // allow-list (CORE_TOOLS ∪ toolbox tool names, minus the hard floor). The
+    // sub-Kin comms tools are infrastructure and are NOT toolbox-filtered.
+    // MCP and per-Kin custom tools likewise flow through unfiltered — those
+    // have already been curated at the Kin level.
     const tools = wrapToolsWithSpill(
-      { ...filteredNative, ...filteredSubKin, ...mcpTools, ...customToolDefs },
+      { ...nativeTools, ...subKinTools, ...mcpTools, ...customToolDefs },
       effectiveWorkspacePath,
     )
 
-    if (preset) {
-      log.info(
-        {
-          taskId,
-          preset,
-          nativeCount: Object.keys(filteredNative).length,
-          subKinCount: Object.keys(filteredSubKin).length,
-          mcpCount: Object.keys(mcpTools).length,
-          customCount: Object.keys(customToolDefs).length,
-        },
-        'Sub-Kin tool preset applied',
-      )
-    }
+    log.info(
+      {
+        taskId,
+        toolboxIds: taskToolboxIds,
+        nativeCount: Object.keys(nativeTools).length,
+        subKinCount: Object.keys(subKinTools).length,
+        mcpCount: Object.keys(mcpTools).length,
+        customCount: Object.keys(customToolDefs).length,
+      },
+      'Sub-Kin toolbox surface resolved',
+    )
 
     // Build task message history (only messages for this task)
     const taskMessages = await db
@@ -1860,6 +1972,7 @@ export async function retryTask(
     concurrencyGroup: original.concurrencyGroup ?? undefined,
     concurrencyMax: original.concurrencyMax ?? undefined,
     toolPreset: (original.toolPreset ?? undefined) as 'code' | 'research' | 'ops' | 'all' | undefined,
+    toolboxIds: parseTaskToolboxIds(original.toolboxIds as string | null),
     // Hold off on the runner so we can seed cloned messages (if asked)
     // before the first stream reads from the DB.
     skipExecute: true,

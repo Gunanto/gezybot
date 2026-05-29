@@ -1033,6 +1033,52 @@
       "forkTooltip": "Fork: clone the failed task with all its messages. The model picks up the prior context."
     }
   },
+  "toolboxes": {
+    "title": "Toolboxes",
+    "description": "Named sets of tools you can assign to tasks. A task's tools are a mandatory core set plus the tools of every toolbox you give it.",
+    "add": "New toolbox",
+    "empty": "No toolboxes yet",
+    "emptyDescription": "Create a toolbox to group tools and assign them to tasks in one click.",
+    "builtinBadge": "Built-in",
+    "view": "View toolbox",
+    "allTools": "All tools",
+    "toolCount": "{{count}} tools",
+    "hardExcluded": "Unavailable in tasks",
+    "created": "Toolbox created",
+    "updated": "Toolbox updated",
+    "deleted": "Toolbox deleted",
+    "deleteTitle": "Delete toolbox",
+    "deleteConfirm": "This will permanently delete the \"{{name}}\" toolbox. Tasks that referenced it will fall back to the default tools.",
+    "builtin": {
+      "code": "Code",
+      "research": "Research",
+      "ops": "Ops",
+      "all": "All tools",
+      "scout": "Scout"
+    },
+    "form": {
+      "createTitle": "New toolbox",
+      "editTitle": "Edit toolbox",
+      "viewTitle": "Toolbox",
+      "description": "Pick the tools this toolbox grants. Tasks combine the toolboxes you assign with a mandatory core set.",
+      "viewDescription": "This is a built-in toolbox. It cannot be edited or deleted.",
+      "nameField": "Name",
+      "namePlaceholder": "e.g. Frontend",
+      "descriptionField": "Description",
+      "descriptionPlaceholder": "What is this toolbox for?",
+      "toolsField": "Tools",
+      "selectedCount": "{{count}} selected",
+      "wildcardNote": "This built-in grants every native tool.",
+      "hardExcludedNote": "This tool can never run inside a task, even if a toolbox includes it."
+    },
+    "help": {
+      "content": "A toolbox is a named, reusable set of native tools. Assign one or more toolboxes to a task and the task can use that union of tools — on top of a mandatory core set that is always available.",
+      "bullet1": "Built-in toolboxes (Code, Research, Ops, Scout, All tools) are read-only but can be assigned to any task.",
+      "bullet2": "Create your own toolboxes to fit recurring kinds of work.",
+      "bullet3": "Every task always keeps a core set of tools, regardless of the toolboxes you assign.",
+      "bullet4": "Some tools can never run inside a task — they are flagged when you build a toolbox."
+    }
+  },
   "settings": {
     "title": "Settings",
     "general": {
@@ -2720,6 +2766,8 @@
       "runPromptPlaceholder": "e.g. focus only on the backend, leave the UI for the next Kin",
       "runPromptHelp": "Optional. Scopes this particular run on top of the ticket. Useful when fanning out several agents in parallel, or stopping at a specific phase. Max 500 chars.",
       "runPromptCounter": "{{count}} / 500",
+      "toolboxesField": "Toolboxes",
+      "toolboxesHelp": "Which tool sets this task can use. The task always keeps a mandatory core set; selected toolboxes add to it. Defaults to the Code toolbox.",
       "start": "Start"
     },
     "enrich": {

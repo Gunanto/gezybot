@@ -153,6 +153,44 @@ export interface KinToolConfig {
   allowPrivateNetworkHttpRequests?: boolean
 }
 
+/** A global, named set of native tools assignable to tasks. The resolved
+ *  native toolset of a task is CORE_TOOLS unioned with every referenced
+ *  toolbox's `toolNames` (the special value "*" expands to all native tools).
+ *  Built-in toolboxes (builtin=true) are seeded at startup and cannot be
+ *  edited or deleted. */
+export interface Toolbox {
+  id: string
+  name: string
+  description: string | null
+  /** Explicit allow-list of individual native tool names. The single special
+   *  value "*" means "all native tools" (used by the built-in 'all' toolbox). */
+  toolNames: string[]
+  builtin: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+/** Author-supplied tool display label. Either a single string (same text in
+ *  every locale) or a `{ lang: text }` map. Mirrors the SDK `ToolLabel`. */
+export type ToolLabel = string | Record<string, string>
+
+/** A single entry of the Kin-agnostic native tool catalog returned by
+ *  GET /api/tools/catalog. Carries metadata only (no per-Kin enabled state) so
+ *  the toolbox editor can render every native tool with its domain, label, and
+ *  a `hardExcludedFromSubKin` flag warning the tool can never run in a task. */
+export interface ToolCatalogEntry {
+  name: string
+  domain: ToolDomain
+  label: ToolLabel | null
+  description: string | null
+  defaultDisabled: boolean
+  readOnly: boolean
+  destructive: boolean
+  /** True when the tool is in HARD_EXCLUDED_FROM_SUBKIN — it cannot run inside a
+   *  task even if a toolbox lists it. The UI surfaces a soft warning. */
+  hardExcludedFromSubKin: boolean
+}
+
 /** Per-Kin compacting configuration (stored as JSON in kins.compacting_config) */
 export interface KinCompactingConfig {
   /** Model used for compaction (null = same as Kin's model) */

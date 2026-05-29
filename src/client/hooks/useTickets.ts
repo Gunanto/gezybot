@@ -126,11 +126,15 @@ export function useTickets(projectId: string | null) {
       ticketId: string,
       kinId: string,
       runPrompt?: string,
+      toolboxIds?: string[],
     ): Promise<StartTicketTaskResult['task']> => {
       const trimmed = runPrompt?.trim() ?? ''
+      const body: { kinId: string; runPrompt?: string; toolboxIds?: string[] } = { kinId }
+      if (trimmed.length > 0) body.runPrompt = trimmed
+      if (toolboxIds && toolboxIds.length > 0) body.toolboxIds = toolboxIds
       const data = await api.post<StartTicketTaskResult>(
         `/tickets/${ticketId}/start-task`,
-        trimmed.length > 0 ? { kinId, runPrompt: trimmed } : { kinId },
+        body,
       )
       return data.task
     },

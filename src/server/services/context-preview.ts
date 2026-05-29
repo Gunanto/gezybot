@@ -721,16 +721,6 @@ function formatResult(
 // Mirrors executeSubKin() in tasks.ts
 // ---------------------------------------------------------------------------
 
-const SUB_KIN_EXCLUDED_TOOLS = new Set([
-  'spawn_self', 'spawn_kin',
-  'respond_to_task', 'cancel_task', 'list_tasks',
-  'reply',
-  'create_cron', 'update_cron', 'delete_cron', 'list_crons',
-  'add_mcp_server', 'update_mcp_server', 'remove_mcp_server', 'list_mcp_servers',
-  'register_tool', 'list_custom_tools',
-  'create_kin', 'update_kin', 'delete_kin', 'get_kin_details',
-])
-
 export async function buildTaskContextPreview(taskId: string): Promise<ContextPreviewResult> {
   const task = db.select().from(tasks).where(eq(tasks.id, taskId)).get()
   if (!task) throw new Error('Task not found')
@@ -881,11 +871,33 @@ export async function buildTaskContextPreview(taskId: string): Promise<ContextPr
       delete nativeTools[reg.name]
     }
   }
-  for (const name of SUB_KIN_EXCLUDED_TOOLS) {
+
+  // Toolbox-based native filtering — mirror executeSubKin exactly: narrow to
+  // CORE_TOOLS ∪ (toolboxes' tool names), then subtract the hard sub-Kin floor
+  // AFTER the allow-list so even an 'all' toolbox can't smuggle a main-session
+  // tool through. Toolbox ids resolve from the task row (explicit toolbox_ids →
+  // legacy tool_preset → default 'code'/'all').
+  const { CORE_TOOLS, resolveToolboxNames } = await import('@/server/services/toolboxes')
+  const { resolveTaskToolboxIds, HARD_EXCLUDED_FROM_SUBKIN } = await import('@/server/services/tasks')
+  const taskToolboxIds = await resolveTaskToolboxIds({
+    toolboxIds: task.toolboxIds as string | null,
+    toolPreset: task.toolPreset as string | null,
+    ticketId: task.ticketId ?? null,
+  })
+  const allowedNative = new Set<string>([...CORE_TOOLS, ...resolveToolboxNames(taskToolboxIds)])
+  for (const name of Object.keys(nativeTools)) {
+    if (!allowedNative.has(name)) delete nativeTools[name]
+  }
+  for (const name of HARD_EXCLUDED_FROM_SUBKIN) {
     delete nativeTools[name]
   }
 
   const subKinTools = toolRegistry.resolve({ kinId: task.parentKinId, taskId, taskDepth: task.depth, isSubKin: true, toolConfig: kinToolConfig })
+  // Mirror executeSubKin: ticket sub-Kins drop report_to_parent (the parent has
+  // nothing actionable to do with intermediate reports — the user reads the UI).
+  if (task.ticketId) {
+    delete subKinTools['report_to_parent']
+  }
   const mcpTools = await resolveMCPTools(kinIdentity.id, kinToolConfig)
   const customToolDefs = await resolveCustomTools(kinIdentity.id)
   const taskSourceMap = new Map<string, ToolSource>()

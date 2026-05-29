@@ -1,16 +1,14 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Switch } from '@/client/components/ui/switch'
-import { Label } from '@/client/components/ui/label'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/client/components/ui/collapsible'
-import { ToolDomainIcon } from '@/client/components/common/ToolDomainIcon'
-import { Badge } from '@/client/components/ui/badge'
-import { useKinTools, type NativeToolGroup, type McpToolGroup, type PluginToolGroup, type ToolLabel } from '@/client/hooks/useKinTools'
+import { ToolSelector, type ToolSelectorTool } from '@/client/components/common/ToolSelector'
+import { useKinTools, type McpToolGroup, type PluginToolGroup, type ToolLabel } from '@/client/hooks/useKinTools'
 import { useHasCapability } from '@/client/hooks/useHasCapability'
-import { TOOL_DOMAIN_META } from '@/shared/constants'
-import { AlertCircle, ChevronRight, Loader2, Plug, Puzzle } from 'lucide-react'
+import { Badge } from '@/client/components/ui/badge'
+import { ChevronRight, Loader2, Plug, Puzzle } from 'lucide-react'
 import { cn } from '@/client/lib/utils'
-import type { KinToolConfig, ToolDomain } from '@/shared/types'
+import type { KinToolConfig } from '@/shared/types'
 
 /**
  * Native tools whose execution requires a provider of the named
@@ -68,8 +66,6 @@ function resolveToolLabel(name: string, label: ToolLabel | undefined, lang: stri
 function prettifyToolName(name: string): string {
   // `plugin_<plugin-name>_<tool>` → `<tool>`. Plugin scope is already
   // shown as the group header, no need to repeat it on every row.
-  // The plugin name uses dashes (npm convention) so `[^_]+` greedily
-  // matches it in one shot.
   const match = name.match(/^plugin_[^_]+_(.+)$/)
   return match ? match[1]! : name
 }
@@ -105,88 +101,87 @@ export function KinToolsTab({ kinId, toolConfig, onToolConfigChange }: KinToolsT
     return t(`kin.tools.missingCapability.${family}`)
   }
 
-  // ─── Native tool toggle (dual model: deny-list + opt-in allow-list) ──
+  // ─── Native tools → ToolSelector adapter ────────────────────────────
+  //
+  // The shared ToolSelector is a flat "selected Set<string>" picker. The
+  // Kin tool config is a *dual* model: a deny-list for standard tools and
+  // an opt-in allow-list for defaultDisabled tools. We bridge the two:
+  //
+  //   selected = { every native tool currently ENABLED for this Kin }
+  //   onChange(next) → rebuild disabledNativeTools (standard tools NOT in
+  //     `next`) and enabledOptInTools (defaultDisabled tools IN `next`).
 
-  const isNativeToolEnabled = (toolName: string, defaultDisabled?: boolean) => {
-    if (defaultDisabled) {
-      // Opt-in tool: enabled only if in enabledOptInTools
-      return config.enabledOptInTools?.includes(toolName) ?? false
+  // Flatten useKinTools native groups into a catalog the ToolSelector
+  // understands. Defaults that the ToolSelector doesn't consume for native
+  // tools (readOnly/destructive/hardExcludedFromSubKin) are filled with
+  // benign placeholders.
+  const nativeCatalog = useMemo<ToolSelectorTool[]>(() => {
+    const out: ToolSelectorTool[] = []
+    for (const group of nativeTools) {
+      for (const tool of group.tools) {
+        out.push({
+          name: tool.name,
+          domain: group.domain,
+          label: tool.label ?? null,
+          description: null,
+          defaultDisabled: tool.defaultDisabled ?? false,
+          readOnly: false,
+          destructive: false,
+          hardExcludedFromSubKin: false,
+        })
+      }
     }
-    // Standard tool: enabled unless in disabledNativeTools
+    return out
+  }, [nativeTools])
+
+  const isNativeToolEnabled = (toolName: string, defaultDisabled: boolean): boolean => {
+    if (defaultDisabled) return config.enabledOptInTools?.includes(toolName) ?? false
     return !config.disabledNativeTools.includes(toolName)
   }
 
-  const toggleNativeTool = (toolName: string, defaultDisabled?: boolean) => {
-    if (defaultDisabled) {
-      // Toggle in the opt-in allow-list
-      const optIn = new Set(config.enabledOptInTools ?? [])
-      if (optIn.has(toolName)) {
-        optIn.delete(toolName)
-      } else {
-        optIn.add(toolName)
-      }
-      onToolConfigChange({
-        ...config,
-        enabledOptInTools: Array.from(optIn),
-      })
-    } else {
-      // Existing deny-list toggle
-      const disabled = new Set(config.disabledNativeTools)
-      if (disabled.has(toolName)) {
-        disabled.delete(toolName)
-      } else {
-        disabled.add(toolName)
-      }
-      onToolConfigChange({
-        ...config,
-        disabledNativeTools: Array.from(disabled),
-      })
+  const nativeSelected = useMemo<Set<string>>(() => {
+    const set = new Set<string>()
+    for (const tool of nativeCatalog) {
+      if (isNativeToolEnabled(tool.name, tool.defaultDisabled)) set.add(tool.name)
     }
-  }
+    return set
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nativeCatalog, config.disabledNativeTools, config.enabledOptInTools])
 
-  const toggleDomain = (group: NativeToolGroup) => {
-    const isOptIn = group.tools.some((t) => t.defaultDisabled)
-    const allEnabled = group.tools.every((t) => isNativeToolEnabled(t.name, t.defaultDisabled))
-
-    if (isOptIn) {
-      // Opt-in domain: toggle in enabledOptInTools
-      const optIn = new Set(config.enabledOptInTools ?? [])
-      for (const tool of group.tools) {
-        if (allEnabled) {
-          optIn.delete(tool.name)
-        } else {
-          optIn.add(tool.name)
-        }
+  const handleNativeChange = (next: Set<string>) => {
+    const disabled = new Set<string>()
+    const optIn = new Set<string>()
+    for (const tool of nativeCatalog) {
+      const selected = next.has(tool.name)
+      if (tool.defaultDisabled) {
+        if (selected) optIn.add(tool.name)
+      } else if (!selected) {
+        disabled.add(tool.name)
       }
-      onToolConfigChange({
-        ...config,
-        enabledOptInTools: Array.from(optIn),
-      })
-    } else {
-      // Standard domain: toggle in disabledNativeTools
-      const disabled = new Set(config.disabledNativeTools)
-      for (const tool of group.tools) {
-        if (allEnabled) {
-          disabled.add(tool.name)
-        } else {
-          disabled.delete(tool.name)
-        }
-      }
-      onToolConfigChange({
-        ...config,
-        disabledNativeTools: Array.from(disabled),
-      })
     }
+    onToolConfigChange({
+      ...config,
+      disabledNativeTools: Array.from(disabled),
+      enabledOptInTools: Array.from(optIn),
+    })
   }
 
   // ─── Plugin tool toggles ────────────────────────────────────────────
   // Plugin tools are always opt-in (the plugin loader forces
   // defaultDisabled: true), so individual rows reuse the same
-  // enabledOptInTools allow-list as opt-in native tools. The group
-  // toggle bulk-adds/removes every tool name in the plugin.
+  // enabledOptInTools allow-list as opt-in native tools.
+
+  const isOptInEnabled = (toolName: string) => config.enabledOptInTools?.includes(toolName) ?? false
+
+  const toggleOptInTool = (toolName: string) => {
+    const optIn = new Set(config.enabledOptInTools ?? [])
+    if (optIn.has(toolName)) optIn.delete(toolName)
+    else optIn.add(toolName)
+    onToolConfigChange({ ...config, enabledOptInTools: Array.from(optIn) })
+  }
 
   const togglePluginGroup = (group: PluginToolGroup) => {
-    const allEnabled = group.tools.every((t) => isNativeToolEnabled(t.name, true))
+    const allEnabled = group.tools.every((t) => isOptInEnabled(t.name))
     const optIn = new Set(config.enabledOptInTools ?? [])
     for (const tool of group.tools) {
       if (allEnabled) optIn.delete(tool.name)
@@ -262,42 +257,16 @@ export function KinToolsTab({ kinId, toolConfig, onToolConfigChange }: KinToolsT
 
   return (
     <div className="space-y-6">
-      {/* Native tools */}
+      {/* Native tools — rendered via the shared ToolSelector, bridged to the
+          Kin's dual deny-list / opt-in model. */}
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-foreground">{t('kin.tools.native')}</h3>
-
-        {nativeTools.map((group) => {
-          const isOptIn = group.tools.some((t) => t.defaultDisabled)
-          const enabledCount = group.tools.filter((t) => isNativeToolEnabled(t.name, t.defaultDisabled)).length
-          const allEnabled = enabledCount === group.tools.length
-
-          return (
-            <DomainGroup
-              key={group.domain}
-              domain={group.domain}
-              enabledCount={enabledCount}
-              totalCount={group.tools.length}
-              allEnabled={allEnabled}
-              isOptIn={isOptIn}
-              onToggleAll={() => toggleDomain(group)}
-            >
-              {group.tools.map((tool) => {
-                const friendlyLabel = t(`tools.names.${tool.name}`, tool.name)
-                const showKey = friendlyLabel !== tool.name
-                return (
-                  <ToolRow
-                    key={tool.name}
-                    label={friendlyLabel}
-                    toolKey={showKey ? tool.name : undefined}
-                    enabled={isNativeToolEnabled(tool.name, tool.defaultDisabled)}
-                    onToggle={() => toggleNativeTool(tool.name, tool.defaultDisabled)}
-                    missingCapability={missingCapabilityFor(tool.name)}
-                  />
-                )
-              })}
-            </DomainGroup>
-          )
-        })}
+        <ToolSelector
+          tools={nativeCatalog}
+          selected={nativeSelected}
+          onChange={handleNativeChange}
+          toolNote={(tool) => missingCapabilityFor(tool.name)}
+        />
       </div>
 
       {/* Plugin tools */}
@@ -306,7 +275,7 @@ export function KinToolsTab({ kinId, toolConfig, onToolConfigChange }: KinToolsT
           <h3 className="text-sm font-semibold text-foreground">{t('kin.tools.plugins')}</h3>
 
           {pluginTools.map((group) => {
-            const enabledCount = group.tools.filter((t) => isNativeToolEnabled(t.name, true)).length
+            const enabledCount = group.tools.filter((t) => isOptInEnabled(t.name)).length
             const allEnabled = enabledCount === group.tools.length
             return (
               <PluginGroup
@@ -323,9 +292,7 @@ export function KinToolsTab({ kinId, toolConfig, onToolConfigChange }: KinToolsT
                 {group.tools.map((tool) => {
                   // Show the prettified name (prefix-stripped) as the
                   // mono subtitle whenever the author-supplied label
-                  // differs from it — same UX as native tools, where
-                  // the technical name appears next to the friendly
-                  // translation when they don't match.
+                  // differs from it — same UX as native tools.
                   const strippedName = prettifyToolName(tool.name)
                   const label = resolveToolLabel(tool.name, tool.label, userLang)
                   return (
@@ -333,8 +300,8 @@ export function KinToolsTab({ kinId, toolConfig, onToolConfigChange }: KinToolsT
                       key={tool.name}
                       label={label}
                       toolKey={label !== strippedName ? strippedName : undefined}
-                      enabled={isNativeToolEnabled(tool.name, true)}
-                      onToggle={() => toggleNativeTool(tool.name, true)}
+                      enabled={isOptInEnabled(tool.name)}
+                      onToggle={() => toggleOptInTool(tool.name)}
                     />
                   )
                 })}
@@ -396,74 +363,7 @@ export function KinToolsTab({ kinId, toolConfig, onToolConfigChange }: KinToolsT
   )
 }
 
-// ─── Sub-components ─────────────────────────────────────────────────
-
-function DomainGroup({
-  domain,
-  enabledCount,
-  totalCount,
-  allEnabled,
-  isOptIn,
-  onToggleAll,
-  children,
-}: {
-  domain: ToolDomain
-  enabledCount: number
-  totalCount: number
-  allEnabled: boolean
-  isOptIn?: boolean
-  onToggleAll: () => void
-  children: React.ReactNode
-}) {
-  const { t } = useTranslation()
-  const meta = TOOL_DOMAIN_META[domain]
-  const [open, setOpen] = useState(false)
-
-  return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <div className="rounded-lg border bg-card/50">
-        {/* Domain header */}
-        <div className="flex items-center justify-between px-3 py-2">
-          <CollapsibleTrigger asChild>
-            <button
-              type="button"
-              className="flex flex-1 items-center gap-2 text-left"
-            >
-              <ChevronRight className={cn(
-                'size-3.5 text-muted-foreground transition-transform',
-                open && 'rotate-90',
-              )} />
-              <span className={`flex size-6 items-center justify-center rounded-md ${meta.bg}`}>
-                <ToolDomainIcon domain={domain} className={`size-3.5 ${meta.text}`} />
-              </span>
-              <span className="text-sm font-medium">{t(meta.labelKey)}</span>
-              {isOptIn && (
- <Badge variant="secondary" size="xs">
-                  {t('kin.tools.optIn')}
-                </Badge>
-              )}
-              <span className="text-xs text-muted-foreground">
-                {t('kin.tools.countEnabled', { count: enabledCount, total: totalCount })}
-              </span>
-            </button>
-          </CollapsibleTrigger>
-          <Switch
-            size="sm"
-            checked={allEnabled}
-            onCheckedChange={onToggleAll}
-          />
-        </div>
-
-        {/* Tool list */}
-        <CollapsibleContent>
-          <div className="border-t">
-            {children}
-          </div>
-        </CollapsibleContent>
-      </div>
-    </Collapsible>
-  )
-}
+// ─── Sub-components (plugin + MCP groups keep their bespoke headers) ──
 
 function PluginGroup({
   pluginName,
@@ -591,7 +491,7 @@ function McpServerGroup({
               </span>
               <span className="text-sm font-medium">{serverName}</span>
               {autoEnabled && (
- <Badge variant="secondary" size="xs">
+                <Badge variant="secondary" size="xs">
                   {t('kin.tools.autoEnabled')}
                 </Badge>
               )}
@@ -625,7 +525,6 @@ function ToolRow({
   description,
   enabled,
   onToggle,
-  missingCapability,
 }: {
   label: string
   /** Optional tool identifier (e.g. "browser_open_session") shown muted next to the label */
@@ -633,8 +532,6 @@ function ToolRow({
   description?: string
   enabled: boolean
   onToggle: () => void
-  /** Soft warning shown when the tool needs a provider family that isn't configured. */
-  missingCapability?: string
 }) {
   return (
     <div className="flex items-center justify-between gap-3 py-1.5 pr-3 pl-12 hover:bg-accent/30 transition-colors">
@@ -647,12 +544,6 @@ function ToolRow({
         </span>
         {description && (
           <p className="truncate text-xs text-muted-foreground">{description}</p>
-        )}
-        {missingCapability && (
-          <p className="mt-0.5 flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
-            <AlertCircle className="size-3 shrink-0" />
-            <span className="truncate">{missingCapability}</span>
-          </p>
         )}
       </div>
       <Switch

@@ -1,0 +1,336 @@
+/**
+ * Toolboxes — global, user-defined (and built-in) named sets of native tools.
+ *
+ * A toolbox is an explicit allow-list of individual native tool names. The
+ * special value "*" inside a toolbox's `toolNames` means "all native tools"
+ * (used by the built-in 'all' toolbox).
+ *
+ * A task references an ARRAY of toolboxes (tasks.toolboxIds). The task's
+ * resolved native toolset is:
+ *
+ *     CORE_TOOLS  UNION  (union of every referenced toolbox's toolNames)
+ *
+ * where "*" expands to every registered native tool name. CORE_TOOLS is a
+ * mandatory floor that is always present regardless of the chosen toolboxes —
+ * see tool-presets.ts (the authoritative list lives there).
+ *
+ * MCP servers and per-Kin custom tools are NOT part of a toolbox in v1; they
+ * continue to flow from the Kin's own config.
+ *
+ * Built-in toolboxes (builtin=true) are seeded idempotently at startup from the
+ * exact lists in tool-presets.ts and cannot be edited or deleted.
+ */
+
+import { eq } from 'drizzle-orm'
+import { v4 as uuid } from 'uuid'
+import { db } from '@/server/db/index'
+import { toolboxes } from '@/server/db/schema'
+import { toolRegistry } from '@/server/tools/index'
+import { CORE_TOOLS } from '@/server/services/tool-presets'
+import { createLogger } from '@/server/logger'
+import type { Toolbox } from '@/shared/types'
+
+const log = createLogger('toolboxes')
+
+// ─── Built-in toolbox definitions ──────────────────────────────────────────────
+// These mirror tool-presets.ts exactly. The 'code' / 'research' / 'ops' lists
+// are the `extras` of the matching preset (CORE_TOOLS is layered on top at
+// resolution time, so it is intentionally NOT duplicated here). 'all' is the
+// wildcard, and 'scout' is a new read-only exploration set.
+
+export interface BuiltinToolboxDef {
+  name: string
+  description: string
+  toolNames: string[]
+}
+
+export const BUILTIN_TOOLBOXES: readonly BuiltinToolboxDef[] = [
+  {
+    name: 'code',
+    description: 'Ticket-bound implementation work: project/ticket tools, web docs lookup, read-only memory, and project knowledge.',
+    toolNames: [
+      // Project & ticket tools.
+      'list_projects',
+      'get_project',
+      'list_project_tags',
+      'list_tickets',
+      'get_ticket',
+      'get_task_detail',
+      'get_task_messages',
+      'update_ticket',
+      'create_ticket',
+      'add_ticket_tag',
+      'remove_ticket_tag',
+      'set_active_project',
+      // Web.
+      'web_search',
+      'browse_url',
+      'extract_links',
+      // Memory (read-only).
+      'recall',
+      'list_memories',
+      // Project knowledge.
+      'add_project_knowledge',
+      'search_project_knowledge',
+      'list_project_knowledge',
+      'get_project_knowledge',
+      'update_project_knowledge',
+      'pin_project_knowledge',
+    ],
+  },
+  {
+    name: 'research',
+    description: 'Web research and knowledge capture: browsing, history, summaries, and full memory read/write.',
+    toolNames: [
+      'web_search',
+      'browse_url',
+      'extract_links',
+      'screenshot_url',
+      'search_history',
+      'browse_history',
+      'list_summaries',
+      'read_summary',
+      'recall',
+      'memorize',
+      'update_memory',
+      'forget',
+      'list_memories',
+      'review_memories',
+    ],
+  },
+  {
+    name: 'ops',
+    description: 'Operations and integrations: memory, vault secrets, redaction, HTTP requests, and system info.',
+    toolNames: [
+      'recall',
+      'memorize',
+      'list_memories',
+      'get_secret',
+      'search_secrets',
+      'redact_message',
+      'http_request',
+      'get_system_info',
+    ],
+  },
+  {
+    name: 'all',
+    description: 'All native tools (no filtering beyond the safety floor).',
+    toolNames: ['*'],
+  },
+  {
+    name: 'scout',
+    description: 'Read-only exploration: grep, file/directory reads, and web lookups. No writes.',
+    toolNames: [
+      'grep',
+      'read_file',
+      'list_directory',
+      'web_search',
+      'browse_url',
+      'extract_links',
+    ],
+  },
+]
+
+const BUILTIN_NAMES = new Set<string>(BUILTIN_TOOLBOXES.map((b) => b.name))
+
+// ─── Row mapping ────────────────────────────────────────────────────────────────
+
+function parseToolNames(raw: string | null): string[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed)) return parsed.filter((x): x is string => typeof x === 'string')
+  } catch {
+    // fallthrough
+  }
+  return []
+}
+
+function rowToToolbox(row: typeof toolboxes.$inferSelect): Toolbox {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description ?? null,
+    toolNames: parseToolNames(row.toolNames),
+    builtin: row.builtin,
+    createdAt: row.createdAt.getTime?.() ?? (row.createdAt as unknown as number),
+    updatedAt: row.updatedAt.getTime?.() ?? (row.updatedAt as unknown as number),
+  }
+}
+
+// ─── CRUD ─────────────────────────────────────────────────────────────────────
+
+export function listToolboxes(): Toolbox[] {
+  const rows = db.select().from(toolboxes).all()
+  return rows.map(rowToToolbox)
+}
+
+export function getToolbox(id: string): Toolbox | null {
+  const row = db.select().from(toolboxes).where(eq(toolboxes.id, id)).get()
+  return row ? rowToToolbox(row) : null
+}
+
+export function getToolboxByName(name: string): Toolbox | null {
+  const row = db.select().from(toolboxes).where(eq(toolboxes.name, name)).get()
+  return row ? rowToToolbox(row) : null
+}
+
+export function createToolbox(input: {
+  name: string
+  description?: string | null
+  toolNames: string[]
+}): Toolbox {
+  const name = input.name.trim()
+  if (!name) throw new Error('TOOLBOX_NAME_REQUIRED')
+  if (getToolboxByName(name)) throw new Error('TOOLBOX_NAME_TAKEN')
+
+  const now = new Date()
+  const id = uuid()
+  db.insert(toolboxes)
+    .values({
+      id,
+      name,
+      description: input.description ?? null,
+      toolNames: JSON.stringify(input.toolNames ?? []),
+      builtin: false,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .run()
+
+  const created = getToolbox(id)
+  if (!created) throw new Error('Toolbox creation failed: not found after insert')
+  return created
+}
+
+export function updateToolbox(
+  id: string,
+  input: { name?: string; description?: string | null; toolNames?: string[] },
+): Toolbox {
+  const existing = getToolbox(id)
+  if (!existing) throw new Error('TOOLBOX_NOT_FOUND')
+  if (existing.builtin) throw new Error('TOOLBOX_BUILTIN_READONLY')
+
+  const patch: Partial<typeof toolboxes.$inferInsert> = { updatedAt: new Date() }
+
+  if (input.name !== undefined) {
+    const name = input.name.trim()
+    if (!name) throw new Error('TOOLBOX_NAME_REQUIRED')
+    const clash = getToolboxByName(name)
+    if (clash && clash.id !== id) throw new Error('TOOLBOX_NAME_TAKEN')
+    patch.name = name
+  }
+  if (input.description !== undefined) patch.description = input.description
+  if (input.toolNames !== undefined) patch.toolNames = JSON.stringify(input.toolNames)
+
+  db.update(toolboxes).set(patch).where(eq(toolboxes.id, id)).run()
+
+  const updated = getToolbox(id)
+  if (!updated) throw new Error('TOOLBOX_NOT_FOUND')
+  return updated
+}
+
+export function deleteToolbox(id: string): void {
+  const existing = getToolbox(id)
+  if (!existing) throw new Error('TOOLBOX_NOT_FOUND')
+  if (existing.builtin) throw new Error('TOOLBOX_BUILTIN_READONLY')
+  db.delete(toolboxes).where(eq(toolboxes.id, id)).run()
+}
+
+// ─── Resolution ─────────────────────────────────────────────────────────────────
+
+/**
+ * Resolve an array of toolbox ids into the union of their native tool names.
+ * "*" expands to every registered native tool name (via toolRegistry.list()).
+ * CORE_TOOLS is NOT added here — callers layer the floor on top (see
+ * tool-presets / executeSubKin). Unknown ids are silently skipped.
+ */
+export function resolveToolboxNames(ids: string[]): string[] {
+  if (!ids || ids.length === 0) return []
+
+  const result = new Set<string>()
+  let wildcard = false
+
+  for (const id of ids) {
+    const box = getToolbox(id)
+    if (!box) continue
+    for (const name of box.toolNames) {
+      if (name === '*') {
+        wildcard = true
+      } else {
+        result.add(name)
+      }
+    }
+  }
+
+  if (wildcard) {
+    for (const t of toolRegistry.list()) result.add(t.name)
+  }
+
+  return Array.from(result)
+}
+
+// ─── Seeding ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Idempotently upsert the 5 built-in toolboxes (code / research / ops / all /
+ * scout). Matched by `name`. Built-in rows are kept in sync with the
+ * definitions above (toolNames / description refreshed) and flagged builtin=1.
+ * Safe to call on every boot.
+ */
+export function seedBuiltinToolboxes(): void {
+  const now = new Date()
+  let inserted = 0
+  let updated = 0
+
+  for (const def of BUILTIN_TOOLBOXES) {
+    const existing = getToolboxByName(def.name)
+    const toolNamesJson = JSON.stringify(def.toolNames)
+
+    if (!existing) {
+      db.insert(toolboxes)
+        .values({
+          id: uuid(),
+          name: def.name,
+          description: def.description,
+          toolNames: toolNamesJson,
+          builtin: true,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .run()
+      inserted++
+      continue
+    }
+
+    // Keep built-ins in sync with the source of truth; only write when drift
+    // is detected so updatedAt stays meaningful.
+    const drifted =
+      !existing.builtin ||
+      existing.description !== def.description ||
+      JSON.stringify(existing.toolNames) !== toolNamesJson
+
+    if (drifted) {
+      db.update(toolboxes)
+        .set({
+          description: def.description,
+          toolNames: toolNamesJson,
+          builtin: true,
+          updatedAt: now,
+        })
+        .where(eq(toolboxes.id, existing.id))
+        .run()
+      updated++
+    }
+  }
+
+  log.info({ inserted, updated, total: BUILTIN_TOOLBOXES.length }, 'Built-in toolboxes seeded')
+}
+
+/** Whether a name belongs to a built-in toolbox. */
+export function isBuiltinToolboxName(name: string): boolean {
+  return BUILTIN_NAMES.has(name)
+}
+
+/** Re-export the core floor so callers don't reach into tool-presets. */
+export { CORE_TOOLS }

@@ -34,6 +34,7 @@ import { UsersSettings } from '@/client/pages/settings/UsersSettings'
 import { NotificationPreferences } from '@/client/components/notifications/NotificationPreferences'
 import { PluginsSettings } from '@/client/pages/settings/PluginsSettings'
 import { PluginMarketplace } from '@/client/pages/settings/PluginMarketplace'
+import { ToolboxesSettings } from '@/client/pages/settings/ToolboxesSettings'
 import { LogsSettings } from '@/client/pages/settings/LogsSettings'
 import { TokenUsageSettings } from '@/client/pages/settings/TokenUsageSettings'
 import {
@@ -57,6 +58,7 @@ import {
   ShoppingBag,
   ScrollText,
   Coins,
+  Wrench,
 } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/client/components/ui/tooltip'
 import { api } from '@/client/lib/api'
@@ -87,6 +89,7 @@ const sectionGroups: SectionGroup[] = [
       { id: 'plugins', icon: Plug, labelKey: 'settings.plugins.title' },
       { id: 'marketplace', icon: ShoppingBag, labelKey: 'settings.marketplace.title' },
       { id: 'mcp', icon: Puzzle, labelKey: 'settings.mcp.title' },
+      { id: 'toolboxes', icon: Wrench, labelKey: 'toolboxes.title' },
       { id: 'vault', icon: Lock, labelKey: 'settings.vault.title' },
       { id: 'memories', icon: Brain, labelKey: 'settings.memories.title' },
       { id: 'files', icon: FolderOpen, labelKey: 'settings.files.title' },
@@ -143,6 +146,7 @@ const sectionComponents: Record<string, React.FC> = {
   channels: ChannelsSettings,
   plugins: PluginsSettings,
   marketplace: PluginMarketplace,
+  toolboxes: ToolboxesSettings,
   notifications: NotificationPreferences,
   logs: LogsSettings,
   tokenUsage: TokenUsageSettings,

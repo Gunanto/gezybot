@@ -6,6 +6,7 @@ import { app } from '@/server/app'
 import { db, initVirtualTables } from '@/server/db/index'
 import { startQueueWorker } from '@/server/services/kin-engine'
 import { registerAllTools } from '@/server/tools/register'
+import { seedBuiltinToolboxes } from '@/server/services/toolboxes'
 import { registerBuiltinLLMProviders } from '@/server/llm/llm/register'
 import { registerBuiltinEmbeddingProviders } from '@/server/llm/embedding/register'
 import { registerBuiltinImageProviders } from '@/server/llm/image/register'
@@ -86,6 +87,12 @@ await backfillProviderSlugs()
 // Register native tools
 log.info('Registering native tools...')
 registerAllTools()
+
+// Seed built-in toolboxes (idempotent). Runs after tool registration so the
+// 'all' wildcard can later expand against the full registry, and after
+// migrations so the toolboxes table exists.
+log.info('Seeding built-in toolboxes...')
+seedBuiltinToolboxes()
 
 // Register built-in LLM / embedding / image providers
 log.info('Registering built-in LLM providers...')

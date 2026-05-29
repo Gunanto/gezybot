@@ -1033,6 +1033,52 @@
       "forkTooltip": "Fork : clone la tâche échouée avec tous ses messages. Le modèle reprend le contexte précédent."
     }
   },
+  "toolboxes": {
+    "title": "Boîtes à outils",
+    "description": "Des jeux d'outils nommés que tu peux assigner aux tâches. Les outils d'une tâche sont un socle obligatoire plus les outils de chaque boîte que tu lui donnes.",
+    "add": "Nouvelle boîte",
+    "empty": "Aucune boîte à outils",
+    "emptyDescription": "Crée une boîte pour regrouper des outils et les assigner aux tâches en un clic.",
+    "builtinBadge": "Intégrée",
+    "view": "Voir la boîte",
+    "allTools": "Tous les outils",
+    "toolCount": "{{count}} outils",
+    "hardExcluded": "Indisponible dans les tâches",
+    "created": "Boîte à outils créée",
+    "updated": "Boîte à outils mise à jour",
+    "deleted": "Boîte à outils supprimée",
+    "deleteTitle": "Supprimer la boîte à outils",
+    "deleteConfirm": "Cela supprimera définitivement la boîte « {{name}} ». Les tâches qui l'utilisaient retomberont sur les outils par défaut.",
+    "builtin": {
+      "code": "Code",
+      "research": "Recherche",
+      "ops": "Ops",
+      "all": "Tous les outils",
+      "scout": "Exploration"
+    },
+    "form": {
+      "createTitle": "Nouvelle boîte à outils",
+      "editTitle": "Modifier la boîte à outils",
+      "viewTitle": "Boîte à outils",
+      "description": "Choisis les outils accordés par cette boîte. Les tâches combinent les boîtes assignées avec un socle obligatoire.",
+      "viewDescription": "Ceci est une boîte intégrée. Elle ne peut être ni modifiée ni supprimée.",
+      "nameField": "Nom",
+      "namePlaceholder": "ex. Frontend",
+      "descriptionField": "Description",
+      "descriptionPlaceholder": "À quoi sert cette boîte ?",
+      "toolsField": "Outils",
+      "selectedCount": "{{count}} sélectionné(s)",
+      "wildcardNote": "Cette boîte intégrée accorde tous les outils natifs.",
+      "hardExcludedNote": "Cet outil ne peut jamais s'exécuter dans une tâche, même si une boîte l'inclut."
+    },
+    "help": {
+      "content": "Une boîte à outils est un jeu d'outils natifs nommé et réutilisable. Assigne une ou plusieurs boîtes à une tâche et celle-ci pourra utiliser l'union de ces outils — en plus d'un socle toujours disponible.",
+      "bullet1": "Les boîtes intégrées (Code, Recherche, Ops, Exploration, Tous les outils) sont en lecture seule mais assignables à n'importe quelle tâche.",
+      "bullet2": "Crée tes propres boîtes pour coller à tes types de travail récurrents.",
+      "bullet3": "Chaque tâche conserve toujours un socle d'outils, quelles que soient les boîtes assignées.",
+      "bullet4": "Certains outils ne peuvent jamais s'exécuter dans une tâche — ils sont signalés quand tu construis une boîte."
+    }
+  },
   "settings": {
     "title": "Paramètres",
     "general": {
@@ -2720,6 +2766,8 @@
       "runPromptPlaceholder": "ex. occupe-toi seulement du backend, laisse l'UI au prochain Kin",
       "runPromptHelp": "Optionnel. Cadre ce run précisément, en plus du ticket. Pratique quand tu lances plusieurs agents en parallèle, ou que tu veux t'arrêter à une phase précise. Max 500 caractères.",
       "runPromptCounter": "{{count}} / 500",
+      "toolboxesField": "Boîtes à outils",
+      "toolboxesHelp": "Les jeux d'outils que cette tâche peut utiliser. La tâche conserve toujours un socle d'outils obligatoire ; les boîtes sélectionnées s'y ajoutent. Par défaut : la boîte Code.",
       "start": "Démarrer"
     },
     "enrich": {
