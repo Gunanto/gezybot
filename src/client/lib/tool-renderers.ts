@@ -28,6 +28,7 @@ import { BrowserScreenshotRenderer } from '@/client/components/chat/renderers/Br
 import { BrowserPageStateRenderer } from '@/client/components/chat/renderers/BrowserPageStateRenderer'
 import { SqlResultRenderer } from '@/client/components/chat/renderers/SqlResultRenderer'
 import { WebSearchRenderer } from '@/client/components/chat/renderers/WebSearchRenderer'
+import { GeneratedImageRenderer } from '@/client/components/chat/renderers/GeneratedImageRenderer'
 
 registerRenderer('run_shell', ShellResultRenderer)
 registerRenderer('http_request', HttpRequestRenderer)
@@ -37,6 +38,7 @@ registerRenderer('edit_file', FileEditRenderer)
 registerRenderer('list_directory', ListDirectoryRenderer)
 registerRenderer('execute_sql', SqlResultRenderer)
 registerRenderer('web_search', WebSearchRenderer)
+registerRenderer('generate_image', GeneratedImageRenderer)
 
 // Browser tools — screenshot-shaped results (image thumbnail with click-to-zoom)
 registerRenderer('screenshot_url', BrowserScreenshotRenderer)
