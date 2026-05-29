@@ -2229,7 +2229,14 @@
       "refs": "refs",
       "headings": "{{count}} titre",
       "headings_plural": "{{count}} titres",
-      "accessibilitySnapshot": "Instantané d'accessibilité"
+      "accessibilitySnapshot": "Instantané d'accessibilité",
+      "sqlRows": "{{count}} ligne",
+      "sqlRows_plural": "{{count}} lignes",
+      "sqlRowsTruncated": "Affichage de {{shown}} lignes sur {{total}}",
+      "sqlNoRows": "Aucune ligne retournée",
+      "sqlChanges": "{{count}} ligne affectée",
+      "sqlChanges_plural": "{{count}} lignes affectées",
+      "sqlLastInsert": "Dernier id inséré : {{id}}"
     }
   },
   "invite": {

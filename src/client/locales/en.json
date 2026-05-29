@@ -2229,7 +2229,14 @@
       "refs": "refs",
       "headings": "{{count}} heading",
       "headings_plural": "{{count}} headings",
-      "accessibilitySnapshot": "Accessibility snapshot"
+      "accessibilitySnapshot": "Accessibility snapshot",
+      "sqlRows": "{{count}} row",
+      "sqlRows_plural": "{{count}} rows",
+      "sqlRowsTruncated": "Showing {{shown}} of {{total}} rows",
+      "sqlNoRows": "No rows returned",
+      "sqlChanges": "{{count}} row affected",
+      "sqlChanges_plural": "{{count}} rows affected",
+      "sqlLastInsert": "Last inserted row id: {{id}}"
     }
   },
   "invite": {
