@@ -58,6 +58,8 @@ interface KinDetail {
   expertise: string
   model: string
   providerId?: string | null
+  scoutModel?: string | null
+  scoutProviderId?: string | null
   toolboxIds?: string[] | null
   compactingConfig?: KinCompactingConfig | null
   thinkingConfig?: KinThinkingConfig | null
@@ -85,6 +87,8 @@ interface KinFormModalProps {
     expertise: string
     model: string
     providerId?: string | null
+    scoutModel?: string | null
+    scoutProviderId?: string | null
     toolboxIds?: string[] | null
   }) => Promise<{ id: string }>
   // Mode edit
@@ -181,6 +185,8 @@ export function KinFormModal({
   const [expertise, setExpertise] = useState(defaultExpertise)
   const [model, setModel] = useState('')
   const [providerId, setProviderId] = useState<string | null>(null)
+  const [scoutModel, setScoutModel] = useState<string | null>(null)
+  const [scoutProviderId, setScoutProviderId] = useState<string | null>(null)
   const [toolboxIds, setToolboxIds] = useState<string[] | null>(null)
   const [compactingConfig, setCompactingConfig] = useState<KinCompactingConfig | null>(null)
   const [thinkingConfig, setThinkingConfig] = useState<KinThinkingConfig | null>(null)
@@ -229,6 +235,8 @@ export function KinFormModal({
       setExpertise(kin.expertise)
       setModel(kin.model)
       setProviderId(kin.providerId ?? null)
+      setScoutModel(kin.scoutModel ?? null)
+      setScoutProviderId(kin.scoutProviderId ?? null)
       setToolboxIds(kin.toolboxIds ?? null)
       setCompactingConfig(kin.compactingConfig ?? null)
       setThinkingConfig(kin.thinkingConfig ?? null)
@@ -243,6 +251,8 @@ export function KinFormModal({
       setExpertise(defaultExpertise)
       setModel('')
       setProviderId(null)
+      setScoutModel(null)
+      setScoutProviderId(null)
       setToolboxIds(null)
       setCompactingConfig(null)
       setThinkingConfig(null)
@@ -393,6 +403,11 @@ export function KinFormModal({
     setIsLoading(true)
 
     try {
+      // Scout model/provider are coupled — a partial pair collapses to "inherit"
+      // (null/null), mirroring the server's coupled-pair validation.
+      const scoutBothSet = !!scoutModel && !!scoutProviderId
+      const effectiveScoutModel = scoutBothSet ? scoutModel : null
+      const effectiveScoutProviderId = scoutBothSet ? scoutProviderId : null
       if (isEdit && onUpdateKin) {
         // Normalize compactingConfig: if all fields are empty, send null to clear the override
         const effectiveCompactingConfig = (
@@ -403,10 +418,10 @@ export function KinFormModal({
           compactingConfig?.summaryBudgetPercent != null ||
           compactingConfig?.maxSummaries != null
         ) ? compactingConfig : null
-        await onUpdateKin(kin.id, { name, slug, role, character, expertise, model, providerId, toolboxIds, compactingConfig: effectiveCompactingConfig, thinkingConfig })
+        await onUpdateKin(kin.id, { name, slug, role, character, expertise, model, providerId, scoutModel: effectiveScoutModel, scoutProviderId: effectiveScoutProviderId, toolboxIds, compactingConfig: effectiveCompactingConfig, thinkingConfig })
         if (avatarFile) await onUploadAvatar(kin.id, avatarFile)
       } else if (onCreateKin) {
-        const created = await onCreateKin({ name, slug: slug || undefined, role, character, expertise, model, providerId, toolboxIds })
+        const created = await onCreateKin({ name, slug: slug || undefined, role, character, expertise, model, providerId, scoutModel: effectiveScoutModel, scoutProviderId: effectiveScoutProviderId, toolboxIds })
         if (avatarFile) await onUploadAvatar(created.id, avatarFile)
       }
       resetDirty()
@@ -796,6 +811,30 @@ export function KinFormModal({
                               <span>{t('kin.create.totalPromptTokens', { tokens: Math.ceil((character.length + expertise.length) / 4) })}</span>
                             </div>
                           )}
+
+                          {/* Scout model — cheap, fast model the `scout` tool
+                              delegates heavy read-only exploration to. Clearing
+                              it (the "inherit" option) falls back to the
+                              project → global → main-model chain. */}
+                          <div className="space-y-2 border-t border-border/40 pt-4">
+                            <Label className="inline-flex items-center gap-1.5">
+                              {t('kin.create.scoutModel')}
+                              <InfoTip content={t('kin.create.scoutModelTip')} />
+                            </Label>
+                            <ModelPicker
+                              models={llmModels}
+                              value={modelPickerValue(scoutModel ?? '', scoutProviderId ?? '')}
+                              onValueChange={(modelId, pid) => {
+                                setScoutModel(modelId || null)
+                                setScoutProviderId(pid || null)
+                                markDirty()
+                              }}
+                              placeholder={t('kin.create.scoutModelInherit')}
+                              allowClear
+                              clearLabel={t('kin.create.scoutModelInherit')}
+                            />
+                            <p className="text-xs text-muted-foreground">{t('kin.create.scoutModelHint')}</p>
+                          </div>
 
                         </div>
                       )}

@@ -79,6 +79,7 @@ export function TicketPanelContent({ ticketId }: TicketPanelContentProps) {
     'paused',
     'awaiting_human_input',
     'awaiting_kin_response',
+    'awaiting_subtask',
   ])
   const enrichmentRunning = !!ticket?.tasks?.some(
     (tk) => tk.kind === 'enrich' && RUNNING_STATUSES.has(tk.status as string),

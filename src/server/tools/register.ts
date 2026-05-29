@@ -82,6 +82,7 @@ import {
   updateTaskStatusTool,
   requestInputTool,
 } from '@/server/tools/subtask-tools'
+import { scoutTool } from '@/server/tools/scout-tool'
 import { promptHumanTool } from '@/server/tools/human-prompt-tools'
 import { notifyTool } from '@/server/tools/notify-tool'
 import {
@@ -340,6 +341,11 @@ export function registerAllTools(): void {
   toolRegistry.register('list_active_queues', listActiveQueuesTool, 'tasks')
   toolRegistry.register('get_task_detail', getTaskDetailTool, 'tasks')
   toolRegistry.register('get_task_messages', getTaskMessagesTool, 'tasks')
+
+  // Scout: cheap read-only delegation (main + sub-kin). Spawns an await child
+  // on the scout model with the read-only 'scout' toolbox and blocks for its
+  // digest. The 'scout' toolbox excludes scout/spawn tools → scouts are leaves.
+  toolRegistry.register('scout', scoutTool, 'tasks')
 
   // Phase 15: Sub-Kin tools (sub-kin only)
   toolRegistry.register('report_to_parent', reportToParentTool, 'tasks')

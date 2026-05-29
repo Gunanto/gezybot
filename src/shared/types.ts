@@ -79,7 +79,7 @@ export type { ProviderCapability } from '@kinbot-developer/sdk'
 
 export type MessageSource = 'user' | 'kin' | 'task' | 'cron' | 'system' | 'webhook' | 'channel'
 
-export type TaskStatus = 'queued' | 'pending' | 'in_progress' | 'paused' | 'awaiting_human_input' | 'awaiting_kin_response' | 'completed' | 'failed' | 'cancelled'
+export type TaskStatus = 'queued' | 'pending' | 'in_progress' | 'paused' | 'awaiting_human_input' | 'awaiting_kin_response' | 'awaiting_subtask' | 'completed' | 'failed' | 'cancelled'
 
 export type TaskMode = 'await' | 'async'
 
@@ -798,6 +798,12 @@ export interface Project {
    *  own model when null. An explicit model passed at spawn still wins. */
   model: string | null
   providerId: string | null
+  /** Optional default scout model for sub-Kin tasks spawned on tickets of this
+   *  project. One tier of resolveScoutModel()'s chain (between the per-Kin
+   *  scout model and the global default). Coupled with `scoutProviderId`.
+   *  Null falls through to the global scout default → the Kin's main model. */
+  scoutModel: string | null
+  scoutProviderId: string | null
   /** Optional default thinking/reasoning config for sub-Kin tasks spawned on
    *  tickets of this project. Same freeze-at-spawn semantics as `model`.
    *  Null means "inherit from each Kin". */

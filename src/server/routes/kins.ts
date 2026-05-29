@@ -497,6 +497,8 @@ kinRoutes.get('/:id', async (c) => {
     expertise: details.expertise,
     model: details.model,
     providerId: details.providerId ?? null,
+    scoutModel: details.scoutModel ?? null,
+    scoutProviderId: details.scoutProviderId ?? null,
     workspacePath: details.workspacePath,
     toolboxIds: parseToolboxIds(details.toolboxIds),
     compactingConfig: details.compactingConfig ? JSON.parse(details.compactingConfig) : null,
@@ -516,7 +518,7 @@ kinRoutes.get('/:id', async (c) => {
 kinRoutes.post('/', async (c) => {
   const user = c.get('user') as { id: string }
   const body = await c.req.json()
-  let { name, slug, role, character, expertise, model, providerId, mcpServerIds } = body as {
+  let { name, slug, role, character, expertise, model, providerId, scoutModel, scoutProviderId, mcpServerIds } = body as {
     name: string
     slug?: string
     role: string
@@ -524,6 +526,8 @@ kinRoutes.post('/', async (c) => {
     expertise: string
     model: string
     providerId?: string | null
+    scoutModel?: string | null
+    scoutProviderId?: string | null
     mcpServerIds?: string[]
   }
   const toolboxIds = normalizeToolboxIdsInput(body.toolboxIds)
@@ -538,7 +542,7 @@ kinRoutes.post('/', async (c) => {
     }
   }
 
-  const validationError = validateKinFields({ name, role, character, expertise, model, providerId }, 'create')
+  const validationError = validateKinFields({ name, role, character, expertise, model, providerId, scoutModel, scoutProviderId }, 'create')
   if (validationError) {
     return c.json({ error: { code: validationError.code, message: validationError.message } }, 400)
   }
@@ -551,6 +555,8 @@ kinRoutes.post('/', async (c) => {
     expertise,
     model,
     providerId,
+    scoutModel,
+    scoutProviderId,
     createdBy: user.id,
     mcpServerIds,
     toolboxIds: toolboxIds ?? undefined,
@@ -568,6 +574,8 @@ kinRoutes.post('/', async (c) => {
         expertise: newKin.expertise,
         model: newKin.model,
         providerId: newKin.providerId ?? null,
+        scoutModel: newKin.scoutModel ?? null,
+        scoutProviderId: newKin.scoutProviderId ?? null,
         workspacePath: newKin.workspacePath,
         toolboxIds: parseToolboxIds(newKin.toolboxIds),
         mcpServers: [],
@@ -596,6 +604,8 @@ kinRoutes.patch('/:id', async (c) => {
     expertise: body.expertise,
     model: body.model,
     providerId: body.providerId,
+    scoutModel: body.scoutModel,
+    scoutProviderId: body.scoutProviderId,
   }, 'update')
   if (validationError) {
     return c.json({ error: { code: validationError.code, message: validationError.message } }, 400)
@@ -608,6 +618,8 @@ kinRoutes.patch('/:id', async (c) => {
     expertise: body.expertise,
     model: body.model,
     providerId: body.providerId,
+    scoutModel: body.scoutModel,
+    scoutProviderId: body.scoutProviderId,
     slug: body.slug,
     toolboxIds: normalizeToolboxIdsInput(body.toolboxIds),
     compactingConfig: body.compactingConfig,
@@ -632,6 +644,8 @@ kinRoutes.patch('/:id', async (c) => {
       expertise: details.expertise,
       model: details.model,
       providerId: details.providerId ?? null,
+      scoutModel: details.scoutModel ?? null,
+      scoutProviderId: details.scoutProviderId ?? null,
       workspacePath: details.workspacePath,
       toolboxIds: parseToolboxIds(details.toolboxIds),
       compactingConfig: details.compactingConfig ? JSON.parse(details.compactingConfig) : null,

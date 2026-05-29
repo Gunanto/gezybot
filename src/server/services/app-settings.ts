@@ -109,6 +109,32 @@ export async function setDefaultLlmProviderId(providerId: string | null): Promis
   return setSetting('default_llm_provider_id', providerId)
 }
 
+// ─── Default Scout Model (cheap delegation for the `scout` tool) ─────────────
+//
+// Global fallback for the scout model resolved by resolveScoutModel(). Sits
+// near the end of the chain: per-spawn override → Kin scout → project scout →
+// THIS global default → Kin's own main model. Mirrors getDefaultLlmModel /
+// setDefaultLlmModel exactly (k/v, no dedicated column). A scout-less install
+// leaves both null and every scout falls back to the main model.
+
+export async function getDefaultScoutModel(): Promise<string | null> {
+  return getSetting('default_scout_model')
+}
+
+export async function setDefaultScoutModel(model: string | null): Promise<void> {
+  if (model === null) return deleteSetting('default_scout_model')
+  return setSetting('default_scout_model', model)
+}
+
+export async function getDefaultScoutProviderId(): Promise<string | null> {
+  return getSetting('default_scout_provider_id')
+}
+
+export async function setDefaultScoutProviderId(providerId: string | null): Promise<void> {
+  if (providerId === null) return deleteSetting('default_scout_provider_id')
+  return setSetting('default_scout_provider_id', providerId)
+}
+
 // ─── Default Image Model ─────────────────────────────────────────────────────
 
 export async function getDefaultImageModel(): Promise<string | null> {

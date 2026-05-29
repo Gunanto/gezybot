@@ -23,6 +23,10 @@ export interface KinFieldsInput {
   expertise?: string
   model?: string
   providerId?: string | null
+  /** Optional cheap scout model for the `scout` tool. Coupled with
+   *  `scoutProviderId`. */
+  scoutModel?: string | null
+  scoutProviderId?: string | null
 }
 
 // ─── Validation ─────────────────────────────────────────────────────────────
@@ -31,7 +35,7 @@ export function validateKinFields(
   fields: KinFieldsInput,
   mode: 'create' | 'update',
 ): ValidationError | null {
-  const { name, role, character, expertise, model, providerId } = fields
+  const { name, role, character, expertise, model, providerId, scoutModel, scoutProviderId } = fields
 
   if (mode === 'create') {
     if (!name || !name.trim()) return { code: 'INVALID_NAME', message: 'Name is required', field: 'name' }
@@ -61,6 +65,24 @@ export function validateKinFields(
   if (providerId !== undefined && providerId !== null) {
     const provider = db.select({ id: providers.id }).from(providers).where(eq(providers.id, providerId)).get()
     if (!provider) return { code: 'INVALID_PROVIDER', message: 'Provider not found', field: 'providerId' }
+  }
+
+  // Scout model/provider are coupled: setting one requires the other. An
+  // explicit null on either clears the pair (handled at the service layer), so
+  // only enforce the "both present" rule when neither is null.
+  const scoutModelSet = typeof scoutModel === 'string' && scoutModel.trim() !== ''
+  const scoutProviderSet = typeof scoutProviderId === 'string' && scoutProviderId.trim() !== ''
+  if (scoutModel !== null && scoutProviderId !== null && scoutModelSet !== scoutProviderSet) {
+    return {
+      code: 'SCOUT_MODEL_AND_PROVIDER_MUST_BOTH_BE_SET',
+      message: 'scoutModel and scoutProviderId must be set together',
+      field: scoutModelSet ? 'scoutProviderId' : 'scoutModel',
+    }
+  }
+  // Validate scoutProviderId exists if specified.
+  if (scoutProviderSet) {
+    const provider = db.select({ id: providers.id }).from(providers).where(eq(providers.id, scoutProviderId!)).get()
+    if (!provider) return { code: 'INVALID_SCOUT_PROVIDER', message: 'Scout provider not found', field: 'scoutProviderId' }
   }
 
   return null

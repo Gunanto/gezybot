@@ -32,6 +32,8 @@ interface CreateProjectInputSubset {
   defaultBranch?: string
   model?: string | null
   providerId?: string | null
+  scoutModel?: string | null
+  scoutProviderId?: string | null
   thinkingConfig?: KinThinkingConfig | null
   defaultToolboxIds?: string[] | null
 }
@@ -54,6 +56,8 @@ export function CreateProjectModal({ open, onOpenChange, onCreate, onCreated }: 
   const [defaultBranch, setDefaultBranch] = useState<string>('')
   const [model, setModel] = useState('')
   const [providerId, setProviderId] = useState('')
+  const [scoutModel, setScoutModel] = useState('')
+  const [scoutProviderId, setScoutProviderId] = useState('')
   const [thinkingChoice, setThinkingChoice] = useState<ThinkingChoice>('inherit')
   const [defaultToolboxIds, setDefaultToolboxIds] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
@@ -66,6 +70,8 @@ export function CreateProjectModal({ open, onOpenChange, onCreate, onCreated }: 
     setDefaultBranch('')
     setModel('')
     setProviderId('')
+    setScoutModel('')
+    setScoutProviderId('')
     setThinkingChoice('inherit')
     setDefaultToolboxIds([])
   }
@@ -78,6 +84,9 @@ export function CreateProjectModal({ open, onOpenChange, onCreate, onCreated }: 
       // model/providerId are coupled — only send when both are set so the
       // server's MODEL_AND_PROVIDER_MUST_BOTH_BE_SET guard never fires.
       const bothSet = !!model && !!providerId
+      // Scout model/provider are coupled — only send when both are set so the
+      // server's SCOUT_MODEL_AND_PROVIDER_MUST_BOTH_BE_SET guard never fires.
+      const scoutBothSet = !!scoutModel && !!scoutProviderId
       const project = await onCreate({
         title: trimmed,
         description: description.trim() || undefined,
@@ -87,6 +96,8 @@ export function CreateProjectModal({ open, onOpenChange, onCreate, onCreated }: 
         defaultBranch: defaultBranch.trim() || undefined,
         model: bothSet ? model : undefined,
         providerId: bothSet ? providerId : undefined,
+        scoutModel: scoutBothSet ? scoutModel : undefined,
+        scoutProviderId: scoutBothSet ? scoutProviderId : undefined,
         thinkingConfig: thinkingChoice !== 'inherit' ? choiceToConfig(thinkingChoice) : undefined,
         // Empty selection = inherit (built-in default). Only send when chosen.
         defaultToolboxIds: defaultToolboxIds.length > 0 ? defaultToolboxIds : undefined,
@@ -148,6 +159,26 @@ export function CreateProjectModal({ open, onOpenChange, onCreate, onCreated }: 
             />
             <p className="text-xs text-muted-foreground">
               {t('projects.edit.modelHint')}
+            </p>
+          </div>
+
+          {/* Default scout model for tasks on this project's tickets.
+              Empty = inherit the global scout default, then the Kin's model. */}
+          <div className="space-y-1.5">
+            <Label>{t('projects.edit.scoutModelField')}</Label>
+            <ModelPicker
+              models={llmModels}
+              value={modelPickerValue(scoutModel, scoutProviderId)}
+              onValueChange={(modelId, pid) => {
+                setScoutModel(modelId)
+                setScoutProviderId(pid)
+              }}
+              placeholder={t('projects.edit.scoutModelPlaceholder')}
+              allowClear
+              clearLabel={t('projects.edit.scoutModelPlaceholder')}
+            />
+            <p className="text-xs text-muted-foreground">
+              {t('projects.edit.scoutModelHint')}
             </p>
           </div>
 

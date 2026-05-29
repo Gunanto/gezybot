@@ -80,7 +80,7 @@ function TokenChip({ headline }: { headline: number }) {
 function TimelineTaskCard({ task, onClick, isLast, queuePosition, nowMs }: { task: TaskSummary; onClick: () => void; isLast: boolean; queuePosition?: number; nowMs: number }) {
   const kinName = task.sourceKinName ?? task.parentKinName
   const isQueued = task.status === 'queued'
-  const isActive = task.status === 'in_progress' || task.status === 'paused' || task.status === 'awaiting_human_input' || task.status === 'awaiting_kin_response' || task.status === 'pending'
+  const isActive = task.status === 'in_progress' || task.status === 'paused' || task.status === 'awaiting_human_input' || task.status === 'awaiting_kin_response' || task.status === 'awaiting_subtask' || task.status === 'pending'
   const isFinished = task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled'
 
   // Run duration is measured from when the task actually started executing

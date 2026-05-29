@@ -12,6 +12,7 @@ const STATUS_COLOR: Record<string, string> = {
   paused: 'text-amber-500 bg-amber-500/10',
   awaiting_human_input: 'text-warning bg-warning/10',
   awaiting_kin_response: 'text-info bg-info/10',
+  awaiting_subtask: 'text-info bg-info/10',
   completed: 'text-success bg-success/10',
   failed: 'text-destructive bg-destructive/10',
   cancelled: 'text-muted-foreground bg-muted',

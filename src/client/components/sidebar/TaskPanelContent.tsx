@@ -55,6 +55,7 @@ import {
   ChevronDown,
   RotateCcw,
   GitFork,
+  Search,
 } from 'lucide-react'
 import { useAutoScroll } from '@/client/hooks/useAutoScroll'
 import { api } from '@/client/lib/api'
@@ -96,6 +97,7 @@ const STATUS_CONFIG: Record<
   paused: { icon: Pause, iconClass: 'text-amber-500', badgeVariant: 'outline' },
   awaiting_human_input: { icon: UserCheck, iconClass: 'text-warning animate-pulse', badgeVariant: 'outline' },
   awaiting_kin_response: { icon: MessageSquare, iconClass: 'text-info animate-pulse', badgeVariant: 'outline' },
+  awaiting_subtask: { icon: Search, iconClass: 'text-info animate-pulse', badgeVariant: 'outline' },
   completed: { icon: CheckCircle2, iconClass: 'text-success', badgeVariant: 'outline' },
   failed: { icon: XCircle, iconClass: 'text-destructive', badgeVariant: 'destructive' },
   cancelled: { icon: Ban, iconClass: 'text-muted-foreground', badgeVariant: 'secondary' },
@@ -227,7 +229,7 @@ export function TaskPanelContent({
   const isQueued = task?.status === 'queued'
   const isRunning = task?.status === 'in_progress'
   const isPaused = task?.status === 'paused'
-  const isActive = isRunning || isPaused || task?.status === 'pending' || task?.status === 'awaiting_human_input' || task?.status === 'awaiting_kin_response'
+  const isActive = isRunning || isPaused || task?.status === 'pending' || task?.status === 'awaiting_human_input' || task?.status === 'awaiting_kin_response' || task?.status === 'awaiting_subtask'
   const initials = kinName?.slice(0, 2).toUpperCase() ?? 'K'
   const resolvedModel = task?.model ? llmModels.find((m) => m.id === task.model) : null
 

@@ -20,6 +20,8 @@ interface DefaultModelsData {
   defaultImageProviderId: string | null
   defaultCompactingModel: string | null
   defaultCompactingProviderId: string | null
+  defaultScoutModel: string | null
+  defaultScoutProviderId: string | null
   extractionModel: string | null
   extractionProviderId: string | null
   embeddingModel: string | null
@@ -63,6 +65,11 @@ export function ModelsSettings() {
   const [initCompactingModel, setInitCompactingModel] = useState('')
   const [initCompactingProviderId, setInitCompactingProviderId] = useState('')
 
+  const [scoutModel, setScoutModel] = useState('')
+  const [scoutProviderId, setScoutProviderId] = useState('')
+  const [initScoutModel, setInitScoutModel] = useState('')
+  const [initScoutProviderId, setInitScoutProviderId] = useState('')
+
   const [imageModel, setImageModel] = useState('')
   const [imageProviderId, setImageProviderId] = useState('')
   const [initImageModel, setInitImageModel] = useState('')
@@ -105,6 +112,11 @@ export function ModelsSettings() {
         setInitCompactingModel(data.defaultCompactingModel ?? '')
         setInitCompactingProviderId(data.defaultCompactingProviderId ?? '')
 
+        setScoutModel(data.defaultScoutModel ?? '')
+        setScoutProviderId(data.defaultScoutProviderId ?? '')
+        setInitScoutModel(data.defaultScoutModel ?? '')
+        setInitScoutProviderId(data.defaultScoutProviderId ?? '')
+
         setImageModel(data.defaultImageModel ?? '')
         setImageProviderId(data.defaultImageProviderId ?? '')
         setInitImageModel(data.defaultImageModel ?? '')
@@ -136,6 +148,7 @@ export function ModelsSettings() {
   // Change detection helpers
   const hasLlmChanges = llmModel !== initLlmModel || llmProviderId !== initLlmProviderId
   const hasCompactingChanges = compactingModel !== initCompactingModel || compactingProviderId !== initCompactingProviderId
+  const hasScoutChanges = scoutModel !== initScoutModel || scoutProviderId !== initScoutProviderId
   const hasImageChanges = imageModel !== initImageModel || imageProviderId !== initImageProviderId
   const hasExtractionChanges = extractionModel !== initExtractionModel || extractionProviderId !== initExtractionProviderId
   const hasEmbeddingChanges = embeddingModel !== initEmbeddingModel || embeddingProviderId !== initEmbeddingProviderId
@@ -172,6 +185,12 @@ export function ModelsSettings() {
     saveField('compacting', '/settings/default-compacting', { model: compactingModel || null, providerId: compactingProviderId || null }, () => {
       setInitCompactingModel(compactingModel)
       setInitCompactingProviderId(compactingProviderId)
+    })
+
+  const handleSaveScout = () =>
+    saveField('scout', '/settings/default-scout', { model: scoutModel || null, providerId: scoutProviderId || null }, () => {
+      setInitScoutModel(scoutModel)
+      setInitScoutProviderId(scoutProviderId)
     })
 
   const handleSaveImage = () =>
@@ -281,6 +300,27 @@ export function ModelsSettings() {
         <p className="text-xs text-muted-foreground">{t('settings.models.defaultCompactingHint')}</p>
         <Button size="sm" onClick={handleSaveCompacting} disabled={!hasCompactingChanges || savingField === 'compacting'}>
           {savingField === 'compacting' ? t('common.loading') : t('common.save')}
+        </Button>
+      </div>
+
+      {/* Default Scout Model — cheap, fast model the `scout` tool delegates
+          heavy read-only exploration to. A Kin or project can override it. */}
+      <div className="space-y-2">
+        <Label className="inline-flex items-center gap-1.5">
+          {t('settings.models.defaultScout')}
+          <InfoTip content={t('settings.models.defaultScoutTip')} />
+        </Label>
+        <ModelPicker
+          models={llmModels}
+          value={modelPickerValue(scoutModel, scoutProviderId)}
+          onValueChange={(modelId, pid) => { setScoutModel(modelId); setScoutProviderId(pid) }}
+          placeholder={t('settings.models.defaultScoutPlaceholder')}
+          allowClear
+          isLoading={modelsLoading}
+        />
+        <p className="text-xs text-muted-foreground">{t('settings.models.defaultScoutHint')}</p>
+        <Button size="sm" onClick={handleSaveScout} disabled={!hasScoutChanges || savingField === 'scout'}>
+          {savingField === 'scout' ? t('common.loading') : t('common.save')}
         </Button>
       </div>
 

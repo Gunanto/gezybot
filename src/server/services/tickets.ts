@@ -1367,6 +1367,7 @@ export async function hasActiveEnrichment(ticketId: string): Promise<boolean> {
           'paused',
           'awaiting_human_input',
           'awaiting_kin_response',
+          'awaiting_subtask',
         ]),
       ),
     )

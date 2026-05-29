@@ -140,6 +140,13 @@ projectRoutes.post('/', async (c) => {
     model = body.model
     providerId = body.providerId
   }
+  // Scout model/provider — same coupling as the main model pair.
+  let scoutModel: string | null | undefined
+  let scoutProviderId: string | null | undefined
+  if (typeof body.scoutModel === 'string' && typeof body.scoutProviderId === 'string') {
+    scoutModel = body.scoutModel
+    scoutProviderId = body.scoutProviderId
+  }
   let thinkingConfig: KinThinkingConfig | null | undefined
   if (body.thinkingConfig && typeof body.thinkingConfig === 'object') {
     const cfg = body.thinkingConfig as Record<string, unknown>
@@ -170,6 +177,8 @@ projectRoutes.post('/', async (c) => {
       defaultBranch,
       model,
       providerId,
+      scoutModel,
+      scoutProviderId,
       thinkingConfig,
       defaultToolboxIds,
     })
@@ -184,6 +193,9 @@ projectRoutes.post('/', async (c) => {
     }
     if (msg === 'MODEL_AND_PROVIDER_MUST_BOTH_BE_SET') {
       return c.json({ error: { code: 'MODEL_AND_PROVIDER_MUST_BOTH_BE_SET', message: 'model and providerId must be set together' } }, 400)
+    }
+    if (msg === 'SCOUT_MODEL_AND_PROVIDER_MUST_BOTH_BE_SET') {
+      return c.json({ error: { code: 'SCOUT_MODEL_AND_PROVIDER_MUST_BOTH_BE_SET', message: 'scoutModel and scoutProviderId must be set together' } }, 400)
     }
     log.warn({ err }, 'createProject failed')
     return c.json({ error: { code: 'INTERNAL', message: msg } }, 500)
@@ -204,6 +216,8 @@ projectRoutes.patch('/:id', async (c) => {
     defaultBranch?: string
     model?: string | null
     providerId?: string | null
+    scoutModel?: string | null
+    scoutProviderId?: string | null
     thinkingConfig?: KinThinkingConfig | null
     defaultToolboxIds?: string[] | null
   } = {}
@@ -240,6 +254,14 @@ projectRoutes.patch('/:id', async (c) => {
   } else if (typeof body.model === 'string' && typeof body.providerId === 'string') {
     update.model = body.model
     update.providerId = body.providerId
+  }
+  // Scout model/provider — same coupled clearing rule.
+  if (body.scoutModel === null || body.scoutProviderId === null) {
+    update.scoutModel = null
+    update.scoutProviderId = null
+  } else if (typeof body.scoutModel === 'string' && typeof body.scoutProviderId === 'string') {
+    update.scoutModel = body.scoutModel
+    update.scoutProviderId = body.scoutProviderId
   }
   // thinkingConfig: null clears (inherit from Kin); object validates shape.
   if (body.thinkingConfig === null) {

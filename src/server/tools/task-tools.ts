@@ -265,7 +265,7 @@ export const listTasksTool: ToolRegistration = {
         'for paginated message history. Default limit is 20, max 100.',
       inputSchema: z.object({
         status: z
-          .enum(['queued', 'pending', 'in_progress', 'paused', 'awaiting_human_input', 'awaiting_kin_response', 'completed', 'failed', 'cancelled', 'all'])
+          .enum(['queued', 'pending', 'in_progress', 'paused', 'awaiting_human_input', 'awaiting_kin_response', 'awaiting_subtask', 'completed', 'failed', 'cancelled', 'all'])
           .optional()
           .describe('Filter by task status. Defaults to no filter (all statuses).'),
         parent_kin_slug: z
@@ -351,14 +351,14 @@ export const listActiveQueuesTool: ToolRegistration = {
           .select({
             group: tasks.concurrencyGroup,
             concurrencyMax: tasks.concurrencyMax,
-            activeCount: sql<number>`count(case when ${tasks.status} in ('pending', 'in_progress', 'awaiting_human_input', 'awaiting_kin_response') then 1 end)`,
+            activeCount: sql<number>`count(case when ${tasks.status} in ('pending', 'in_progress', 'awaiting_human_input', 'awaiting_kin_response', 'awaiting_subtask') then 1 end)`,
             queuedCount: sql<number>`count(case when ${tasks.status} = 'queued' then 1 end)`,
           })
           .from(tasks)
           .where(
             and(
               sql`${tasks.concurrencyGroup} is not null`,
-              inArray(tasks.status, ['queued', 'pending', 'in_progress', 'awaiting_human_input', 'awaiting_kin_response']),
+              inArray(tasks.status, ['queued', 'pending', 'in_progress', 'awaiting_human_input', 'awaiting_kin_response', 'awaiting_subtask']),
             ),
           )
           .groupBy(tasks.concurrencyGroup)

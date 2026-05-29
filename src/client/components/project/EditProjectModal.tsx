@@ -49,6 +49,8 @@ interface EditProjectModalProps {
     defaultBranch?: string
     model?: string | null
     providerId?: string | null
+    scoutModel?: string | null
+    scoutProviderId?: string | null
     thinkingConfig?: KinThinkingConfig | null
     defaultToolboxIds?: string[] | null
   }) => Promise<unknown>
@@ -74,6 +76,8 @@ export function EditProjectModal({ open, onOpenChange, project, onSave, onDelete
   const [defaultBranch, setDefaultBranch] = useState(project.defaultBranch ?? 'main')
   const [model, setModel] = useState(project.model ?? '')
   const [providerId, setProviderId] = useState(project.providerId ?? '')
+  const [scoutModel, setScoutModel] = useState(project.scoutModel ?? '')
+  const [scoutProviderId, setScoutProviderId] = useState(project.scoutProviderId ?? '')
   const [thinkingChoice, setThinkingChoice] = useState<ThinkingChoice>(configToChoice(project.thinkingConfig))
   const [defaultToolboxIds, setDefaultToolboxIds] = useState<string[]>(project.defaultToolboxIds ?? [])
   const [submitting, setSubmitting] = useState(false)
@@ -90,6 +94,8 @@ export function EditProjectModal({ open, onOpenChange, project, onSave, onDelete
       setDefaultBranch(project.defaultBranch ?? 'main')
       setModel(project.model ?? '')
       setProviderId(project.providerId ?? '')
+      setScoutModel(project.scoutModel ?? '')
+      setScoutProviderId(project.scoutProviderId ?? '')
       setThinkingChoice(configToChoice(project.thinkingConfig))
       setDefaultToolboxIds(project.defaultToolboxIds ?? [])
     }
@@ -106,6 +112,8 @@ export function EditProjectModal({ open, onOpenChange, project, onSave, onDelete
     defaultBranch !== (project.defaultBranch ?? 'main') ||
     (model || null) !== project.model ||
     (providerId || null) !== project.providerId ||
+    (scoutModel || null) !== (project.scoutModel ?? null) ||
+    (scoutProviderId || null) !== (project.scoutProviderId ?? null) ||
     thinkingChoice !== initialThinkingChoice ||
     toolboxesChanged
 
@@ -116,6 +124,14 @@ export function EditProjectModal({ open, onOpenChange, project, onSave, onDelete
     try {
       const modelChanged =
         (model || null) !== project.model || (providerId || null) !== project.providerId
+      // Scout model/provider are coupled — a partial pair collapses to null
+      // (inherit), mirroring the server's coupled-pair validation.
+      const scoutBothSet = !!scoutModel && !!scoutProviderId
+      const effectiveScoutModel = scoutBothSet ? scoutModel : null
+      const effectiveScoutProviderId = scoutBothSet ? scoutProviderId : null
+      const scoutChanged =
+        effectiveScoutModel !== (project.scoutModel ?? null) ||
+        effectiveScoutProviderId !== (project.scoutProviderId ?? null)
       const thinkingChanged = thinkingChoice !== initialThinkingChoice
       await onSave({
         title: trimmedTitle !== project.title ? trimmedTitle : undefined,
@@ -128,6 +144,8 @@ export function EditProjectModal({ open, onOpenChange, project, onSave, onDelete
           defaultBranch !== (project.defaultBranch ?? 'main') ? defaultBranch : undefined,
         model: modelChanged ? (model || null) : undefined,
         providerId: modelChanged ? (providerId || null) : undefined,
+        scoutModel: scoutChanged ? effectiveScoutModel : undefined,
+        scoutProviderId: scoutChanged ? effectiveScoutProviderId : undefined,
         thinkingConfig: thinkingChanged ? choiceToConfig(thinkingChoice) : undefined,
         // Empty selection clears to null (inherit built-in default).
         defaultToolboxIds: toolboxesChanged
@@ -253,6 +271,26 @@ export function EditProjectModal({ open, onOpenChange, project, onSave, onDelete
               />
               <p className="text-xs text-muted-foreground">
                 {t('projects.edit.modelHint')}
+              </p>
+            </div>
+
+            {/* Default scout model for tasks on this project's tickets.
+                Empty = inherit the global scout default, then the Kin's model. */}
+            <div className="space-y-1.5">
+              <Label>{t('projects.edit.scoutModelField')}</Label>
+              <ModelPicker
+                models={llmModels}
+                value={modelPickerValue(scoutModel, scoutProviderId)}
+                onValueChange={(modelId, pid) => {
+                  setScoutModel(modelId)
+                  setScoutProviderId(pid)
+                }}
+                placeholder={t('projects.edit.scoutModelPlaceholder')}
+                allowClear
+                clearLabel={t('projects.edit.scoutModelPlaceholder')}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('projects.edit.scoutModelHint')}
               </p>
             </div>
 

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Loader2, CheckCircle2, XCircle, Clock, Ban, UserCheck, MessageSquare, Pause, ListOrdered } from 'lucide-react'
+import { Loader2, CheckCircle2, XCircle, Clock, Ban, UserCheck, MessageSquare, Pause, ListOrdered, Search } from 'lucide-react'
 import { cn } from '@/client/lib/utils'
 import type { TaskStatus } from '@/shared/types'
 
@@ -45,6 +45,12 @@ export const TASK_STATUS_CONFIG: Record<TaskStatus, {
   },
   awaiting_kin_response: {
     icon: MessageSquare,
+    iconClass: 'text-info animate-pulse',
+    dotClass: 'bg-info animate-pulse',
+    ringClass: 'ring-info/30',
+  },
+  awaiting_subtask: {
+    icon: Search,
     iconClass: 'text-info animate-pulse',
     dotClass: 'bg-info animate-pulse',
     ringClass: 'ring-info/30',
@@ -112,6 +118,7 @@ export function TaskTimelineItem({
     status === 'paused' ||
     status === 'awaiting_human_input' ||
     status === 'awaiting_kin_response' ||
+    status === 'awaiting_subtask' ||
     status === 'pending'
 
   return (

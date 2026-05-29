@@ -32,6 +32,7 @@ import {
   Play,
   Pause,
   Sparkles,
+  Search,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { MarkdownContent } from '@/client/components/chat/MarkdownContent'
@@ -81,6 +82,7 @@ const TASK_STATUS_CONFIG: Record<TaskStatus, {
   cancelled: { icon: Ban, iconClass: 'text-muted-foreground' },
   awaiting_human_input: { icon: UserCheck, iconClass: 'text-warning animate-pulse' },
   awaiting_kin_response: { icon: MessageSquare, iconClass: 'text-info animate-pulse' },
+  awaiting_subtask: { icon: Search, iconClass: 'text-info animate-pulse' },
 }
 
 export function CronDetailModal({

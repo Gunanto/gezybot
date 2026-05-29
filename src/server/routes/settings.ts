@@ -26,6 +26,10 @@ import {
   setDefaultCompactingModel,
   getDefaultCompactingProviderId,
   setDefaultCompactingProviderId,
+  getDefaultScoutModel,
+  setDefaultScoutModel,
+  getDefaultScoutProviderId,
+  setDefaultScoutProviderId,
   getDefaultSearchProviderId,
   setDefaultSearchProviderId,
   getDefaultTtsProviderId,
@@ -129,6 +133,7 @@ settingsRoutes.get('/default-models', async (c) => {
     defaultLlmModel, defaultLlmProviderId,
     defaultImageModel, defaultImageProviderId,
     defaultCompactingModel, defaultCompactingProviderId,
+    defaultScoutModel, defaultScoutProviderId,
     extractionModel, extractionProviderId,
     embeddingModel, embeddingProviderId,
     defaultSearchProviderId,
@@ -138,6 +143,7 @@ settingsRoutes.get('/default-models', async (c) => {
     getDefaultLlmModel(), getDefaultLlmProviderId(),
     getDefaultImageModel(), getDefaultImageProviderId(),
     getDefaultCompactingModel(), getDefaultCompactingProviderId(),
+    getDefaultScoutModel(), getDefaultScoutProviderId(),
     getExtractionModel(), getExtractionProviderId(),
     getEmbeddingModel(), getEmbeddingProviderId(),
     getDefaultSearchProviderId(),
@@ -148,6 +154,7 @@ settingsRoutes.get('/default-models', async (c) => {
     defaultLlmModel, defaultLlmProviderId,
     defaultImageModel, defaultImageProviderId,
     defaultCompactingModel, defaultCompactingProviderId,
+    defaultScoutModel, defaultScoutProviderId,
     extractionModel, extractionProviderId,
     embeddingModel, embeddingProviderId,
     defaultSearchProviderId,
@@ -235,6 +242,36 @@ settingsRoutes.put('/default-compacting', async (c) => {
   log.info({ model: model.trim(), providerId }, 'Default compacting model updated')
   broadcastDefaultsUpdated()
   return c.json({ defaultCompactingModel: model.trim(), defaultCompactingProviderId: providerId ?? null })
+})
+
+// PUT /api/settings/default-scout
+//
+// Global fallback for the cheap "scout" model resolved by resolveScoutModel().
+// Same body/clearing semantics as /default-llm and /default-compacting.
+settingsRoutes.put('/default-scout', async (c) => {
+  const body = await c.req.json()
+  const { model, providerId } = body as { model: string | null; providerId?: string | null }
+
+  if (model !== null && typeof model !== 'string') {
+    return c.json(
+      { error: { code: 'INVALID_BODY', message: 'model must be a string or null' } },
+      400,
+    )
+  }
+
+  if (!model || model.trim() === '') {
+    await setDefaultScoutModel(null)
+    await setDefaultScoutProviderId(null)
+    log.info('Default scout model cleared')
+    broadcastDefaultsUpdated()
+    return c.json({ defaultScoutModel: null, defaultScoutProviderId: null })
+  }
+
+  await setDefaultScoutModel(model.trim())
+  await setDefaultScoutProviderId(providerId ?? null)
+  log.info({ model: model.trim(), providerId }, 'Default scout model updated')
+  broadcastDefaultsUpdated()
+  return c.json({ defaultScoutModel: model.trim(), defaultScoutProviderId: providerId ?? null })
 })
 
 // PUT /api/settings/default-search

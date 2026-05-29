@@ -12,6 +12,8 @@ interface CreateProjectInput {
   defaultBranch?: string
   model?: string | null
   providerId?: string | null
+  scoutModel?: string | null
+  scoutProviderId?: string | null
   thinkingConfig?: KinThinkingConfig | null
   defaultToolboxIds?: string[] | null
 }
@@ -25,6 +27,8 @@ interface UpdateProjectInput {
   defaultBranch?: string
   model?: string | null
   providerId?: string | null
+  scoutModel?: string | null
+  scoutProviderId?: string | null
   thinkingConfig?: KinThinkingConfig | null
   defaultToolboxIds?: string[] | null
 }

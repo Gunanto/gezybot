@@ -55,6 +55,11 @@ export interface CreateKinInput {
   expertise: string
   model: string
   providerId?: string | null
+  /** Optional cheap scout model for the `scout` tool. Coupled with
+   *  `scoutProviderId` — the service stores both or neither (a partial pair is
+   *  treated as "no scout override"). */
+  scoutModel?: string | null
+  scoutProviderId?: string | null
   createdBy: string | null
   mcpServerIds?: string[]
   /** Optional toolbox selection. Null/empty → 'all' built-in at resolution. */
@@ -68,6 +73,11 @@ export interface UpdateKinInput {
   expertise?: string
   model?: string
   providerId?: string | null
+  /** Cheap scout model for the `scout` tool. Coupled with `scoutProviderId`:
+   *  pass both (set the override) or pass null/null (clear it). A partial pair
+   *  is normalized to "cleared". */
+  scoutModel?: string | null
+  scoutProviderId?: string | null
   slug?: string
   /** JSON-serialized array of toolbox ids. Null/empty → 'all' built-in at
    *  resolution. The toolbox is the sole tool-grant primitive. */
@@ -87,6 +97,8 @@ export interface KinRecord {
   expertise: string
   model: string
   providerId: string | null
+  scoutModel: string | null
+  scoutProviderId: string | null
   workspacePath: string
   toolboxIds: string | null
   compactingConfig: string | null
@@ -123,6 +135,15 @@ export async function createKin(input: CreateKinInput): Promise<KinRecord> {
   mkdirSync(workspacePath, { recursive: true })
   mkdirSync(`${workspacePath}/tools`, { recursive: true })
 
+  // Scout model/provider are coupled: store both or neither. A partial pair
+  // collapses to "no scout override" (the resolver then falls through to the
+  // project / global / main-model tiers).
+  const scoutModelSet =
+    input.scoutModel !== undefined && input.scoutModel !== null && input.scoutModel.trim() !== ''
+  const scoutProviderSet =
+    input.scoutProviderId !== undefined && input.scoutProviderId !== null && input.scoutProviderId.trim() !== ''
+  const scoutPaired = scoutModelSet && scoutProviderSet
+
   const now = new Date()
   try {
     await db.insert(kins).values({
@@ -134,6 +155,8 @@ export async function createKin(input: CreateKinInput): Promise<KinRecord> {
       expertise: input.expertise,
       model: input.model,
       providerId: input.providerId ?? null,
+      scoutModel: scoutPaired ? input.scoutModel!.trim() : null,
+      scoutProviderId: scoutPaired ? input.scoutProviderId! : null,
       workspacePath,
       toolboxIds: input.toolboxIds && input.toolboxIds.length > 0 ? JSON.stringify(input.toolboxIds) : null,
       createdBy: input.createdBy,
@@ -188,6 +211,20 @@ export async function updateKin(
   if (input.expertise !== undefined) updates.expertise = input.expertise
   if (input.model !== undefined) updates.model = input.model
   if (input.providerId !== undefined) updates.providerId = input.providerId
+  // Scout model/provider are coupled: setting requires both non-empty strings;
+  // an explicit null on either side (or a partial pair) clears both. Only
+  // touched when at least one of the two keys is present in the input.
+  if (input.scoutModel !== undefined || input.scoutProviderId !== undefined) {
+    const m = typeof input.scoutModel === 'string' ? input.scoutModel.trim() : null
+    const p = typeof input.scoutProviderId === 'string' ? input.scoutProviderId.trim() : null
+    if (m && p) {
+      updates.scoutModel = m
+      updates.scoutProviderId = p
+    } else {
+      updates.scoutModel = null
+      updates.scoutProviderId = null
+    }
+  }
   if (input.toolboxIds !== undefined) {
     // Null/empty → store null so resolution falls back to the 'all' built-in.
     updates.toolboxIds = input.toolboxIds && input.toolboxIds.length > 0 ? JSON.stringify(input.toolboxIds) : null

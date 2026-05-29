@@ -148,6 +148,8 @@ export async function getProject(projectId: string): Promise<Project | null> {
     clonedAt: row.clonedAt ? toMillis(row.clonedAt) : null,
     model: row.model,
     providerId: row.providerId,
+    scoutModel: row.scoutModel,
+    scoutProviderId: row.scoutProviderId,
     thinkingConfig,
     defaultToolboxIds,
     tags,
@@ -184,6 +186,10 @@ export interface CreateProjectInput {
    *  with `providerId` — clearing one clears both. */
   model?: string | null
   providerId?: string | null
+  /** Default scout model id for sub-Kin tasks of this project. Must be paired
+   *  with `scoutProviderId` — clearing one clears both. */
+  scoutModel?: string | null
+  scoutProviderId?: string | null
   /** Default thinking config for sub-Kin tasks of this project. */
   thinkingConfig?: KinThinkingConfig | null
   /** Default toolbox selection (toolbox ids) for sub-Kin tasks of this
@@ -239,6 +245,13 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
     throw new Error('MODEL_AND_PROVIDER_MUST_BOTH_BE_SET')
   }
 
+  // Same coupling rule for the scout model/provider pair.
+  const scoutModelSet = input.scoutModel !== undefined && input.scoutModel !== null && input.scoutModel !== ''
+  const scoutProviderSet = input.scoutProviderId !== undefined && input.scoutProviderId !== null && input.scoutProviderId !== ''
+  if (scoutModelSet !== scoutProviderSet) {
+    throw new Error('SCOUT_MODEL_AND_PROVIDER_MUST_BOTH_BE_SET')
+  }
+
   db.insert(projects)
     .values({
       id,
@@ -252,6 +265,8 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
       cloneStatus: 'none',
       model: modelSet ? input.model : null,
       providerId: providerSet ? input.providerId : null,
+      scoutModel: scoutModelSet ? input.scoutModel : null,
+      scoutProviderId: scoutProviderSet ? input.scoutProviderId : null,
       thinkingConfig: input.thinkingConfig ? JSON.stringify(input.thinkingConfig) : null,
       defaultToolboxIds:
         input.defaultToolboxIds && input.defaultToolboxIds.length > 0
@@ -317,6 +332,11 @@ export interface UpdateProjectInput {
    *  (fall back to each Kin's own model). Must be paired with providerId. */
   model?: string | null
   providerId?: string | null
+  /** Default scout model for sub-Kin tasks of this project. Pass null to clear
+   *  (fall back to the global scout default → each Kin's own model). Must be
+   *  paired with scoutProviderId. */
+  scoutModel?: string | null
+  scoutProviderId?: string | null
   /** Default thinking config for sub-Kin tasks of this project. Pass null
    *  to clear (fall back to each Kin's own config). */
   thinkingConfig?: KinThinkingConfig | null
@@ -353,6 +373,8 @@ export async function updateProject(
   }
   if (input.model !== undefined) update.model = input.model
   if (input.providerId !== undefined) update.providerId = input.providerId
+  if (input.scoutModel !== undefined) update.scoutModel = input.scoutModel
+  if (input.scoutProviderId !== undefined) update.scoutProviderId = input.scoutProviderId
   if (input.thinkingConfig !== undefined) {
     update.thinkingConfig = input.thinkingConfig === null ? null : JSON.stringify(input.thinkingConfig)
   }

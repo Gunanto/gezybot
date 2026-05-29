@@ -1,0 +1,1 @@
+ALTER TABLE `tasks` ADD `pending_child_task_id` text;

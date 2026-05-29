@@ -6,7 +6,7 @@ import {
   CollapsibleTrigger,
   CollapsibleContent,
 } from '@/client/components/ui/collapsible'
-import { CheckCircle2, AlertCircle, ChevronRight, Loader2, Clock, XCircle, ExternalLink, UserCheck, MessageSquare, ArrowDownToLine, Pause } from 'lucide-react'
+import { CheckCircle2, AlertCircle, ChevronRight, Loader2, Clock, XCircle, ExternalLink, UserCheck, MessageSquare, ArrowDownToLine, Pause, Search } from 'lucide-react'
 import { MarkdownContent } from '@/client/components/chat/MarkdownContent'
 import { cn } from '@/client/lib/utils'
 import { RelativeTimestamp } from '@/client/components/chat/RelativeTimestamp'
@@ -153,6 +153,13 @@ function getStatusConfig(status: DisplayTaskStatus, t: (key: string) => string) 
         label: t('sidebar.tasks.status.awaiting_kin_response'),
         animate: true,
       }
+    case 'awaiting_subtask':
+      return {
+        icon: Search,
+        colorClass: 'text-info',
+        label: t('sidebar.tasks.status.awaiting_subtask'),
+        animate: true,
+      }
     case 'paused':
       return {
         icon: Pause,
@@ -211,7 +218,7 @@ export const TaskResultCard = memo(function TaskResultCard(props: TaskResultCard
 
   const statusConfig = getStatusConfig(task.status, t)
   const StatusIcon = statusConfig.icon
-  const isActive = task.status === 'pending' || task.status === 'in_progress' || task.status === 'paused' || task.status === 'awaiting_human_input' || task.status === 'awaiting_kin_response'
+  const isActive = task.status === 'pending' || task.status === 'in_progress' || task.status === 'paused' || task.status === 'awaiting_human_input' || task.status === 'awaiting_kin_response' || task.status === 'awaiting_subtask'
   const isError = task.status === 'failed'
   const hasResult = task.result.trim().length > 0
 

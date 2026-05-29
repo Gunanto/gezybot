@@ -21,6 +21,10 @@ interface KinSummary {
 interface KinDetail extends KinSummary {
   character: string
   expertise: string
+  /** Optional cheap scout model for the `scout` tool. Coupled with
+   *  `scoutProviderId`; null → inherit (project → global → main model). */
+  scoutModel: string | null
+  scoutProviderId: string | null
   workspacePath: string
   /** Toolbox selection (sole tool-grant primitive). Null → 'all' built-in. */
   toolboxIds: string[] | null
@@ -47,6 +51,8 @@ interface CreateKinData {
   expertise: string
   model: string
   providerId?: string | null
+  scoutModel?: string | null
+  scoutProviderId?: string | null
   toolboxIds?: string[] | null
 }
 
@@ -58,6 +64,8 @@ interface UpdateKinData {
   expertise?: string
   model?: string
   providerId?: string | null
+  scoutModel?: string | null
+  scoutProviderId?: string | null
   toolboxIds?: string[] | null
   compactingConfig?: KinCompactingConfig | null
   thinkingConfig?: KinThinkingConfig | null

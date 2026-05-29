@@ -84,6 +84,13 @@ export const kins = sqliteTable('kins', {
   expertise: text('expertise').notNull(),
   model: text('model').notNull(),
   providerId: text('provider_id').references(() => providers.id, { onDelete: 'set null' }),
+  /** Optional cheap "scout" model used when this Kin (or a sub-task it owns)
+   *  delegates read-only exploration via the `scout` tool. Resolved by
+   *  resolveScoutModel() with a fallback chain that ultimately lands on the
+   *  Kin's own main `model` when null. Coupled with `scoutProviderId` (one
+   *  being set without the other is treated as "no scout override"). */
+  scoutModel: text('scout_model'),
+  scoutProviderId: text('scout_provider_id').references(() => providers.id, { onDelete: 'set null' }),
   workspacePath: text('workspace_path').notNull(),
   toolboxIds: text('toolbox_ids'), // JSON string[] of toolbox ids; null/empty → 'all' built-in at resolution
   compactingConfig: text('compacting_config'), // JSON: KinCompactingConfig
@@ -294,7 +301,7 @@ export const tasks = sqliteTable('tasks', {
   providerId: text('provider_id'),
   title: text('title'),
   description: text('description').notNull(),
-  status: text('status').notNull().default('pending'), // 'queued' | 'pending' | 'in_progress' | 'paused' | 'awaiting_human_input' | 'awaiting_kin_response' | 'completed' | 'failed' | 'cancelled'
+  status: text('status').notNull().default('pending'), // 'queued' | 'pending' | 'in_progress' | 'paused' | 'awaiting_human_input' | 'awaiting_kin_response' | 'awaiting_subtask' | 'completed' | 'failed' | 'cancelled'
   result: text('result'),
   error: text('error'),
   depth: integer('depth').notNull().default(1),
@@ -303,6 +310,12 @@ export const tasks = sqliteTable('tasks', {
   requestInputCount: integer('request_input_count').notNull().default(0),
   interKinRequestCount: integer('inter_kin_request_count').notNull().default(0),
   pendingRequestId: text('pending_request_id'),
+  /** When a TASK (sub-Kin) parent spawns an `await` child and suspends itself
+   *  into status 'awaiting_subtask', this holds the child task's id. On the
+   *  child's resolveTask() the runtime finds the waiting parent via this column,
+   *  injects the child's result, clears it, and re-enters executeSubKin. Mirrors
+   *  `pendingRequestId` for the inter-Kin suspend/resume path. Null otherwise. */
+  pendingChildTaskId: text('pending_child_task_id'),
   channelOriginId: text('channel_origin_id'),
   webhookId: text('webhook_id').references(() => webhooks.id, { onDelete: 'set null' }),
   ticketId: text('ticket_id').references((): AnySQLiteColumn => tickets.id, { onDelete: 'set null' }),
@@ -912,6 +925,13 @@ export const projects = sqliteTable('projects', {
    *  override is provided. Falls back to the parent Kin's own model. */
   model: text('model'),
   providerId: text('provider_id'),
+  /** Optional default scout model for sub-Kin tasks spawned on tickets of
+   *  this project. One step in resolveScoutModel()'s chain (between the
+   *  per-Kin scout model and the global default). Coupled with
+   *  `scoutProviderId`. Null falls through to the global default → Kin main
+   *  model. */
+  scoutModel: text('scout_model'),
+  scoutProviderId: text('scout_provider_id'),
   /** Optional default thinking/reasoning config for sub-Kin tasks spawned on
    *  tickets of this project. JSON: KinThinkingConfig. Same freeze-at-spawn
    *  pattern as `model`: copied into `tasks.thinking_config` if no explicit

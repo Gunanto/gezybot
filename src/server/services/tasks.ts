@@ -195,10 +195,12 @@ function kinAvatarUrl(kinId: string, avatarPath: string | null, updatedAt?: Date
 export function recoverStaleTasks() {
   // Note: 'awaiting_human_input' is NOT recovered — the human can still respond after restart
   // Note: 'awaiting_kin_response' IS recovered — the timeout timer is lost on restart
+  // Note: 'awaiting_subtask' IS recovered — the in-memory resume linkage is lost on restart
+  //       (a parent waiting on a child that's also force-failed here is acceptable for v1)
   // Note: 'queued' IS recovered — the promotion mechanism is lost on restart
   // Note: 'paused' IS recovered — the user context is lost on restart
   const result = sqlite.run(
-    `UPDATE tasks SET status = 'failed', error = 'Interrupted by server restart', ended_at = COALESCE(ended_at, ?), updated_at = ? WHERE status IN ('queued', 'pending', 'in_progress', 'paused', 'awaiting_kin_response')`,
+    `UPDATE tasks SET status = 'failed', error = 'Interrupted by server restart', ended_at = COALESCE(ended_at, ?), updated_at = ? WHERE status IN ('queued', 'pending', 'in_progress', 'paused', 'awaiting_kin_response', 'awaiting_subtask')`,
     [Date.now(), Date.now()],
   )
   if (result.changes > 0) {
@@ -208,7 +210,7 @@ export function recoverStaleTasks() {
 
 // ─── Concurrency Group Helpers ───────────────────────────────────────────────
 
-const ACTIVE_STATUSES: TaskStatus[] = ['pending', 'in_progress', 'paused', 'awaiting_human_input', 'awaiting_kin_response']
+const ACTIVE_STATUSES: TaskStatus[] = ['pending', 'in_progress', 'paused', 'awaiting_human_input', 'awaiting_kin_response', 'awaiting_subtask']
 
 async function countActiveTasksInGroup(group: string): Promise<number> {
   const result = await db
@@ -1375,7 +1377,11 @@ async function executeSubKin(taskId: string, isNudge = false) {
         .from(tasks)
         .where(eq(tasks.id, taskId))
         .get()
-      if (suspendedCheck?.status === 'awaiting_human_input' || suspendedCheck?.status === 'awaiting_kin_response') {
+      if (
+        suspendedCheck?.status === 'awaiting_human_input' ||
+        suspendedCheck?.status === 'awaiting_kin_response' ||
+        suspendedCheck?.status === 'awaiting_subtask'
+      ) {
         log.info(
           { taskId, status: suspendedCheck.status },
           'Sub-Kin step suspended task — breaking multi-step loop',
@@ -1577,7 +1583,12 @@ async function executeSubKin(taskId: string, isNudge = false) {
     // don't nudge — just return. The runner resumes via resumeSubKin() when
     // the response arrives (respondToHumanPrompt / interKin reply handler).
     const currentTask = await db.select().from(tasks).where(eq(tasks.id, taskId)).get()
-    if (currentTask && (currentTask.status === 'awaiting_kin_response' || currentTask.status === 'awaiting_human_input')) {
+    if (
+      currentTask &&
+      (currentTask.status === 'awaiting_kin_response' ||
+        currentTask.status === 'awaiting_human_input' ||
+        currentTask.status === 'awaiting_subtask')
+    ) {
       log.info({ taskId, status: currentTask.status }, 'Sub-Kin suspended — exiting without nudge')
       return
     }
@@ -1772,8 +1783,38 @@ export async function resolveTask(
   // since ticket statuses are not auto-managed on task lifecycle (projects.md § 5).
   const ticketReminder = task.ticketId ? (await buildTicketLinkedReminder(task.ticketId)) ?? '' : ''
 
+  // Scout / sub-task parent resume: when this finishing task is the `await`
+  // child of a TASK parent that suspended itself into 'awaiting_subtask'
+  // waiting on THIS child (the scout primitive), deliver the result by
+  // resuming the parent task — NOT by enqueueing into the executing Kin's
+  // main queue (which would wrongly give the MAIN Kin a turn). The atomic
+  // claim inside resumeTaskFromChildResult guarantees we only do this for a
+  // parent still genuinely waiting on this child. When it fires, we skip the
+  // normal await/async parent-delivery block below.
+  let resumedSuspendedParent = false
+  if (task.parentTaskId) {
+    const parentRow = await db
+      .select({ status: tasks.status, pendingChildTaskId: tasks.pendingChildTaskId })
+      .from(tasks)
+      .where(eq(tasks.id, task.parentTaskId))
+      .get()
+    if (parentRow?.status === 'awaiting_subtask' && parentRow.pendingChildTaskId === taskId) {
+      resumedSuspendedParent = await resumeTaskFromChildResult(
+        task.parentTaskId,
+        taskId,
+        status,
+        result ?? null,
+        error ?? null,
+        taskLabel,
+      )
+    }
+  }
+
   // If await mode, deposit result (or failure) in parent's queue
-  if (task.mode === 'await' && status === 'completed' && result) {
+  if (resumedSuspendedParent) {
+    // The suspended parent task already received the digest via resume — do
+    // not also enqueue/deposit into the main session.
+  } else if (task.mode === 'await' && status === 'completed' && result) {
     await enqueueMessage({
       kinId: task.parentKinId,
       messageType: 'task_result',
@@ -1919,7 +1960,7 @@ export async function cancelTask(taskId: string, kinId: string) {
   const cancelledAt = new Date()
   await db
     .update(tasks)
-    .set({ status: 'cancelled', pendingRequestId: null, endedAt: cancelledAt, updatedAt: cancelledAt })
+    .set({ status: 'cancelled', pendingRequestId: null, pendingChildTaskId: null, endedAt: cancelledAt, updatedAt: cancelledAt })
     .where(eq(tasks.id, taskId))
 
   sseManager.sendToKin(kinId, {
@@ -2629,6 +2670,130 @@ export async function respondToTask(taskId: string, answer: string) {
   // Re-trigger sub-Kin execution
   executeSubKin(taskId).catch((err) =>
     log.error({ taskId, err }, 'Sub-Kin re-execution error'),
+  )
+
+  return true
+}
+
+// ─── Sub-task (scout) Suspension ────────────────────────────────────────────
+
+/**
+ * Suspend a TASK (sub-Kin) parent while it blocks on an `await` child it just
+ * spawned (the `scout` tool's primitive). This is the task-parent equivalent of
+ * the MAIN-Kin await flow: a main Kin enqueues `task_result` → processNextMessage
+ * gives it a new turn, but a sub-Kin has no main queue to re-enter, so instead it
+ * suspends here (mirroring request_input → awaiting_human_input and send_message
+ * → awaiting_kin_response) and the runner ENDS the current run WITHOUT resolving
+ * the parent. When the child resolveTask()s, `resumeTaskFromChildResult` finds
+ * the waiting parent via `pendingChildTaskId`, injects the child's digest, and
+ * re-enters executeSubKin.
+ *
+ * Called from the `scout` tool when running inside a sub-Kin task. Returns
+ * `{ success:false }` (so the tool can surface an error result and the parent
+ * keeps going) when the task is no longer active.
+ */
+export async function suspendTaskForChild(
+  taskId: string,
+  childTaskId: string,
+): Promise<{ success: true } | { success: false; error: string }> {
+  // Atomic claim: only transition a task that's genuinely the in_progress
+  // caller of scout(). Avoids racing a concurrent cancel/pause/resolve.
+  const result = sqlite.run(
+    `UPDATE tasks SET status = 'awaiting_subtask', pending_child_task_id = ?, updated_at = ? WHERE id = ? AND status = 'in_progress'`,
+    [childTaskId, Date.now(), taskId],
+  )
+  if (result.changes === 0) {
+    return { success: false as const, error: 'Task not active' }
+  }
+
+  const task = await db.select().from(tasks).where(eq(tasks.id, taskId)).get()
+  if (task) {
+    sseManager.sendToKin(task.parentKinId, {
+      type: 'task:status',
+      kinId: task.parentKinId,
+      data: {
+        taskId,
+        kinId: task.parentKinId,
+        status: 'awaiting_subtask',
+        title: task.title ?? task.description,
+      },
+    })
+  }
+
+  log.info({ taskId, childTaskId }, 'Sub-Kin suspended — awaiting scout child')
+  return { success: true as const }
+}
+
+/**
+ * Resume a TASK parent that was suspended (`awaiting_subtask`) on a child that
+ * has now reached a terminal state. Injects the child's result (digest on
+ * success, an error note on failure) into the parent's task message history as a
+ * user-role message — exactly like `resumeTaskFromKinResponse` does for an
+ * inter-Kin reply — then re-enters executeSubKin so the parent picks up where it
+ * left off (the scout tool-call's placeholder result is already persisted, and
+ * this injected message carries the actual findings).
+ *
+ * Idempotent + race-safe: the status/pending_child claim is atomic, so only one
+ * caller resumes a given parent for a given child.
+ *
+ * Returns true if the parent was actually resumed.
+ */
+export async function resumeTaskFromChildResult(
+  parentTaskId: string,
+  childTaskId: string,
+  childStatus: 'completed' | 'failed',
+  childResult: string | null,
+  childError: string | null,
+  childLabel: string,
+): Promise<boolean> {
+  // Atomic claim: only resume a parent that is still awaiting THIS child.
+  const result = sqlite.run(
+    `UPDATE tasks SET status = 'in_progress', pending_child_task_id = NULL, updated_at = ? WHERE id = ? AND status = 'awaiting_subtask' AND pending_child_task_id = ?`,
+    [Date.now(), parentTaskId, childTaskId],
+  )
+  if (result.changes === 0) return false
+
+  const parent = await db.select().from(tasks).where(eq(tasks.id, parentTaskId)).get()
+  if (!parent) return false
+
+  // Inject the child outcome as a user-role message in the parent's task
+  // history. On resume, executeSubKin reads this back as the latest user turn,
+  // so the parent reacts to the scout's findings without us having to rewrite
+  // the already-persisted scout tool-result block.
+  const injected =
+    childStatus === 'completed'
+      ? `[Scout result: ${childLabel}]\n${childResult ?? '(the scout returned no digest)'}`
+      : `[Scout failed: ${childLabel}] ${childError ?? 'Unknown error'}\n\nThe scout sub-task could not complete. Continue your task without its findings, narrow the scope and dispatch another scout, or explore directly yourself.`
+
+  await db.insert(messages).values({
+    id: uuid(),
+    kinId: parent.parentKinId,
+    taskId: parentTaskId,
+    role: 'user',
+    content: injected,
+    sourceType: 'task',
+    sourceId: childTaskId,
+    createdAt: new Date(),
+  })
+
+  sseManager.sendToKin(parent.parentKinId, {
+    type: 'task:status',
+    kinId: parent.parentKinId,
+    data: {
+      taskId: parentTaskId,
+      kinId: parent.parentKinId,
+      status: 'in_progress',
+      title: parent.title ?? parent.description,
+    },
+  })
+
+  log.info(
+    { parentTaskId, childTaskId, childStatus },
+    'Sub-Kin parent resumed after scout child finished',
+  )
+
+  executeSubKin(parentTaskId).catch((err) =>
+    log.error({ taskId: parentTaskId, err }, 'Sub-Kin resume error after scout child'),
   )
 
   return true
