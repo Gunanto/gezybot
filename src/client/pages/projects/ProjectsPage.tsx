@@ -17,6 +17,7 @@ import { EmptyState } from '@/client/components/common/EmptyState'
 import { Button } from '@/client/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/client/components/ui/tabs'
 import { cn } from '@/client/lib/utils'
+import { stripMarkdown } from '@/client/lib/strip-markdown'
 import { getErrorMessage } from '@/client/lib/api'
 import { toast } from 'sonner'
 
@@ -135,11 +136,20 @@ export function ProjectsPage() {
                     />
                   )}
                 </div>
-                {project.description && (
-                  <p className="line-clamp-2 max-w-3xl text-xs text-muted-foreground">
-                    {project.description}
-                  </p>
-                )}
+{(() => {
+                  // Header is a plain-text zone: we don't render markdown here
+                  // (could produce weird layout), but raw markdown syntax looks
+                  // ugly. Strip it down to a readable one-line preview.
+                  const descPreview = stripMarkdown(project.description)
+                  return descPreview ? (
+                    <p
+                      className="line-clamp-2 max-w-3xl text-xs text-muted-foreground"
+                      title={descPreview}
+                    >
+                      {descPreview}
+                    </p>
+                  ) : null
+                })()}
                 {/* Stacked segmented progress — shows ticket distribution across all
                     five statuses, not just done/total. Reads as a mini-map of the
                     kanban below since it reuses the same status accent colors. */}
