@@ -177,6 +177,17 @@ beforeAll(() => {
     )
   `)
 
+  // app_settings: the resume gate (runOrQueueResumedTask → getMaxConcurrentTasks)
+  // reads the live tasks_max_concurrent k/v here. Empty table → getter falls back
+  // to the config default, so resumes proceed (slot available) as before.
+  sqlite.run(`
+    CREATE TABLE app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      updated_at INTEGER NOT NULL
+    )
+  `)
+
   sqlite.run(
     `INSERT INTO kins (id, name, role, character, expertise, model, workspace_path, created_at, updated_at)
      VALUES ('kin-a', 'Kin A', 'helper', 'c', 'e', 'm', '/w', 0, 0)`,

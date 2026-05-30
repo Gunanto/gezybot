@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/server/db/index'
 import { appSettings } from '@/server/db/schema'
 import { createLogger } from '@/server/logger'
+import { config } from '@/server/config'
 
 const log = createLogger('app-settings')
 
@@ -273,5 +274,93 @@ export async function getDefaultCompactingProviderId(): Promise<string | null> {
 export async function setDefaultCompactingProviderId(providerId: string | null): Promise<void> {
   if (providerId === null) return deleteSetting('default_compacting_provider_id')
   return setSetting('default_compacting_provider_id', providerId)
+}
+
+// ─── Global task execution-slot limits ───────────────────────────────────────
+//
+// Two runtime-configurable knobs for the GLOBAL execution-slot task queue
+// (composes with the per-group no-overlap queue, which stays as-is):
+//
+//   tasks_max_concurrent — how many tasks may be EXECUTING (status in
+//     {pending,in_progress}) at once. Suspended tasks (awaiting_*/paused) are
+//     idle and don't occupy a slot. When full, new/resuming tasks go 'queued'
+//     and are promoted as slots free.
+//   tasks_max_queue — anti-runaway guard: the max number of 'queued' tasks
+//     allowed to pile up. spawnTask throws TASK_QUEUE_FULL above this.
+//
+// Both are k/v rows (mirroring getDefaultLlmModel/getDefaultScoutModel). The
+// config / env values (config.tasks.maxConcurrent) act only as the seed
+// DEFAULT when the app_settings row is unset — the DB value, once written from
+// the Settings UI, wins and is read LIVE at each spawn/resume/promote decision.
+
+/** Default seed for tasks_max_concurrent when the DB row is unset. */
+const DEFAULT_MAX_CONCURRENT_TASKS = config.tasks.maxConcurrent
+/** Default seed for tasks_max_queue when the DB row is unset. */
+const DEFAULT_MAX_QUEUED_TASKS = 100
+
+/** Parse a stored integer setting, returning the fallback for null/NaN/<1. */
+function parsePositiveIntSetting(raw: string | null, fallback: number): number {
+  if (raw === null) return fallback
+  const n = Number(raw)
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1) return fallback
+  return n
+}
+
+/**
+ * Like parsePositiveIntSetting but accepts 0 — used for tasks_max_queue, where 0
+ * is a LEGITIMATE setting ("never queue: reject with TASK_QUEUE_FULL the moment
+ * the global slots are full"). A negative / NaN / non-integer value still falls
+ * back to the seed default. Without this, a stored 0 would be silently bumped to
+ * the default by the >= 1 floor, and the Settings UI (which re-reads the getter)
+ * would show 100 after the admin saved 0.
+ */
+function parseNonNegativeIntSetting(raw: string | null, fallback: number): number {
+  if (raw === null) return fallback
+  const n = Number(raw)
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) return fallback
+  return n
+}
+
+export async function getMaxConcurrentTasks(): Promise<number> {
+  return parsePositiveIntSetting(await getSetting('tasks_max_concurrent'), DEFAULT_MAX_CONCURRENT_TASKS)
+}
+
+export async function setMaxConcurrentTasks(value: number | null): Promise<void> {
+  // Snapshot the live value BEFORE writing so we can tell a RAISE from a lower.
+  const previous = await getMaxConcurrentTasks()
+
+  if (value === null) {
+    await deleteSetting('tasks_max_concurrent')
+  } else {
+    await setSetting('tasks_max_concurrent', String(value))
+  }
+
+  // Read the now-effective value (handles null→default and clamping in the
+  // getter). RAISING the cap frees slots immediately — drive the global queue so
+  // waiting tasks fill them without waiting for the next natural release.
+  // LOWERING is soft: nothing to do — promotion naturally stops while the
+  // executing count is >= the new cap, and running tasks are never cancelled.
+  const next = await getMaxConcurrentTasks()
+  if (next > previous) {
+    // Dynamic import avoids an app-settings ↔ tasks circular import at load time.
+    import('@/server/services/tasks')
+      .then(({ promoteGlobalQueue }) =>
+        promoteGlobalQueue().catch((err) =>
+          log.error({ err }, 'Failed to promote global queue after raising maxConcurrent'),
+        ),
+      )
+      .catch((err) => log.error({ err }, 'Failed to load tasks for maxConcurrent-raise promote'))
+  }
+}
+
+export async function getMaxQueuedTasks(): Promise<number> {
+  // 0 is valid here (disable queueing) — use the non-negative parser so a stored
+  // 0 survives instead of being floored back up to the default.
+  return parseNonNegativeIntSetting(await getSetting('tasks_max_queue'), DEFAULT_MAX_QUEUED_TASKS)
+}
+
+export async function setMaxQueuedTasks(value: number | null): Promise<void> {
+  if (value === null) return deleteSetting('tasks_max_queue')
+  return setSetting('tasks_max_queue', String(value))
 }
 

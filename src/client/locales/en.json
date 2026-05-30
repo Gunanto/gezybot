@@ -1135,9 +1135,24 @@
         "label": "Expand tool calls by default",
         "hint": "Show tool call details expanded in every chat (main chat, quick session, tasks). You can still collapse individual calls."
       },
+      "tasks": {
+        "title": "Task execution",
+        "description": "Control how many tasks run at once across all Kins. A task only holds a slot while actively executing — suspended tasks (waiting on a human, another Kin, or a sub-task) free their slot.",
+        "saved": "Task limits updated",
+        "hint": "Raising the concurrency limit immediately fills free slots from the queue. Lowering it is gradual — running tasks are never stopped, new promotions just pause until the count drops. The queue cap rejects new tasks once that many are already waiting.",
+        "maxConcurrent": {
+          "label": "Max concurrent tasks",
+          "tip": "How many tasks may execute simultaneously. When full, new or resuming tasks wait in the queue and start as slots free up. Default 10."
+        },
+        "maxQueue": {
+          "label": "Max queued tasks",
+          "tip": "Anti-runaway guard: how many tasks may wait in the queue before new spawns are rejected. Default 100."
+        }
+      },
       "help": {
         "content": "General settings control platform-wide behavior that applies to all your Kins. The global prompt lets you define instructions every Kin follows.",
-        "bullet1": "The global prompt is injected into every Kin's system prompt. Use it for universal rules or guidelines"
+        "bullet1": "The global prompt is injected into every Kin's system prompt. Use it for universal rules or guidelines",
+        "bullet2": "Task execution limits cap concurrent runs across all Kins. Suspended tasks release their slot; raising the limit fills the queue immediately, lowering it is gradual"
       }
     },
     "providers": {

@@ -25,7 +25,7 @@ import { buildSegmentedMessages } from '@/server/services/llm-cache-hints'
 import { stringifyToolResultValue } from '@/server/llm/core/vercel-bridge'
 import { DEFAULT_MAX_LLM_TOOLS, getMaxToolsForRequest } from '@/server/services/tool-cap'
 import { dequeueMessage, markQueueItemDone, isKinProcessing, getQueueSize, recoverStaleProcessingItems, popQueueMessageMetadata } from '@/server/services/queue'
-import { recoverStaleTasks } from '@/server/services/tasks'
+import { recoverStaleTasks, promoteGlobalQueue } from '@/server/services/tasks'
 import { sseManager } from '@/server/sse/index'
 import { eventBus } from '@/server/services/events'
 import { hookRegistry } from '@/server/hooks/index'
@@ -3056,6 +3056,13 @@ export function startQueueWorker() {
   // On startup, reset any items stuck in 'processing' (e.g. after a crash)
   recoverStaleProcessingItems()
   recoverStaleTasks()
+
+  // 'queued' tasks survive recovery (recoverStaleTasks no longer fails them).
+  // Drive the global execution-slot queue once so the queue resumes after a
+  // restart — promotes the oldest runnable queued tasks up to the live cap.
+  promoteGlobalQueue().catch((err) =>
+    log.error({ err }, 'Failed to promote global queue at startup'),
+  )
 
   workerInterval = setInterval(async () => {
     const allKins = await db.select({ id: kins.id }).from(kins).all()

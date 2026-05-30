@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/client/components/ui/button'
+import { Input } from '@/client/components/ui/input'
 import { Label } from '@/client/components/ui/label'
 import { Switch } from '@/client/components/ui/switch'
 import { MarkdownEditor } from '@/client/components/ui/markdown-editor'
@@ -10,6 +11,9 @@ import { Skeleton } from '@/client/components/ui/skeleton'
 import { InfoTip } from '@/client/components/common/InfoTip'
 import { HelpPanel } from '@/client/components/common/HelpPanel'
 import { getToolCallsDefaultOpen, setToolCallsDefaultOpen } from '@/client/lib/tool-call-prefs'
+
+const MAX_CONCURRENT_UPPER_BOUND = 1000
+const MAX_QUEUE_UPPER_BOUND = 100_000
 
 export function GeneralSettings() {
   const { t } = useTranslation()
@@ -20,6 +24,14 @@ export function GeneralSettings() {
   // Global prompt
   const [globalPrompt, setGlobalPrompt] = useState('')
   const [initialGlobalPrompt, setInitialGlobalPrompt] = useState('')
+
+  // Global task execution-slot limits (kept as strings so an in-progress edit
+  // can be empty without coercing to 0; validated on save).
+  const [maxConcurrent, setMaxConcurrent] = useState('')
+  const [initialMaxConcurrent, setInitialMaxConcurrent] = useState('')
+  const [maxQueue, setMaxQueue] = useState('')
+  const [initialMaxQueue, setInitialMaxQueue] = useState('')
+  const [savingTaskLimits, setSavingTaskLimits] = useState(false)
 
   // Saving state
   const [saving, setSaving] = useState(false)
@@ -34,19 +46,47 @@ export function GeneralSettings() {
 
   useEffect(() => {
     setFetchError(null)
-    fetchGlobalPrompt().catch(() => {})
+    fetchSettings().catch(() => {})
   }, [])
 
-  const fetchGlobalPrompt = async () => {
+  const fetchSettings = async () => {
     try {
-      const data = await api.get<{ globalPrompt: string }>('/settings/global-prompt')
-      setGlobalPrompt(data.globalPrompt)
-      setInitialGlobalPrompt(data.globalPrompt)
+      const [prompt, taskLimits] = await Promise.all([
+        api.get<{ globalPrompt: string }>('/settings/global-prompt'),
+        api.get<{ maxConcurrent: number; maxQueue: number }>('/settings/task-limits'),
+      ])
+      setGlobalPrompt(prompt.globalPrompt)
+      setInitialGlobalPrompt(prompt.globalPrompt)
+      setMaxConcurrent(String(taskLimits.maxConcurrent))
+      setInitialMaxConcurrent(String(taskLimits.maxConcurrent))
+      setMaxQueue(String(taskLimits.maxQueue))
+      setInitialMaxQueue(String(taskLimits.maxQueue))
     } catch (err: unknown) {
       setFetchError(getErrorMessage(err))
       toast.error(t('settings.general.fetchError', 'Failed to load settings'))
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleSaveTaskLimits = async () => {
+    const concurrent = Number(maxConcurrent)
+    const queue = Number(maxQueue)
+    setSavingTaskLimits(true)
+    try {
+      const data = await api.put<{ maxConcurrent: number; maxQueue: number }>(
+        '/settings/task-limits',
+        { maxConcurrent: concurrent, maxQueue: queue },
+      )
+      setMaxConcurrent(String(data.maxConcurrent))
+      setInitialMaxConcurrent(String(data.maxConcurrent))
+      setMaxQueue(String(data.maxQueue))
+      setInitialMaxQueue(String(data.maxQueue))
+      toast.success(t('settings.general.tasks.saved'))
+    } catch (err: unknown) {
+      toastError(err)
+    } finally {
+      setSavingTaskLimits(false)
     }
   }
 
@@ -75,6 +115,24 @@ export function GeneralSettings() {
   const approxTokens = Math.ceil(globalPrompt.length / 4)
   const isOverLimit = globalPrompt.length > MAX_PROMPT_LENGTH
 
+  // Task-limit validation: integers within the same bounds the API enforces.
+  const concurrentNum = Number(maxConcurrent)
+  const queueNum = Number(maxQueue)
+  const isConcurrentValid =
+    maxConcurrent.trim() !== '' &&
+    Number.isInteger(concurrentNum) &&
+    concurrentNum >= 1 &&
+    concurrentNum <= MAX_CONCURRENT_UPPER_BOUND
+  const isQueueValid =
+    maxQueue.trim() !== '' &&
+    Number.isInteger(queueNum) &&
+    queueNum >= 0 &&
+    queueNum <= MAX_QUEUE_UPPER_BOUND
+  const hasTaskLimitChanges =
+    maxConcurrent !== initialMaxConcurrent || maxQueue !== initialMaxQueue
+  const canSaveTaskLimits =
+    hasTaskLimitChanges && isConcurrentValid && isQueueValid && !savingTaskLimits
+
   if (isLoading) {
     return (
       <div className="space-y-8">
@@ -96,7 +154,7 @@ export function GeneralSettings() {
         <Button variant="outline" onClick={() => {
           setIsLoading(true)
           setFetchError(null)
-          fetchGlobalPrompt().catch(() => {})
+          fetchSettings().catch(() => {})
         }}>
           {t('common.retry', 'Retry')}
         </Button>
@@ -168,10 +226,81 @@ export function GeneralSettings() {
         </div>
       </div>
 
+      {/* Global task execution-slot limits */}
+      <div className="space-y-3 border-t border-border/60 pt-6">
+        <h3 className="text-sm font-medium">{t('settings.general.tasks.title')}</h3>
+        <p className="text-xs text-muted-foreground">
+          {t('settings.general.tasks.description')}
+        </p>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="max-concurrent-tasks" className="inline-flex items-center gap-1.5">
+              {t('settings.general.tasks.maxConcurrent.label')}
+              <InfoTip content={t('settings.general.tasks.maxConcurrent.tip')} />
+            </Label>
+            <Input
+              id="max-concurrent-tasks"
+              type="number"
+              min={1}
+              max={MAX_CONCURRENT_UPPER_BOUND}
+              step={1}
+              value={maxConcurrent}
+              onChange={(e) => setMaxConcurrent(e.target.value)}
+              aria-invalid={maxConcurrent.trim() !== '' && !isConcurrentValid}
+              className="tabular-nums"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="max-queued-tasks" className="inline-flex items-center gap-1.5">
+              {t('settings.general.tasks.maxQueue.label')}
+              <InfoTip content={t('settings.general.tasks.maxQueue.tip')} />
+            </Label>
+            <Input
+              id="max-queued-tasks"
+              type="number"
+              min={0}
+              max={MAX_QUEUE_UPPER_BOUND}
+              step={1}
+              value={maxQueue}
+              onChange={(e) => setMaxQueue(e.target.value)}
+              aria-invalid={maxQueue.trim() !== '' && !isQueueValid}
+              className="tabular-nums"
+            />
+          </div>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          {t('settings.general.tasks.hint')}
+        </p>
+
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={handleSaveTaskLimits}
+            disabled={!canSaveTaskLimits}
+          >
+            {savingTaskLimits ? t('common.loading') : t('common.save')}
+          </Button>
+          {hasTaskLimitChanges && (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setMaxConcurrent(initialMaxConcurrent)
+                setMaxQueue(initialMaxQueue)
+              }}
+            >
+              {t('common.discard', 'Discard')}
+            </Button>
+          )}
+        </div>
+      </div>
+
       <HelpPanel
         contentKey="settings.general.help.content"
         bulletKeys={[
           'settings.general.help.bullet1',
+          'settings.general.help.bullet2',
         ]}
         storageKey="help.general.open"
       />

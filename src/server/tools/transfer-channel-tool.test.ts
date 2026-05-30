@@ -64,7 +64,14 @@ mock.module('@/server/services/channels', () => ({
   },
   // Re-exports referenced by channel-tools.ts but not under test here
   listChannels: mock(() => Promise.resolve([])),
+  listChannelsWithOwners: mock(() => Promise.resolve([])),
   listChannelConversations: mock(() => Promise.resolve({ users: [], chatIds: [] })),
+  // channel-tools.ts imports sendToChannelAs at module-eval — keep it on the
+  // (process-global) mock surface so a later-loading test file that imports the
+  // real channels module through this poisoned cache still resolves the binding.
+  sendToChannelAs: mock(() =>
+    Promise.resolve({ ok: true, result: { platformMessageId: 'msg-123', prefixed: false } }),
+  ),
   createChannel: mock(() => Promise.resolve({})),
   updateChannel: mock(() => Promise.resolve({})),
   deleteChannel: mock(() => Promise.resolve()),

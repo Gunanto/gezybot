@@ -15,7 +15,7 @@ import { resolveThinkingConfig, isContextTooLargeError, sanitizePersistedToolCal
 import { toolRegistry } from '@/server/tools/index'
 import { sseManager } from '@/server/sse/index'
 import { config } from '@/server/config'
-import { getGlobalPrompt } from '@/server/services/app-settings'
+import { getGlobalPrompt, getMaxConcurrentTasks, getMaxQueuedTasks } from '@/server/services/app-settings'
 import { wrapToolsWithSpill } from '@/server/services/tool-output-spill'
 import { executeToolBatch } from '@/server/services/tool-executor'
 import { recordUsage, aggregateUsages, getTaskTotals } from '@/server/services/token-usage'
@@ -197,10 +197,13 @@ export function recoverStaleTasks() {
   // Note: 'awaiting_kin_response' IS recovered — the timeout timer is lost on restart
   // Note: 'awaiting_subtask' IS recovered — the in-memory resume linkage is lost on restart
   //       (a parent waiting on a child that's also force-failed here is acceptable for v1)
-  // Note: 'queued' IS recovered — the promotion mechanism is lost on restart
+  // Note: 'queued' is NOT recovered — global-queue tasks survive a restart and are
+  //       re-driven by promoteGlobalQueue() at startup (see startQueueWorker). A
+  //       fresh-start queued task runs from scratch; a resuming queued task already
+  //       has its reply/digest injected in history, so executeSubKin picks up cleanly.
   // Note: 'paused' IS recovered — the user context is lost on restart
   const result = sqlite.run(
-    `UPDATE tasks SET status = 'failed', error = 'Interrupted by server restart', ended_at = COALESCE(ended_at, ?), updated_at = ? WHERE status IN ('queued', 'pending', 'in_progress', 'paused', 'awaiting_kin_response', 'awaiting_subtask')`,
+    `UPDATE tasks SET status = 'failed', error = 'Interrupted by server restart', ended_at = COALESCE(ended_at, ?), updated_at = ? WHERE status IN ('pending', 'in_progress', 'paused', 'awaiting_kin_response', 'awaiting_subtask')`,
     [Date.now(), Date.now()],
   )
   if (result.changes > 0) {
@@ -212,13 +215,236 @@ export function recoverStaleTasks() {
 
 const ACTIVE_STATUSES: TaskStatus[] = ['pending', 'in_progress', 'paused', 'awaiting_human_input', 'awaiting_kin_response', 'awaiting_subtask']
 
-async function countActiveTasksInGroup(group: string): Promise<number> {
+async function countActiveTasksInGroup(group: string, excludeTaskId?: string): Promise<number> {
+  const base = and(eq(tasks.concurrencyGroup, group), inArray(tasks.status, ACTIVE_STATUSES))
+  const where = excludeTaskId ? and(base, sql`${tasks.id} != ${excludeTaskId}`) : base
   const result = await db
     .select({ count: sql<number>`count(*)` })
     .from(tasks)
-    .where(and(eq(tasks.concurrencyGroup, group), inArray(tasks.status, ACTIVE_STATUSES)))
+    .where(where)
     .all()
   return result[0]?.count ?? 0
+}
+
+// ─── Global Execution-Slot Queue ─────────────────────────────────────────────
+//
+// The GLOBAL queue caps how many tasks are *executing* at once (memory/CPU
+// pressure), independent of the per-group no-overlap queue above. It uses a
+// DIFFERENT, deliberately narrower slot definition than ACTIVE_STATUSES:
+//
+//   EXECUTING_STATUSES = {pending, in_progress}
+//
+// A task occupies a global slot ONLY while it is scheduled-to-run or actively
+// in an LLM turn / running a tool. The suspended states (awaiting_human_input,
+// awaiting_kin_response, awaiting_subtask, paused) are IDLE — they release the
+// global slot so a waiting task can run while another sits blocked on a human,
+// a sibling Kin, a child sub-task, or a manual pause. (This is the opposite of
+// the per-group constraint, where a suspended run still blocks its group.)
+const EXECUTING_STATUSES: TaskStatus[] = ['pending', 'in_progress']
+
+/** Count tasks currently occupying a GLOBAL execution slot ({pending,
+ *  in_progress}). Distinct from countActiveTasksInGroup (per-group, counts the
+ *  broader ACTIVE_STATUSES set).
+ *
+ *  `excludeTaskId` lets a RESUMING task ask "is there room for me?" without
+ *  counting itself: at the resume gate the row has already been claimed to
+ *  'in_progress' (the atomic race-winner flip), so it would otherwise occupy a
+ *  slot in this count and mis-report the cap. */
+async function countExecutingTasks(excludeTaskId?: string): Promise<number> {
+  const where = excludeTaskId
+    ? and(inArray(tasks.status, EXECUTING_STATUSES), sql`${tasks.id} != ${excludeTaskId}`)
+    : inArray(tasks.status, EXECUTING_STATUSES)
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(tasks)
+    .where(where)
+    .all()
+  return result[0]?.count ?? 0
+}
+
+/**
+ * Gate a task that has just been resumed (its reply/digest already injected and
+ * the row atomically claimed to 'in_progress'). Decides whether it may keep its
+ * global slot and run NOW, or must yield it and go back to 'queued'.
+ *
+ * Composition (same rule as spawnTask): the task may run only when BOTH
+ *   - global exec-slots have room (countExecutingTasks EXCLUDING this task <
+ *     maxConcurrent — exclude self because the resume race-claim already flipped
+ *     it to in_progress), AND
+ *   - its group is under cap (no group, or countActiveTasksInGroup < max).
+ *
+ * If both hold → run executeSubKin (the row is already in_progress, so this is a
+ * direct re-entry). Otherwise → demote to 'queued' (queued_at = now) WITHOUT
+ * running; promoteGlobalQueue() will start it later off the already-injected
+ * history. Returns true when the task was actually (re-)entered into execution.
+ *
+ * The demotion is an atomic conditional UPDATE (in_progress → queued WHERE the
+ * row is still the one we claimed) so a racing promote/cancel can't be undone.
+ */
+export async function runOrQueueResumedTask(taskId: string): Promise<boolean> {
+  const task = await db.select().from(tasks).where(eq(tasks.id, taskId)).get()
+  // If something already moved the task off in_progress (cancel, pause, a racing
+  // resolve), don't interfere — just don't run.
+  if (!task || task.status !== 'in_progress') return false
+
+  const maxConcurrent = await getMaxConcurrentTasks()
+  const globalHasSlot = (await countExecutingTasks(taskId)) < maxConcurrent
+
+  let groupHasSlot = true
+  if (task.concurrencyGroup && task.concurrencyMax) {
+    // Exclude this task's own in_progress row from the group count: it's the
+    // resuming run, not a *second* concurrent run, so it must not block itself.
+    const groupActive = await countActiveTasksInGroup(task.concurrencyGroup, taskId)
+    groupHasSlot = groupActive < task.concurrencyMax
+  }
+
+  if (globalHasSlot && groupHasSlot) {
+    executeSubKin(taskId).catch((err) =>
+      log.error({ taskId, err }, 'Sub-Kin resume execution error'),
+    )
+    return true
+  }
+
+  // No slot — demote to queued. The injected reply/digest stays in history, so
+  // promoteGlobalQueue() runs it verbatim once a slot frees.
+  const demote = sqlite.run(
+    `UPDATE tasks SET status = 'queued', queued_at = ?, updated_at = ? WHERE id = ? AND status = 'in_progress'`,
+    [Date.now(), Date.now(), taskId],
+  )
+  if (demote.changes === 0) {
+    // Lost the row to a concurrent transition — leave it be.
+    return false
+  }
+
+  const executingKinId = task.sourceKinId ?? task.parentKinId
+  const executingKin = await db.select().from(kins).where(eq(kins.id, executingKinId)).get()
+  sseManager.sendToKin(task.parentKinId, {
+    type: 'task:status',
+    kinId: task.parentKinId,
+    data: {
+      taskId,
+      kinId: task.parentKinId,
+      status: 'queued',
+      title: task.title ?? task.description,
+      senderName: executingKin?.name ?? null,
+      senderAvatarUrl: kinAvatarUrl(executingKinId, executingKin?.avatarPath ?? null, executingKin?.updatedAt),
+      concurrencyGroup: task.concurrencyGroup,
+    },
+  })
+  log.info({ taskId, group: task.concurrencyGroup }, 'Resuming task re-queued — no free slot')
+  return false
+}
+
+/**
+ * Promote queued tasks into execution as global slots free up.
+ *
+ * Called on EVERY global-slot release (suspend or resolve), on a maxConcurrent
+ * raise, and at startup. Loops while there's a free global slot, picking the
+ * OLDEST 'queued' task (by queued_at) whose group is ALSO under its
+ * concurrencyMax — composition: a task may run only when BOTH the global slots
+ * AND its group have room. A candidate whose group is still full is SKIPPED and
+ * we try the next-oldest queued task (the global slot stays free for a
+ * group-clear candidate behind it).
+ *
+ * Promotion = set 'pending' + kick off executeSubKin in the background, exactly
+ * like spawnTask's fresh-start path. For resumes, the reply/kin-response/
+ * scout-digest was already injected into the task history before the task was
+ * queued, so "promote = run executeSubKin" works uniformly (executeSubKin reads
+ * the full history on (re-)entry).
+ *
+ * Concurrency-safe: each promotion claims the row with an atomic conditional
+ * UPDATE (status = 'pending' WHERE id = ? AND status = 'queued'). If two
+ * releases race, only one claim sees changes > 0 and runs executeSubKin; the
+ * loser skips that row. The claimed id is also tracked in-process so the same
+ * invocation never re-counts a just-promoted row before the DB write lands.
+ */
+export async function promoteGlobalQueue(): Promise<void> {
+  // Guard against an unbounded loop if executeSubKin's status flip lags: cap
+  // the number of promotions per call to the number of currently-queued tasks.
+  const queuedTotal = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(tasks)
+    .where(eq(tasks.status, 'queued'))
+    .all()
+  let budget = queuedTotal[0]?.count ?? 0
+
+  // Ids we've already inspected this pass and found un-promotable (group full)
+  // — skip them so the "oldest queued" query keeps advancing instead of
+  // re-selecting the same blocked head row forever.
+  const skipped = new Set<string>()
+
+  while (budget-- > 0) {
+    const maxConcurrent = await getMaxConcurrentTasks()
+    if ((await countExecutingTasks()) >= maxConcurrent) break
+
+    // Oldest queued task not already skipped this pass.
+    const candidates = await db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.status, 'queued'))
+      .orderBy(asc(tasks.queuedAt))
+      .all()
+    const next = candidates.find((t) => !skipped.has(t.id))
+    if (!next) break
+
+    // Composition: a grouped task can only run when its group is under cap.
+    // If the group is full, skip this candidate and try the next-oldest — the
+    // global slot stays open for a runnable task behind it.
+    if (next.concurrencyGroup && next.concurrencyMax) {
+      const groupActive = await countActiveTasksInGroup(next.concurrencyGroup)
+      if (groupActive >= next.concurrencyMax) {
+        skipped.add(next.id)
+        continue
+      }
+    }
+
+    // Atomic claim: flip queued → pending only if still queued. Loses gracefully
+    // if a racing release already promoted this row.
+    const claim = sqlite.run(
+      `UPDATE tasks SET status = 'pending', queued_at = NULL, updated_at = ? WHERE id = ? AND status = 'queued'`,
+      [Date.now(), next.id],
+    )
+    if (claim.changes === 0) {
+      skipped.add(next.id)
+      continue
+    }
+
+    // Resolve executing Kin info for SSE.
+    const executingKinId = next.sourceKinId ?? next.parentKinId
+    const executingKin = await db.select().from(kins).where(eq(kins.id, executingKinId)).get()
+
+    sseManager.sendToKin(next.parentKinId, {
+      type: 'task:status',
+      kinId: next.parentKinId,
+      data: {
+        taskId: next.id,
+        kinId: next.parentKinId,
+        status: 'pending',
+        title: next.title ?? next.description,
+        senderName: executingKin?.name ?? null,
+        senderAvatarUrl: kinAvatarUrl(executingKinId, executingKin?.avatarPath ?? null, executingKin?.updatedAt),
+        concurrencyGroup: next.concurrencyGroup,
+      },
+    })
+
+    log.info({ taskId: next.id, group: next.concurrencyGroup }, 'Queued task promoted to pending (global queue)')
+
+    // Notify source Kin (for spawn_type = 'other'), mirroring spawnTask.
+    if (next.spawnType === 'other' && next.sourceKinId) {
+      const taskLabel = next.title ?? next.description
+      const briefDesc = next.description.length > 200
+        ? next.description.slice(0, 200) + '...'
+        : next.description
+      notifySourceKin(next.sourceKinId, next.parentKinId, `[Task assigned: ${taskLabel}] ${briefDesc}`, next.id)
+        .catch((err) => log.warn({ taskId: next.id, sourceKinId: next.sourceKinId, err }, 'Failed to notify source Kin on global promote'))
+    }
+
+    // Promote = actually run the sub-Kin (fresh start OR resume — executeSubKin
+    // reads the full history either way).
+    executeSubKin(next.id).catch((err) =>
+      log.error({ taskId: next.id, err }, 'Sub-Kin execution error after global promotion'),
+    )
+  }
 }
 
 export async function promoteNextQueuedTask(group: string, maxConcurrent: number) {
@@ -520,29 +746,48 @@ export async function spawnTask(params: SpawnParams) {
     throw new Error(`Max task depth (${config.tasks.maxDepth}) exceeded`)
   }
 
-  // Check max concurrent
-  const activeTasks = await db
-    .select()
-    .from(tasks)
-    .where(inArray(tasks.status, ['pending', 'in_progress']))
-    .all()
-
-  if (activeTasks.length >= config.tasks.maxConcurrent) {
-    throw new Error(`Max concurrent tasks (${config.tasks.maxConcurrent}) reached`)
-  }
-
   const taskId = uuid()
   const now = new Date()
 
-  // Determine initial status — if concurrency group is full, start as 'queued'
+  // ─── Composed concurrency gate (global exec slots × per-group no-overlap) ──
+  //
+  // The task may START NOW only when BOTH constraints have room:
+  //   1. GLOBAL: countExecutingTasks() < maxConcurrent (resource cap, read live
+  //      from app_settings so the Settings UI takes effect without a restart).
+  //   2. PER-GROUP: no group, OR countActiveTasksInGroup(group) < concurrencyMax
+  //      (the existing no-overlap serialization — unchanged).
+  //
+  // If either is full, the task is QUEUED (status 'queued', queued_at=now) and
+  // promoteGlobalQueue() will start it once a slot frees — UNLESS the queue is
+  // already saturated (>= maxQueue 'queued' tasks), in which case we THROW
+  // TASK_QUEUE_FULL. This throw preserves the anti-runaway protection the old
+  // unconditional "max concurrent reached" throw used to give.
   const concurrencyGroup = params.concurrencyGroup ?? null
   const concurrencyMax = params.concurrencyMax ?? null
-  let initialStatus: 'pending' | 'queued' = 'pending'
 
+  const maxConcurrent = await getMaxConcurrentTasks()
+  const globalHasSlot = (await countExecutingTasks()) < maxConcurrent
+
+  let groupHasSlot = true
   if (concurrencyGroup && concurrencyMax) {
     const activeCount = await countActiveTasksInGroup(concurrencyGroup)
-    if (activeCount >= concurrencyMax) {
-      initialStatus = 'queued'
+    groupHasSlot = activeCount < concurrencyMax
+  }
+
+  const canRun = globalHasSlot && groupHasSlot
+  let initialStatus: 'pending' | 'queued' = canRun ? 'pending' : 'queued'
+
+  if (initialStatus === 'queued') {
+    // Anti-runaway guard: reject (throw) instead of queueing once the queue is
+    // already at capacity, so a misbehaving spawner can't pile up unbounded.
+    const maxQueue = await getMaxQueuedTasks()
+    const queuedCount = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(tasks)
+      .where(eq(tasks.status, 'queued'))
+      .all()
+    if ((queuedCount[0]?.count ?? 0) >= maxQueue) {
+      throw new Error(`TASK_QUEUE_FULL: task queue is full (${maxQueue} queued)`)
     }
   }
 
@@ -1915,6 +2160,12 @@ export async function resolveTask(
       log.error({ taskId, group: task.concurrencyGroup, err }, 'Failed to promote next queued task'),
     )
   }
+
+  // A resolved task left the global executing set → a slot just freed. Drive
+  // the global queue so the oldest runnable queued task starts immediately.
+  promoteGlobalQueue().catch((err) =>
+    log.error({ taskId, err }, 'Failed to promote global queue after resolve'),
+  )
 }
 
 // ─── Task Operations ─────────────────────────────────────────────────────────
@@ -1993,6 +2244,13 @@ export async function cancelTask(taskId: string, kinId: string) {
       log.error({ taskId, group: task.concurrencyGroup, err }, 'Failed to promote next queued task after cancel'),
     )
   }
+
+  // Cancellation is terminal → the task left the global executing set, freeing
+  // a slot. Drive the global queue (only meaningful when the cancelled task was
+  // itself executing; a no-op when it was suspended/queued).
+  promoteGlobalQueue().catch((err) =>
+    log.error({ taskId, err }, 'Failed to promote global queue after cancel'),
+  )
 
   return true
 }
@@ -2721,6 +2979,14 @@ export async function suspendTaskForChild(
   }
 
   log.info({ taskId, childTaskId }, 'Sub-Kin suspended — awaiting scout child')
+
+  // The parent left the executing set (awaiting_subtask is idle) → a global slot
+  // just freed. Drive the global queue so a waiting task can run while the parent
+  // blocks on its scout child.
+  promoteGlobalQueue().catch((err) =>
+    log.error({ taskId, err }, 'Failed to promote global queue after subtask suspend'),
+  )
+
   return { success: true as const }
 }
 
@@ -2792,9 +3058,12 @@ export async function resumeTaskFromChildResult(
     'Sub-Kin parent resumed after scout child finished',
   )
 
-  executeSubKin(parentTaskId).catch((err) =>
-    log.error({ taskId: parentTaskId, err }, 'Sub-Kin resume error after scout child'),
-  )
+  // Gate the resume on a global slot. The atomic claim above already flipped the
+  // row to in_progress (race-winner); runOrQueueResumedTask either keeps it
+  // running or demotes it back to 'queued' (it'll be promoted later off the
+  // already-injected digest). The SSE 'in_progress' above is a momentary glitch
+  // when re-queued, immediately corrected by the 'queued' event in the helper.
+  await runOrQueueResumedTask(parentTaskId)
 
   return true
 }
@@ -2844,6 +3113,12 @@ export async function suspendTaskForKinResponse(
 
   scheduleInterKinTimeout(taskId, requestId)
 
+  // The task left the executing set (awaiting_kin_response is idle) → a global
+  // slot just freed. Drive the global queue so a waiting task can run.
+  promoteGlobalQueue().catch((err) =>
+    log.error({ taskId, err }, 'Failed to promote global queue after inter-Kin suspend'),
+  )
+
   return { success: true as const }
 }
 
@@ -2890,9 +3165,10 @@ function scheduleInterKinTimeout(taskId: string, requestId: string) {
         },
       })
 
-      executeSubKin(taskId).catch((err) =>
-        log.error({ taskId, err }, 'Sub-Kin resume error after inter-Kin timeout'),
-      )
+      // Gate on a global slot (the timeout note was already injected above) —
+      // awaiting_kin_response released the slot, so the timeout-resume may need
+      // to re-queue if the cap is now full.
+      await runOrQueueResumedTask(taskId)
     } catch (err) {
       log.error({ taskId, err }, 'Inter-Kin timeout handler error')
     }
@@ -2950,9 +3226,10 @@ export async function resumeTaskFromKinResponse(
     },
   })
 
-  executeSubKin(taskId).catch((err) =>
-    log.error({ taskId, err }, 'Sub-Kin resume error after inter-Kin reply'),
-  )
+  // Gate the resume on a global slot (the reply was already injected above). If
+  // the cap is full, runOrQueueResumedTask demotes the row to 'queued' and
+  // promoteGlobalQueue() runs it later off the injected reply.
+  await runOrQueueResumedTask(taskId)
 
   return true
 }
@@ -2990,6 +3267,13 @@ export async function pauseTask(taskId: string): Promise<boolean> {
   }
 
   log.info({ taskId }, 'Task paused by user')
+
+  // 'paused' is idle and releases the global slot → drive the queue so a waiting
+  // task can run while this one sits paused.
+  promoteGlobalQueue().catch((err) =>
+    log.error({ taskId, err }, 'Failed to promote global queue after pause'),
+  )
+
   return true
 }
 
@@ -3052,9 +3336,10 @@ export async function resumeTask(taskId: string, message?: string): Promise<bool
     },
   })
 
-  executeSubKin(taskId).catch((err) =>
-    log.error({ taskId, err }, 'Sub-Kin resume error after user resume'),
-  )
+  // Gate the resume on a global slot (the continuation message was already
+  // injected above). If the cap is full, runOrQueueResumedTask demotes the row
+  // to 'queued' and promoteGlobalQueue() runs it later off the injected message.
+  await runOrQueueResumedTask(taskId)
 
   log.info({ taskId, withMessage: !!message?.trim() }, 'Task resumed by user')
   return true

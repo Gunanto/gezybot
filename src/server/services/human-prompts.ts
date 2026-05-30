@@ -57,6 +57,18 @@ export async function createHumanPrompt(params: CreatePromptParams) {
           title: task.title ?? task.description,
         },
       })
+
+      // The task just left the global executing set (awaiting_human_input is
+      // idle) → a slot freed. Drive the global queue so a waiting task can run
+      // while this one blocks on a human. Dynamic import avoids a tasks ↔
+      // human-prompts circular import at module load.
+      import('@/server/services/tasks')
+        .then(({ promoteGlobalQueue }) =>
+          promoteGlobalQueue().catch((err) =>
+            log.error({ taskId: params.taskId, err }, 'Failed to promote global queue after human-prompt suspend'),
+          ),
+        )
+        .catch((err) => log.error({ taskId: params.taskId, err }, 'Failed to load tasks for global promote'))
     }
   }
 
@@ -186,9 +198,13 @@ export async function respondToHumanPrompt(promptId: string, response: unknown, 
       },
     })
 
-    // Re-trigger sub-Kin execution (dynamic import to avoid circular deps)
-    const { resumeSubKin } = await import('@/server/services/tasks')
-    resumeSubKin(prompt.taskId).catch((err) =>
+    // Re-trigger sub-Kin execution (dynamic import to avoid circular deps).
+    // Gate the resume on a global exec-slot: awaiting_human_input released the
+    // slot, so the answer may have to wait if the cap is now full. The response
+    // message was already injected above; runOrQueueResumedTask either runs the
+    // sub-Kin now or demotes the row to 'queued' for later promotion.
+    const { runOrQueueResumedTask } = await import('@/server/services/tasks')
+    runOrQueueResumedTask(prompt.taskId).catch((err) =>
       log.error({ taskId: prompt.taskId, err }, 'Sub-Kin resume error after human prompt'),
     )
   } else {

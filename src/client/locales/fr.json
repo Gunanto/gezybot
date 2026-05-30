@@ -1135,9 +1135,24 @@
         "label": "Déplier les appels d'outils par défaut",
         "hint": "Affiche les détails des appels d'outils dépliés dans tous les tchats (tchat principal, session rapide, tâches). Vous pouvez toujours replier un appel individuellement."
       },
+      "tasks": {
+        "title": "Exécution des tâches",
+        "description": "Contrôlez combien de tâches s'exécutent simultanément pour l'ensemble des Kins. Une tâche n'occupe un emplacement que pendant son exécution active — les tâches suspendues (en attente d'un humain, d'un autre Kin ou d'une sous-tâche) libèrent leur emplacement.",
+        "saved": "Limites des tâches mises à jour",
+        "hint": "Augmenter la limite de concurrence remplit immédiatement les emplacements libres depuis la file d'attente. La diminuer est progressif — les tâches en cours ne sont jamais arrêtées, les nouvelles promotions se mettent simplement en pause jusqu'à ce que le compte baisse. Le plafond de la file rejette les nouvelles tâches une fois ce nombre déjà en attente.",
+        "maxConcurrent": {
+          "label": "Tâches simultanées max",
+          "tip": "Combien de tâches peuvent s'exécuter en même temps. Quand c'est plein, les tâches nouvelles ou reprises attendent dans la file et démarrent à mesure que des emplacements se libèrent. Par défaut 10."
+        },
+        "maxQueue": {
+          "label": "Tâches en file max",
+          "tip": "Garde-fou anti-emballement : combien de tâches peuvent attendre dans la file avant que les nouvelles tâches soient rejetées. Par défaut 100."
+        }
+      },
       "help": {
         "content": "Les paramètres généraux contrôlent le comportement global de la plateforme, applicable à tous vos Kins. Le prompt global permet de définir des instructions suivies par chaque Kin.",
-        "bullet1": "Le prompt global est injecté dans le prompt système de chaque Kin. Utilisez-le pour des règles ou directives universelles"
+        "bullet1": "Le prompt global est injecté dans le prompt système de chaque Kin. Utilisez-le pour des règles ou directives universelles",
+        "bullet2": "Les limites d'exécution des tâches plafonnent les exécutions simultanées pour l'ensemble des Kins. Les tâches suspendues libèrent leur emplacement ; augmenter la limite remplit la file immédiatement, la diminuer est progressif"
       }
     },
     "providers": {

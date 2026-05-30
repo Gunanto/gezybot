@@ -39,6 +39,10 @@ import {
   getDismissedSetupItems,
   dismissSetupItem,
   restoreSetupItem,
+  getMaxConcurrentTasks,
+  setMaxConcurrentTasks,
+  getMaxQueuedTasks,
+  setMaxQueuedTasks,
 } from '@/server/services/app-settings'
 import { sseManager } from '@/server/sse/index'
 import type { AppVariables } from '@/server/app'
@@ -401,6 +405,102 @@ settingsRoutes.put('/embedding-model', async (c) => {
   log.info({ model: model.trim(), providerId }, 'Embedding model updated')
   broadcastDefaultsUpdated()
   return c.json({ embeddingModel: model.trim(), embeddingProviderId: providerId ?? null })
+})
+
+// ─── Global task execution-slot limits ───────────────────────────────────────
+//
+// Runtime knobs for the GLOBAL execution-slot task queue (composes with the
+// per-group no-overlap queue, which stays as-is):
+//   maxConcurrent — how many tasks may be EXECUTING ({pending,in_progress}) at
+//     once. Suspended tasks (awaiting_*/paused) release their slot. When full,
+//     new/resuming tasks go 'queued' and are promoted as slots free.
+//   maxQueue — anti-runaway guard: max number of 'queued' tasks allowed to
+//     pile up before spawnTask rejects with TASK_QUEUE_FULL.
+//
+// The DB values (app_settings k/v) win over the config/env seed default and are
+// read LIVE at each spawn/resume/promote decision.
+
+/** Validation bounds (sane caps to stop a fat-finger from melting the box). */
+const MAX_CONCURRENT_UPPER_BOUND = 1000
+const MAX_QUEUE_UPPER_BOUND = 100_000
+
+// GET /api/settings/task-limits
+settingsRoutes.get('/task-limits', async (c) => {
+  const [maxConcurrent, maxQueue] = await Promise.all([
+    getMaxConcurrentTasks(),
+    getMaxQueuedTasks(),
+  ])
+  return c.json({ maxConcurrent, maxQueue })
+})
+
+// PUT /api/settings/task-limits
+//
+// Sets either/both limits. Calling setMaxConcurrentTasks() is what triggers an
+// immediate promoteGlobalQueue() when the cap is RAISED (lowering is a soft
+// no-op — running tasks are never cancelled). Validation:
+//   maxConcurrent: integer in [1, MAX_CONCURRENT_UPPER_BOUND]
+//   maxQueue:      integer in [0, MAX_QUEUE_UPPER_BOUND]
+settingsRoutes.put('/task-limits', async (c) => {
+  const body = await c.req.json()
+  const { maxConcurrent, maxQueue } = body as {
+    maxConcurrent?: unknown
+    maxQueue?: unknown
+  }
+
+  if (maxConcurrent !== undefined) {
+    if (
+      typeof maxConcurrent !== 'number' ||
+      !Number.isInteger(maxConcurrent) ||
+      maxConcurrent < 1 ||
+      maxConcurrent > MAX_CONCURRENT_UPPER_BOUND
+    ) {
+      return c.json(
+        {
+          error: {
+            code: 'INVALID_BODY',
+            message: `maxConcurrent must be an integer between 1 and ${MAX_CONCURRENT_UPPER_BOUND}`,
+          },
+        },
+        400,
+      )
+    }
+  }
+
+  if (maxQueue !== undefined) {
+    if (
+      typeof maxQueue !== 'number' ||
+      !Number.isInteger(maxQueue) ||
+      maxQueue < 0 ||
+      maxQueue > MAX_QUEUE_UPPER_BOUND
+    ) {
+      return c.json(
+        {
+          error: {
+            code: 'INVALID_BODY',
+            message: `maxQueue must be an integer between 0 and ${MAX_QUEUE_UPPER_BOUND}`,
+          },
+        },
+        400,
+      )
+    }
+  }
+
+  // setMaxConcurrentTasks() snapshots the previous value and triggers
+  // promoteGlobalQueue() on a RAISE (see app-settings.ts). Apply it first so the
+  // queue starts filling before we report back.
+  if (maxConcurrent !== undefined) {
+    await setMaxConcurrentTasks(maxConcurrent)
+  }
+  if (maxQueue !== undefined) {
+    await setMaxQueuedTasks(maxQueue)
+  }
+
+  const [nextConcurrent, nextQueue] = await Promise.all([
+    getMaxConcurrentTasks(),
+    getMaxQueuedTasks(),
+  ])
+  log.info({ maxConcurrent: nextConcurrent, maxQueue: nextQueue }, 'Task limits updated')
+  return c.json({ maxConcurrent: nextConcurrent, maxQueue: nextQueue })
 })
 
 // ─── Setup checklist (dismissed items) ──────────────────────────────────────
