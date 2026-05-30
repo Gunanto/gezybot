@@ -181,7 +181,8 @@ messageRoutes.get('/', async (c) => {
       .where(and(inArray(channelMessageLinks.messageId, messageIds), eq(channelMessageLinks.direction, 'outbound')))
       .all()
     for (const link of links) {
-      if (!platformByMessageId.has(link.messageId)) {
+      // messageId is nullable (proactive cross-Kin sends have no assistant row).
+      if (link.messageId && !platformByMessageId.has(link.messageId)) {
         platformByMessageId.set(link.messageId, link.platform)
       }
     }

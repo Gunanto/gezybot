@@ -12,6 +12,7 @@ import { sseManager } from '@/server/sse/index'
 import { config } from '@/server/config'
 import { kinAvatarUrl } from '@/server/services/field-validator'
 import { getContactDisplayName } from '@/shared/contact-display'
+import { applyKinNamePrefix } from '@/server/services/channel-prefix'
 import type { IncomingMessage, OutboundAttachment } from '@/server/channels/adapter'
 import type { ChannelPlatform, ChannelStatus } from '@/shared/types'
 
@@ -233,6 +234,31 @@ export async function listChannels(kinId?: string) {
     return db.select().from(channels).where(eq(channels.kinId, kinId)).all()
   }
   return db.select().from(channels).all()
+}
+
+/**
+ * List every channel on the platform, joined with its owner Kin's slug/name.
+ * Powers `list_channels({ scope: 'all' })` so a Kin can discover channels it can
+ * borrow for a cross-Kin send. Left-join on kins keeps a row even if the owner
+ * Kin was deleted (slug/name then null).
+ */
+export async function listChannelsWithOwners() {
+  return db
+    .select({
+      id: channels.id,
+      kinId: channels.kinId,
+      name: channels.name,
+      platform: channels.platform,
+      status: channels.status,
+      messagesReceived: channels.messagesReceived,
+      messagesSent: channels.messagesSent,
+      lastActivityAt: channels.lastActivityAt,
+      ownerKinSlug: kins.slug,
+      ownerKinName: kins.name,
+    })
+    .from(channels)
+    .leftJoin(kins, eq(channels.kinId, kins.id))
+    .all()
 }
 
 export async function updateChannel(
@@ -643,6 +669,131 @@ async function handleBotStart(
   log.info({ channelId: channel.id, sender: senderName, platform: channel.platform }, 'Handled /start command')
 }
 
+// ─── Cross-Kin proactive send ───────────────────────────────────────────────
+
+export interface SendToChannelAsParams {
+  channelId: string
+  /** The Kin actually sending. Drives the cross-Kin prefix + audit trail. */
+  senderKinId: string
+  chatId: string
+  content: string
+  attachments?: OutboundAttachment[]
+}
+
+export interface SendToChannelAsResult {
+  platformMessageId: string
+  /** True when a `[KinName]` prefix was prepended (sender ≠ channel owner). */
+  prefixed: boolean
+}
+
+/**
+ * Send a message proactively through a channel, on behalf of `senderKinId`.
+ *
+ * Shared by send_channel_message and send_to_contact. Unlike
+ * `deliverChannelResponse` (auto-delivery of a Kin reply tied to an assistant
+ * `messages` row), this path has no originating message — it persists an audit
+ * `channel_message_links` row with `messageId = null` and `sentByKinId` set.
+ *
+ * Cross-Kin handling: when the sending Kin is NOT the channel owner
+ * (channels.kinId), the message is prefixed with `[SenderKinName] ` so the human
+ * understands who is speaking through the borrowed bot, regardless of the
+ * adapter's identitySwitchMode. When the sender IS the owner, no prefix is added
+ * (preserves the historical single-Kin behaviour).
+ *
+ * Channel existence (not ownership) is the only gate — on a self-hosted
+ * single-user instance every Kin is under the same control.
+ */
+export async function sendToChannelAs(
+  params: SendToChannelAsParams,
+): Promise<{ ok: true; result: SendToChannelAsResult } | { ok: false; error: string }> {
+  const { channelId, senderKinId, chatId, content, attachments } = params
+
+  const channel = await getChannel(channelId)
+  if (!channel) return { ok: false, error: 'Channel not found' }
+  if (channel.status !== 'active') return { ok: false, error: 'Channel is not active' }
+
+  const adapter = channelAdapters.get(channel.platform)
+  if (!adapter) return { ok: false, error: `No adapter for platform ${channel.platform}` }
+
+  // Cross-Kin prefix: only when the sender is not the channel owner.
+  const isCrossKin = senderKinId !== channel.kinId
+  let outboundContent = content
+  let prefixed = false
+  if (isCrossKin) {
+    const senderRow = db
+      .select({ name: kins.name })
+      .from(kins)
+      .where(eq(kins.id, senderKinId))
+      .get()
+    if (senderRow?.name) {
+      const next = applyKinNamePrefix(content, senderRow.name)
+      prefixed = next !== content
+      outboundContent = next
+    }
+  }
+
+  try {
+    const cfg = JSON.parse(channel.platformConfig) as Record<string, unknown>
+    const locale = resolveChannelLocale(channelId)
+    const result = await adapter.sendMessage(channelId, cfg, {
+      chatId,
+      content: outboundContent,
+      attachments: attachments?.length ? attachments : undefined,
+      locale,
+    })
+
+    // Audit link: no originating assistant message, but record who sent it.
+    await db.insert(channelMessageLinks).values({
+      id: uuid(),
+      channelId,
+      messageId: null,
+      platformMessageId: result.platformMessageId,
+      platformChatId: chatId,
+      direction: 'outbound',
+      sentByKinId: senderKinId,
+      createdAt: new Date(),
+    })
+
+    // Update stats
+    await db
+      .update(channels)
+      .set({
+        messagesSent: channel.messagesSent + 1,
+        lastActivityAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(channels.id, channelId))
+
+    // SSE — broadcast to the channel owner so any open UI tab refreshes.
+    sseManager.sendToKin(channel.kinId, {
+      type: 'channel:message-sent',
+      kinId: channel.kinId,
+      data: {
+        channelId,
+        platform: channel.platform,
+        messageId: null,
+        contextLine: result.contextLine ?? null,
+      },
+    })
+
+    log.info(
+      {
+        channelId,
+        ownerKinId: channel.kinId,
+        senderKinId,
+        crossKin: isCrossKin,
+        prefix: prefixed,
+        platform: channel.platform,
+      },
+      'Proactive channel message sent',
+    )
+
+    return { ok: true, result: { platformMessageId: result.platformMessageId, prefixed } }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
 // ─── Response delivery ──────────────────────────────────────────────────────
 
 export async function deliverChannelResponse(
@@ -685,7 +836,7 @@ export async function deliverChannelResponse(
       .where(eq(kins.id, channel.kinId))
       .get()
     if (kinRow?.name) {
-      outboundContent = `[${kinRow.name}] ${content}`
+      outboundContent = applyKinNamePrefix(content, kinRow.name)
     }
   }
 
@@ -699,7 +850,8 @@ export async function deliverChannelResponse(
       locale,
     })
 
-    // Record the outbound link
+    // Record the outbound link. Auto-delivered replies are authored by the
+    // channel's current owner Kin, so sentByKinId mirrors channel.kinId.
     await db.insert(channelMessageLinks).values({
       id: uuid(),
       channelId: meta.channelId,
@@ -707,6 +859,7 @@ export async function deliverChannelResponse(
       platformMessageId: result.platformMessageId,
       platformChatId: meta.platformChatId,
       direction: 'outbound',
+      sentByKinId: channel.kinId,
       createdAt: new Date(),
     })
 

@@ -582,10 +582,18 @@ export const channelUserMappings = sqliteTable('channel_user_mappings', {
 export const channelMessageLinks = sqliteTable('channel_message_links', {
   id: text('id').primaryKey(),
   channelId: text('channel_id').notNull().references(() => channels.id, { onDelete: 'cascade' }),
-  messageId: text('message_id').notNull().references(() => messages.id, { onDelete: 'cascade' }),
+  // Nullable: proactive sends (send_channel_message / send_to_contact) leave an
+  // audit link with no originating assistant `messages` row. Auto-delivered Kin
+  // replies still set this to the assistant message id.
+  messageId: text('message_id').references(() => messages.id, { onDelete: 'cascade' }),
   platformMessageId: text('platform_message_id').notNull(),
   platformChatId: text('platform_chat_id').notNull(),
   direction: text('direction').notNull(), // 'inbound' | 'outbound'
+  // Kin that actually authored/sent the message. Distinct from the channel's
+  // owner (channels.kinId) when a Kin borrows another Kin's channel (cross-Kin
+  // send). Null for legacy rows and inbound links. FK set null on Kin delete so
+  // the audit row survives.
+  sentByKinId: text('sent_by_kin_id').references(() => kins.id, { onDelete: 'set null' }),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 }, (table) => [
   index('idx_cml_message').on(table.messageId),

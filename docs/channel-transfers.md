@@ -291,6 +291,60 @@ introducing a separate "current Kin" pointer or a binding-history table)
 was deliberate: the audit-trail rows give us the history view; the live
 binding is just whatever `channels.kinId` currently says.
 
+## Cross-Kin send (borrowing another Kin's channel)
+
+`transfer_channel` is a **persistent** operation: it mutates `channels.kinId`,
+so the target Kin becomes the new owner and receives every future inbound on
+that channel. Cross-Kin send is the **ephemeral** counterpart: a Kin sends a
+single message through a channel bound to another Kin **without changing the
+binding**. The owner stays the owner; the borrower just posts once.
+
+Use case: VeilleurIA posts a daily AI brief to the Discord bound to Dispatcher
+Central, without taking over the channel.
+
+### How it works
+
+- **Discovery.** `list_channels({ scope: 'all' })` returns every channel on the
+  instance, each annotated with `ownerKinId`, `ownerKinSlug`, `ownerKinName`,
+  and `owned` (true when the caller is the owner). The default `scope: 'mine'`
+  preserves the original behaviour (only the caller's channels, no owner fields).
+- **Send.** `send_channel_message(channelId, chatId, message)` and
+  `send_to_contact(contact, platform, message)` no longer require the caller to
+  own the channel. Existence (and `status === 'active'`) is the only gate, since
+  a self-hosted instance is single-user and all Kins are under the same control.
+- **Automatic `[KinName]` prefix.** When the sending Kin is **not** the channel
+  owner, the message is prefixed with `[SenderKinName] ` so the human knows who
+  is really speaking through the bot. This reuses the same
+  `applyKinNamePrefix` helper as the identity-switch fallback above, but applies
+  it **regardless of the adapter's `identitySwitchMode`** (the bot identity on
+  the platform belongs to the owner Kin, so even native-switch adapters cannot
+  reflect the borrower). The prefix is idempotent (never doubled) and skipped for
+  empty / attachments-only content. When the sender **is** the owner, no prefix
+  is added (the historical single-Kin behaviour is preserved).
+- **Audit.** Every send (cross-Kin or owner) writes a `channel_message_links`
+  row with `sent_by_kin_id` set to the Kin that actually sent it, distinct from
+  the channel owner (`channels.kin_id`). Proactive sends carry `message_id = NULL`
+  (no originating assistant message); auto-delivered Kin replies still link their
+  assistant `messages.id` and set `sent_by_kin_id` to the owner. A structured log
+  line (`{ channelId, ownerKinId, senderKinId, crossKin, prefix }`) is emitted on
+  each send.
+
+### Distinction from `transfer_channel`
+
+| | `transfer_channel` | cross-Kin send |
+| --- | --- | --- |
+| Effect on binding | mutates `channels.kinId` (persistent) | none (ephemeral) |
+| Future inbounds | routed to the new Kin | still routed to the owner |
+| Audit | two `role=system` handoff rows | `channel_message_links.sent_by_kin_id` |
+| Prefix | identity-switch fallback (mode-dependent) | always when sender ≠ owner |
+
+### V1 scope
+
+No per-channel permission system (`allowedKinSlugs[]`): the channel is open to
+every Kin by default. Justification: single-user self-hosted instance, all Kins
+controlled by the same owner, and the `sent_by_kin_id` audit trail is enough for
+traceability. An opt-in permission layer can be added in V2 if abuse appears.
+
 ## Future work (out of scope for this commit)
 
 - **Issue 3: UI badges.** The sidebar Kin rows and the channel page need
@@ -298,3 +352,5 @@ binding is just whatever `channels.kinId` currently says.
   channel or by Kin) so the user can audit past handoffs. The SSE event
   and the audit-trail rows added in Issue 1 are the foundation; the UI
   work consumes them.
+- **Cross-Kin send badge.** Surface `sent_by_kin_id` in the channel message
+  list ("sent by X") when it differs from the channel owner.

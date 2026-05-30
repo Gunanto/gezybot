@@ -5,8 +5,12 @@ import type { ToolRegistration } from '@/server/tools/types'
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
 const mockListChannels = mock(() => Promise.resolve([] as any[]))
+const mockListChannelsWithOwners = mock(() => Promise.resolve([] as any[]))
 const mockGetChannel = mock(() => Promise.resolve(null as any))
 const mockListChannelConversations = mock(() => Promise.resolve({ users: [], chatIds: [] }))
+const mockSendToChannelAs = mock(() =>
+  Promise.resolve({ ok: true, result: { platformMessageId: 'msg-123', prefixed: false } } as any),
+)
 
 // Re-implement the pure in-memory queue meta functions so that other test files
 // (channels.test.ts, channels/index.test.ts) that import from @/server/services/channels
@@ -15,8 +19,10 @@ const _queueMeta = new Map<string, any>()
 
 mock.module('@/server/services/channels', () => ({
   listChannels: mockListChannels,
+  listChannelsWithOwners: mockListChannelsWithOwners,
   getChannel: mockGetChannel,
   listChannelConversations: mockListChannelConversations,
+  sendToChannelAs: mockSendToChannelAs,
   // Pure in-memory functions needed by other test files
   setChannelQueueMeta: (id: string, meta: any) => { _queueMeta.set(id, meta) },
   getChannelQueueMeta: (id: string) => _queueMeta.get(id),
@@ -118,10 +124,13 @@ function executeTool(registration: ToolRegistration, input: Record<string, unkno
 
 beforeEach(() => {
   mockListChannels.mockReset()
+  mockListChannelsWithOwners.mockReset()
   mockGetChannel.mockReset()
   mockListChannelConversations.mockReset()
   mockSendMessage.mockReset()
   mockSendMessage.mockResolvedValue({ platformMessageId: 'msg-123' })
+  mockSendToChannelAs.mockReset()
+  mockSendToChannelAs.mockResolvedValue({ ok: true, result: { platformMessageId: 'msg-123', prefixed: false } } as any)
 })
 
 // ─── listChannelsTool ────────────────────────────────────────────────────────
@@ -172,6 +181,44 @@ describe('listChannelsTool', () => {
 
     expect(result.channels[1].lastActivityAt).toBeNull()
   })
+
+  it('scope "all" returns every channel with owner info', async () => {
+    mockListChannelsWithOwners.mockResolvedValue([
+      {
+        id: 'ch-1',
+        kinId: 'kin-1',
+        name: 'Mine',
+        platform: 'telegram',
+        status: 'active',
+        ownerKinSlug: 'me',
+        ownerKinName: 'Me',
+        messagesReceived: 1,
+        messagesSent: 2,
+        lastActivityAt: null,
+      },
+      {
+        id: 'ch-2',
+        kinId: 'other-kin',
+        name: 'Dispatcher Discord',
+        platform: 'discord',
+        status: 'active',
+        ownerKinSlug: 'dispatcher-central',
+        ownerKinName: 'Dispatcher Central',
+        messagesReceived: 0,
+        messagesSent: 0,
+        lastActivityAt: null,
+      },
+    ])
+
+    const result = await executeTool(listChannelsTool, { scope: 'all' })
+    expect(mockListChannelsWithOwners).toHaveBeenCalledTimes(1)
+    expect(mockListChannels).not.toHaveBeenCalled()
+    expect(result.channels).toHaveLength(2)
+    expect(result.channels[0].owned).toBe(true)
+    expect(result.channels[0].ownerKinSlug).toBe('me')
+    expect(result.channels[1].owned).toBe(false)
+    expect(result.channels[1].ownerKinName).toBe('Dispatcher Central')
+  })
 })
 
 // ─── listChannelConversationsTool ────────────────────────────────────────────
@@ -187,10 +234,15 @@ describe('listChannelConversationsTool', () => {
     expect(result.error).toBe('Channel not found')
   })
 
-  it('returns error when channel belongs to different kin', async () => {
+  it('returns conversations cross-Kin when channel belongs to another kin', async () => {
     mockGetChannel.mockResolvedValue({ id: 'ch-1', kinId: 'other-kin' })
+    mockListChannelConversations.mockResolvedValue({
+      users: [{ id: 'u1', name: 'Alice' }],
+      chatIds: ['chat-1'],
+    } as any)
     const result = await executeTool(listChannelConversationsTool, { channel_id: 'ch-1' })
-    expect(result.error).toBe('Channel not found')
+    expect(result.users).toHaveLength(1)
+    expect(mockListChannelConversations).toHaveBeenCalledWith('ch-1')
   })
 
   it('returns conversations when channel exists and belongs to kin', async () => {
@@ -214,8 +266,8 @@ describe('sendChannelMessageTool', () => {
     expect(sendChannelMessageTool.availability).toEqual(['main'])
   })
 
-  it('returns error when channel not found', async () => {
-    mockGetChannel.mockResolvedValue(null)
+  it('returns error when sendToChannelAs reports channel not found', async () => {
+    mockSendToChannelAs.mockResolvedValue({ ok: false, error: 'Channel not found' } as any)
     const result = await executeTool(sendChannelMessageTool, {
       channel_id: 'ch-missing',
       chat_id: 'chat-1',
@@ -224,24 +276,26 @@ describe('sendChannelMessageTool', () => {
     expect(result.error).toBe('Channel not found')
   })
 
-  it('returns error when channel belongs to different kin', async () => {
-    mockGetChannel.mockResolvedValue({ id: 'ch-1', kinId: 'other-kin', status: 'active', platform: 'telegram' })
+  it('sends cross-Kin: delegates to sendToChannelAs with the calling kin as sender', async () => {
+    mockSendToChannelAs.mockResolvedValue({ ok: true, result: { platformMessageId: 'msg-x', prefixed: true } } as any)
     const result = await executeTool(sendChannelMessageTool, {
-      channel_id: 'ch-1',
+      channel_id: 'ch-other',
       chat_id: 'chat-1',
-      message: 'Hello',
+      message: 'Daily AI brief',
     })
-    expect(result.error).toBe('Channel not found')
+    expect(result.success).toBe(true)
+    expect(result.prefixed).toBe(true)
+    expect(mockSendToChannelAs).toHaveBeenCalledWith({
+      channelId: 'ch-other',
+      senderKinId: 'kin-1',
+      chatId: 'chat-1',
+      content: 'Daily AI brief',
+      attachments: undefined,
+    })
   })
 
-  it('returns error when channel is not active', async () => {
-    mockGetChannel.mockResolvedValue({
-      id: 'ch-1',
-      kinId: 'kin-1',
-      status: 'inactive',
-      platform: 'telegram',
-      platformConfig: '{}',
-    })
+  it('returns error when sendToChannelAs reports channel is not active', async () => {
+    mockSendToChannelAs.mockResolvedValue({ ok: false, error: 'Channel is not active' } as any)
     const result = await executeTool(sendChannelMessageTool, {
       channel_id: 'ch-1',
       chat_id: 'chat-1',
@@ -250,14 +304,8 @@ describe('sendChannelMessageTool', () => {
     expect(result.error).toBe('Channel is not active')
   })
 
-  it('returns error when no adapter for platform', async () => {
-    mockGetChannel.mockResolvedValue({
-      id: 'ch-1',
-      kinId: 'kin-1',
-      status: 'active',
-      platform: 'whatsapp',
-      platformConfig: '{}',
-    })
+  it('returns error when sendToChannelAs reports no adapter', async () => {
+    mockSendToChannelAs.mockResolvedValue({ ok: false, error: 'No adapter for platform whatsapp' } as any)
     const result = await executeTool(sendChannelMessageTool, {
       channel_id: 'ch-1',
       chat_id: 'chat-1',
@@ -267,14 +315,6 @@ describe('sendChannelMessageTool', () => {
   })
 
   it('sends message successfully', async () => {
-    mockGetChannel.mockResolvedValue({
-      id: 'ch-1',
-      kinId: 'kin-1',
-      status: 'active',
-      platform: 'telegram',
-      platformConfig: '{"botToken":"test"}',
-    })
-
     const result = await executeTool(sendChannelMessageTool, {
       channel_id: 'ch-1',
       chat_id: 'chat-42',
@@ -283,23 +323,17 @@ describe('sendChannelMessageTool', () => {
 
     expect(result.success).toBe(true)
     expect(result.platformMessageId).toBe('msg-123')
-    expect(mockSendMessage).toHaveBeenCalledWith('ch-1', { botToken: 'test' }, {
+    expect(mockSendToChannelAs).toHaveBeenCalledWith({
+      channelId: 'ch-1',
+      senderKinId: 'kin-1',
       chatId: 'chat-42',
       content: 'Hello world',
       attachments: undefined,
     })
   })
 
-  it('sends message with attachments', async () => {
-    mockGetChannel.mockResolvedValue({
-      id: 'ch-1',
-      kinId: 'kin-1',
-      status: 'active',
-      platform: 'telegram',
-      platformConfig: '{}',
-    })
-
-    const result = await executeTool(sendChannelMessageTool, {
+  it('forwards attachments to sendToChannelAs', async () => {
+    await executeTool(sendChannelMessageTool, {
       channel_id: 'ch-1',
       chat_id: 'chat-1',
       message: 'Here is a file',
@@ -308,43 +342,13 @@ describe('sendChannelMessageTool', () => {
       ],
     })
 
-    expect(result.success).toBe(true)
-    expect(mockSendMessage).toHaveBeenCalledTimes(1)
-    const callArgs = (mockSendMessage.mock.calls[0] as any[])!
-    expect(callArgs[2].attachments).toHaveLength(1)
-    expect(callArgs[2].attachments[0].source).toBe('/tmp/photo.png')
+    const callArgs = (mockSendToChannelAs.mock.calls[0] as any[])!
+    expect(callArgs[0].attachments).toHaveLength(1)
+    expect(callArgs[0].attachments[0].source).toBe('/tmp/photo.png')
   })
 
-  it('sends message without attachments when empty array', async () => {
-    mockGetChannel.mockResolvedValue({
-      id: 'ch-1',
-      kinId: 'kin-1',
-      status: 'active',
-      platform: 'telegram',
-      platformConfig: '{}',
-    })
-
-    const result = await executeTool(sendChannelMessageTool, {
-      channel_id: 'ch-1',
-      chat_id: 'chat-1',
-      message: 'No attachments',
-      attachments: [],
-    })
-
-    expect(result.success).toBe(true)
-    const callArgs = (mockSendMessage.mock.calls[0] as any[])!
-    expect(callArgs[2].attachments).toBeUndefined()
-  })
-
-  it('returns error when adapter throws', async () => {
-    mockGetChannel.mockResolvedValue({
-      id: 'ch-1',
-      kinId: 'kin-1',
-      status: 'active',
-      platform: 'telegram',
-      platformConfig: '{}',
-    })
-    mockSendMessage.mockRejectedValue(new Error('Telegram API rate limited'))
+  it('returns error when sendToChannelAs reports adapter failure', async () => {
+    mockSendToChannelAs.mockResolvedValue({ ok: false, error: 'Telegram API rate limited' } as any)
 
     const result = await executeTool(sendChannelMessageTool, {
       channel_id: 'ch-1',
@@ -353,24 +357,5 @@ describe('sendChannelMessageTool', () => {
     })
 
     expect(result.error).toBe('Telegram API rate limited')
-  })
-
-  it('handles non-Error throws gracefully', async () => {
-    mockGetChannel.mockResolvedValue({
-      id: 'ch-1',
-      kinId: 'kin-1',
-      status: 'active',
-      platform: 'telegram',
-      platformConfig: '{}',
-    })
-    mockSendMessage.mockRejectedValue('string error')
-
-    const result = await executeTool(sendChannelMessageTool, {
-      channel_id: 'ch-1',
-      chat_id: 'chat-1',
-      message: 'Hello',
-    })
-
-    expect(result.error).toBe('Unknown error')
   })
 })

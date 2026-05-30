@@ -2,6 +2,7 @@ import { tool } from '@/server/tools/tool-helper'
 import { z } from 'zod'
 import {
   listChannels,
+  listChannelsWithOwners,
   getChannel,
   listChannelConversations,
   createChannel,
@@ -11,6 +12,7 @@ import {
   deactivateChannel,
   getChannelOriginMeta,
   transferChannel,
+  sendToChannelAs,
 } from '@/server/services/channels'
 import { searchContacts, getContactWithDetails } from '@/server/services/contacts'
 import { resolveKinId } from '@/server/services/kin-resolver'
@@ -32,9 +34,35 @@ export const listChannelsTool: ToolRegistration = {
   concurrencySafe: true,
   create: (ctx) =>
     tool({
-      description: 'List all messaging channels connected to this Kin.',
-      inputSchema: z.object({}),
-      execute: async () => {
+      description:
+        'List messaging channels. By default (scope="mine") returns only channels bound to this Kin. Pass scope="all" to discover every channel on the platform, including those owned by other Kins (each result then carries ownerKinId/ownerKinSlug/ownerKinName). You can send through another Kin\'s channel via send_channel_message — your message is automatically prefixed with your Kin name.',
+      inputSchema: z.object({
+        scope: z
+          .enum(['mine', 'all'])
+          .optional()
+          .describe('"mine" (default) = only this Kin\'s channels. "all" = every channel on the platform.'),
+      }),
+      execute: async ({ scope }) => {
+        if (scope === 'all') {
+          const items = await listChannelsWithOwners()
+          return {
+            channels: items.map((ch) => ({
+              id: ch.id,
+              name: ch.name,
+              platform: ch.platform,
+              status: ch.status,
+              ownerKinId: ch.kinId,
+              ownerKinSlug: ch.ownerKinSlug,
+              ownerKinName: ch.ownerKinName,
+              owned: ch.kinId === ctx.kinId,
+              messagesReceived: ch.messagesReceived,
+              messagesSent: ch.messagesSent,
+              lastActivityAt: ch.lastActivityAt
+                ? new Date(ch.lastActivityAt as unknown as number).toISOString()
+                : null,
+            })),
+          }
+        }
         const items = await listChannels(ctx.kinId)
         return {
           channels: items.map((ch) => ({
@@ -69,8 +97,11 @@ export const listChannelConversationsTool: ToolRegistration = {
         channel_id: z.string(),
       }),
       execute: async ({ channel_id }) => {
+        // Existence-only check: cross-Kin discovery is allowed (single-user
+        // self-hosted instance). Ownership is not required to read a channel's
+        // conversations.
         const channel = await getChannel(channel_id)
-        if (!channel || channel.kinId !== ctx.kinId) {
+        if (!channel) {
           return { error: 'Channel not found' }
         }
         return await listChannelConversations(channel_id)
@@ -102,36 +133,28 @@ export const sendChannelMessageTool: ToolRegistration = {
       execute: async ({ channel_id, chat_id, message, attachments }) => {
         log.debug({ kinId: ctx.kinId, channelId: channel_id, chatId: chat_id }, 'Channel message send requested')
 
-        // Verify ownership
-        const channel = await getChannel(channel_id)
-        if (!channel || channel.kinId !== ctx.kinId) {
-          return { error: 'Channel not found' }
+        // Existence-only check: a Kin may borrow another Kin's channel. When the
+        // caller is not the channel owner, sendToChannelAs prefixes the message
+        // with the caller's Kin name and records sentByKinId for audit.
+        const outboundAttachments: OutboundAttachment[] | undefined = attachments?.map(a => ({
+          source: a.source,
+          mimeType: a.mimeType,
+          fileName: a.fileName,
+        }))
+        const sent = await sendToChannelAs({
+          channelId: channel_id,
+          senderKinId: ctx.kinId,
+          chatId: chat_id,
+          content: message,
+          attachments: outboundAttachments,
+        })
+        if (!sent.ok) {
+          return { error: sent.error }
         }
-
-        if (channel.status !== 'active') {
-          return { error: 'Channel is not active' }
-        }
-
-        const adapter = channelAdapters.get(channel.platform)
-        if (!adapter) {
-          return { error: `No adapter for platform ${channel.platform}` }
-        }
-
-        try {
-          const cfg = JSON.parse(channel.platformConfig) as Record<string, unknown>
-          const outboundAttachments: OutboundAttachment[] | undefined = attachments?.map(a => ({
-            source: a.source,
-            mimeType: a.mimeType,
-            fileName: a.fileName,
-          }))
-          const result = await adapter.sendMessage(channel_id, cfg, {
-            chatId: chat_id,
-            content: message,
-            attachments: outboundAttachments?.length ? outboundAttachments : undefined,
-          })
-          return { success: true, platformMessageId: result.platformMessageId }
-        } catch (err) {
-          return { error: err instanceof Error ? err.message : 'Unknown error' }
+        return {
+          success: true,
+          platformMessageId: sent.result.platformMessageId,
+          prefixed: sent.result.prefixed,
         }
       },
     }),
@@ -162,8 +185,9 @@ export const listEndpointsTool: ToolRegistration = {
         channel_id: z.string(),
       }),
       execute: async ({ channel_id }) => {
+        // Existence-only check: cross-Kin endpoint discovery is allowed.
         const channel = await getChannel(channel_id)
-        if (!channel || channel.kinId !== ctx.kinId) {
+        if (!channel) {
           return { error: 'Channel not found' }
         }
 
@@ -256,43 +280,45 @@ export const sendToContactTool: ToolRegistration = {
           }
         }
 
-        // 3) Find an active channel of this platform owned by the Kin.
-        //    listChannels is kinId-scoped; we filter to platform + active.
-        const channels = await listChannels(ctx.kinId)
-        const channel = channels.find((c) => c.platform === platform && c.status === 'active')
+        // 3) Find an active channel of this platform. Prefer one owned by the
+        //    calling Kin; fall back to any active channel of that platform on
+        //    the instance (cross-Kin send). listChannels() with no kinId returns
+        //    every channel.
+        const allChannels = await listChannels()
+        const platformChannels = allChannels.filter((c) => c.platform === platform)
+        const channel =
+          platformChannels.find((c) => c.kinId === ctx.kinId && c.status === 'active') ??
+          platformChannels.find((c) => c.status === 'active')
         if (!channel) {
-          const platformChannels = channels.filter((c) => c.platform === platform)
           if (platformChannels.length === 0) {
-            return { error: `No channel configured for platform "${platform}" on this Kin. Add one via create_channel.` }
+            return { error: `No channel configured for platform "${platform}". Add one via create_channel.` }
           }
-          return { error: `Channel for platform "${platform}" is not active (status: ${platformChannels[0]!.status}).` }
+          return { error: `No active channel for platform "${platform}" (statuses: ${platformChannels.map((c) => c.status).join(', ')}).` }
         }
 
-        // 4) Dispatch via the adapter — same path as send_channel_message.
-        const adapter = channelAdapters.get(channel.platform)
-        if (!adapter) {
-          return { error: `No adapter for platform ${channel.platform}` }
+        // 4) Dispatch via the shared cross-Kin send path. When `channel` is owned
+        //    by another Kin, the message is prefixed with this Kin's name and
+        //    sentByKinId is recorded for audit.
+        const outboundAttachments: OutboundAttachment[] | undefined = attachments?.map((a) => ({
+          source: a.source,
+          mimeType: a.mimeType,
+          fileName: a.fileName,
+        }))
+        const sent = await sendToChannelAs({
+          channelId: channel.id,
+          senderKinId: ctx.kinId,
+          chatId: platformLink.platformId,
+          content: message,
+          attachments: outboundAttachments,
+        })
+        if (!sent.ok) {
+          return { error: sent.error }
         }
-
-        try {
-          const cfg = JSON.parse(channel.platformConfig) as Record<string, unknown>
-          const outboundAttachments: OutboundAttachment[] | undefined = attachments?.map((a) => ({
-            source: a.source,
-            mimeType: a.mimeType,
-            fileName: a.fileName,
-          }))
-          const result = await adapter.sendMessage(channel.id, cfg, {
-            chatId: platformLink.platformId,
-            content: message,
-            attachments: outboundAttachments?.length ? outboundAttachments : undefined,
-          })
-          return {
-            success: true,
-            platformMessageId: result.platformMessageId,
-            sentTo: { contactId: contactRecord.id, displayName: contactRecord.displayName, platform, chatId: platformLink.platformId },
-          }
-        } catch (err) {
-          return { error: err instanceof Error ? err.message : 'Unknown error' }
+        return {
+          success: true,
+          platformMessageId: sent.result.platformMessageId,
+          prefixed: sent.result.prefixed,
+          sentTo: { contactId: contactRecord.id, displayName: contactRecord.displayName, platform, chatId: platformLink.platformId },
         }
       },
     }),
