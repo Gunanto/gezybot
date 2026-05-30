@@ -2871,7 +2871,7 @@
       "attachmentsTooltip_one": "{{count}} pièce jointe sur ce ticket",
       "attachmentsTooltip_other": "{{count}} pièces jointes sur ce ticket",
       "kinRunning": "{{name}} travaille dessus",
-      "inProgressSince": "En cours depuis le {{date}}",
+      "runningSince": "En cours depuis le {{date}}",
       "createdAt": "Créé le {{date}}",
       "updatedAt": "Modifié le {{date}}"
     },

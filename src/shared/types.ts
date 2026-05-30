@@ -901,10 +901,17 @@ export interface TicketSummary {
   /** Number of attachments on this ticket. Refreshes via SSE
    *  `ticket:updated` after each attachment mutation. */
   attachmentCount: number
-  /** Unix-ms when the ticket last entered the in_progress column. Drives the
-   *  live "in progress since" duration on the kanban card. Null when the
-   *  ticket has never been moved to in_progress. */
+  /** Unix-ms when the ticket last entered the in_progress column. This tracks
+   *  the kanban *column* transition only (project-management state), NOT task
+   *  activity. Null when the ticket has never been moved to in_progress. */
   inProgressAt: number | null
+  /** Unix-ms when the EARLIEST currently-running task on this ticket started
+   *  being processed (min over tasks in queued/pending/in_progress, using
+   *  startedAt → queuedAt → createdAt). This is decoupled from the kanban
+   *  column: it reflects whether the ticket has live task work, which is what
+   *  drives the "running" framing + live chrono on the card. Null when no task
+   *  is currently running. */
+  runningSince: number | null
   createdAt: number
   updatedAt: number
 }

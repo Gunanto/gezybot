@@ -155,6 +155,51 @@ async function fetchRunningKinsForTickets(
   return result
 }
 
+/**
+ * For each ticket, compute the timestamp (unix-ms) at which the EARLIEST
+ * currently-running task started being processed. "Running" here means the
+ * task sits in queued/pending/in_progress — the same set that powers
+ * `runningKins` and the running framing on the card. We coalesce
+ * `started_at` (actual execution start) → `queued_at` → `created_at` so a
+ * task that is queued but not yet executing still contributes a sensible
+ * timestamp. Tickets with no running task are absent from the map (→ null).
+ *
+ * This is deliberately decoupled from `tickets.in_progress_at` (the kanban
+ * column transition): the card chrono reflects live task work, not which
+ * column the ticket happens to sit in.
+ */
+async function fetchRunningSinceForTickets(
+  ticketIds: string[],
+): Promise<Map<string, number>> {
+  if (ticketIds.length === 0) return new Map()
+  const rows = db
+    .select({
+      ticketId: tasks.ticketId,
+      startedAt: tasks.startedAt,
+      queuedAt: tasks.queuedAt,
+      createdAt: tasks.createdAt,
+    })
+    .from(tasks)
+    .where(
+      and(
+        inArray(tasks.ticketId, ticketIds),
+        inArray(tasks.status, ['queued', 'pending', 'in_progress']),
+      ),
+    )
+    .all()
+
+  const result = new Map<string, number>()
+  for (const row of rows) {
+    if (!row.ticketId) continue
+    const start = toMillis(row.startedAt ?? row.queuedAt ?? row.createdAt)
+    const current = result.get(row.ticketId)
+    if (current === undefined || start < current) {
+      result.set(row.ticketId, start)
+    }
+  }
+  return result
+}
+
 /** Resolve a reporter (user or kin) into the public-facing shape. Null if neither set. */
 async function fetchReporterForTicket(
   reporterUserId: string | null,
@@ -214,6 +259,7 @@ async function rowToTicketSummary(
   runningKins: RunningKinOnTicket[] = [],
   reporter: TicketReporter | null = null,
   attachmentCount = 0,
+  runningSince: number | null = null,
 ): Promise<TicketSummary> {
   return {
     id: row.id,
@@ -231,6 +277,7 @@ async function rowToTicketSummary(
     reporter,
     attachmentCount,
     inProgressAt: row.inProgressAt ? toMillis(row.inProgressAt) : null,
+    runningSince,
     createdAt: toMillis(row.createdAt),
     updatedAt: toMillis(row.updatedAt),
   }
@@ -762,11 +809,12 @@ export async function listTickets(
   const slice = hasMore ? rows.slice(0, limit) : rows
 
   const ids = slice.map((r) => r.id)
-  const [tagsByTicket, taskCountsByTicket, runningKinsByTicket, attachmentCountsByTicket] = await Promise.all([
+  const [tagsByTicket, taskCountsByTicket, runningKinsByTicket, attachmentCountsByTicket, runningSinceByTicket] = await Promise.all([
     fetchTagsForTickets(ids),
     fetchTaskCountsForTickets(ids),
     fetchRunningKinsForTickets(ids),
     fetchAttachmentCountsForTickets(ids),
+    fetchRunningSinceForTickets(ids),
   ])
 
   const items = await Promise.all(
@@ -778,6 +826,7 @@ export async function listTickets(
         runningKinsByTicket.get(row.id) ?? [],
         await fetchReporterForTicket(row.reporterUserId, row.reporterKinId),
         attachmentCountsByTicket.get(row.id) ?? 0,
+        runningSinceByTicket.get(row.id) ?? null,
       ),
     ),
   )
@@ -813,15 +862,17 @@ export async function getTicket(ticketId: string): Promise<Ticket | null> {
       .all(),
   ])
 
-  const [taskCountsMap, runningKinsMap, attachmentCountsMap] = await Promise.all([
+  const [taskCountsMap, runningKinsMap, attachmentCountsMap, runningSinceMap] = await Promise.all([
     fetchTaskCountsForTickets([ticketId]),
     fetchRunningKinsForTickets([ticketId]),
     fetchAttachmentCountsForTickets([ticketId]),
+    fetchRunningSinceForTickets([ticketId]),
   ])
   const counts = taskCountsMap.get(ticketId) ?? { total: 0, running: 0, awaitingInput: 0 }
   const runningKins = runningKinsMap.get(ticketId) ?? []
   const reporter = await fetchReporterForTicket(row.reporterUserId, row.reporterKinId)
   const attachmentCount = attachmentCountsMap.get(ticketId) ?? 0
+  const runningSince = runningSinceMap.get(ticketId) ?? null
 
   const ticketTasks: TicketTaskSummary[] = taskRows.map((t) => ({
     id: t.id,
@@ -855,6 +906,7 @@ export async function getTicket(ticketId: string): Promise<Ticket | null> {
     reporter,
     attachmentCount,
     inProgressAt: row.inProgressAt ? toMillis(row.inProgressAt) : null,
+    runningSince,
     tasks: ticketTasks,
     createdAt: toMillis(row.createdAt),
     updatedAt: toMillis(row.updatedAt),
@@ -973,6 +1025,8 @@ export async function createTicket(input: CreateTicketInput): Promise<TicketSumm
     reporter,
     attachmentCount: 0,
     inProgressAt: status === 'in_progress' ? now.getTime() : null,
+    // A freshly created ticket has no tasks yet, so no task is running.
+    runningSince: null,
     createdAt: now.getTime(),
     updatedAt: now.getTime(),
   }
@@ -1035,17 +1089,19 @@ export async function updateTicket(
   if (!refreshed) return null
 
   const tags = await fetchTagsForTicket(ticketId)
-  const [taskCountsMap, runningKinsMap, attachmentCountsMap] = await Promise.all([
+  const [taskCountsMap, runningKinsMap, attachmentCountsMap, runningSinceMap] = await Promise.all([
     fetchTaskCountsForTickets([ticketId]),
     fetchRunningKinsForTickets([ticketId]),
     fetchAttachmentCountsForTickets([ticketId]),
+    fetchRunningSinceForTickets([ticketId]),
   ])
   const counts = taskCountsMap.get(ticketId) ?? { total: 0, running: 0, awaitingInput: 0 }
   const runningKins = runningKinsMap.get(ticketId) ?? []
   const reporter = await fetchReporterForTicket(refreshed.reporterUserId, refreshed.reporterKinId)
   const attachmentCount = attachmentCountsMap.get(ticketId) ?? 0
+  const runningSince = runningSinceMap.get(ticketId) ?? null
 
-  const summary = await rowToTicketSummary(refreshed, tags, counts, runningKins, reporter, attachmentCount)
+  const summary = await rowToTicketSummary(refreshed, tags, counts, runningKins, reporter, attachmentCount, runningSince)
 
   sseManager.broadcast({
     type: 'ticket:updated',
@@ -1098,16 +1154,18 @@ async function getTicketSummary(ticketId: string): Promise<TicketSummary | null>
   const row = db.select().from(tickets).where(eq(tickets.id, ticketId)).get()
   if (!row) return null
   const tags = await fetchTagsForTicket(ticketId)
-  const [taskCountsMap, runningKinsMap, attachmentCountsMap] = await Promise.all([
+  const [taskCountsMap, runningKinsMap, attachmentCountsMap, runningSinceMap] = await Promise.all([
     fetchTaskCountsForTickets([ticketId]),
     fetchRunningKinsForTickets([ticketId]),
     fetchAttachmentCountsForTickets([ticketId]),
+    fetchRunningSinceForTickets([ticketId]),
   ])
   const counts = taskCountsMap.get(ticketId) ?? { total: 0, running: 0, awaitingInput: 0 }
   const runningKins = runningKinsMap.get(ticketId) ?? []
   const reporter = await fetchReporterForTicket(row.reporterUserId, row.reporterKinId)
   const attachmentCount = attachmentCountsMap.get(ticketId) ?? 0
-  return rowToTicketSummary(row, tags, counts, runningKins, reporter, attachmentCount)
+  const runningSince = runningSinceMap.get(ticketId) ?? null
+  return rowToTicketSummary(row, tags, counts, runningKins, reporter, attachmentCount, runningSince)
 }
 
 /** Re-fetch a ticket summary and broadcast a `ticket:updated` SSE event.

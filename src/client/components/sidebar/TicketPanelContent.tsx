@@ -86,15 +86,18 @@ export function TicketPanelContent({ ticketId }: TicketPanelContentProps) {
   )
 
   // Shared 1s clock for live task-duration counters in the history list. Ticks
-  // only while at least one task on this ticket is still running, and while the
-  // ticket itself sits in the in_progress column (for the header timer).
+  // only while at least one task on this ticket is still running (which also
+  // drives the header "running since" timer below).
   const hasActiveTask = !!ticket?.tasks?.some((tk) => RUNNING_STATUSES.has(tk.status as string))
-  const ticketInProgress = ticket?.status === 'in_progress' && ticket?.inProgressAt != null
-  const nowMs = useNow(hasActiveTask || ticketInProgress)
-  const ticketInProgressMs = ticketInProgress
-    ? computeDurationMs(ticket?.inProgressAt ?? null, null, nowMs)
+  // Header timer reflects live task activity, NOT the kanban column: the ticket
+  // is "running" from the moment its earliest task started being processed
+  // (runningSince), independent of which column it sits in.
+  const ticketRunning = hasActiveTask && ticket?.runningSince != null
+  const nowMs = useNow(hasActiveTask)
+  const ticketRunningMs = ticketRunning
+    ? computeDurationMs(ticket?.runningSince ?? null, null, nowMs)
     : null
-  const ticketInProgressDuration = ticketInProgressMs != null ? formatDurationMs(ticketInProgressMs) : null
+  const ticketRunningDuration = ticketRunningMs != null ? formatDurationMs(ticketRunningMs) : null
 
   if (isLoading && !ticket) {
     return (
@@ -208,18 +211,19 @@ export function TicketPanelContent({ ticketId }: TicketPanelContentProps) {
           <Badge variant="outline" className="text-xs">
             {t(STATUS_LABEL_KEYS[ticket.status] ?? ticket.status)}
           </Badge>
-          {/* Live "in progress since" timer — only while the ticket sits in the
-              in_progress column, measured from when it last entered it. */}
-          {ticketInProgressDuration && (
+          {/* Live "running since" timer — shown whenever the ticket has a task
+              being processed, measured from when its earliest task started.
+              Independent of the kanban column. */}
+          {ticketRunningDuration && (
             <Badge
               variant="outline"
               className="gap-1 text-xs tabular-nums border-primary/40 bg-primary/10 text-primary"
-              title={t('projects.ticketCard.inProgressSince', {
-                date: new Date(ticket.inProgressAt as number).toLocaleString(),
+              title={t('projects.ticketCard.runningSince', {
+                date: new Date(ticket.runningSince as number).toLocaleString(),
               })}
             >
               <Timer className="size-3 animate-pulse" />
-              {ticketInProgressDuration}
+              {ticketRunningDuration}
             </Badge>
           )}
           {ticket.tags.map((tag) => (

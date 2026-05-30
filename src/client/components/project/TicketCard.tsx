@@ -106,17 +106,19 @@ export function TicketCard({ ticket, onClick, isOverlay = false, highlightQuery,
   const displayedTs = wasEdited ? ticket.updatedAt : ticket.createdAt
   const fullDate = new Date(displayedTs).toLocaleString()
 
-  // "In progress since" duration. Live-ticking while the ticket sits in the
-  // in_progress column, measured from when it last entered that column
-  // (inProgressAt). The ticket can have zero, one, or many tasks running, so
-  // we key off the column transition rather than any single task (per the
-  // ticket spec). Hidden in every other column.
-  const isInProgress = ticket.status === 'in_progress' && ticket.inProgressAt != null
-  const nowMs = useNow(isInProgress)
-  const inProgressMs = isInProgress
-    ? computeDurationMs(ticket.inProgressAt, null, nowMs)
+  // "Running since" duration. Live-ticking while the ticket has at least one
+  // task being processed, measured from when the EARLIEST running task started
+  // (runningSince). This is deliberately decoupled from the kanban column: the
+  // chrono reflects live task activity, NOT which column the ticket sits in (a
+  // ticket can have running tasks in any column). Hidden when nothing is
+  // running, regardless of column. Falls back to runningSince presence so the
+  // timer and the "running" framing (ring + spinner) always agree.
+  const isRunning = hasRunning && ticket.runningSince != null
+  const nowMs = useNow(isRunning)
+  const runningMs = isRunning
+    ? computeDurationMs(ticket.runningSince, null, nowMs)
     : null
-  const inProgressDuration = inProgressMs != null ? formatDurationMs(inProgressMs) : null
+  const runningDuration = runningMs != null ? formatDurationMs(runningMs) : null
 
   // Click anywhere on the card (except interactive children that stop propagation)
   // opens the side panel. We don't wrap in a <button> anymore so we can render
@@ -287,23 +289,24 @@ export function TicketCard({ ticket, onClick, isOverlay = false, highlightQuery,
             <span />
           )}
 
-          {/* Right side: in-progress timer (if any) + running Kins avatar
-              stack OR timestamp. The "in progress since" timer is shown
-              whenever the ticket sits in the in_progress column, live-ticking
-              from when it last entered it. */}
+          {/* Right side: running timer (if any) + running Kins avatar stack OR
+              timestamp. The "running since" timer is shown whenever the ticket
+              has at least one task being processed, live-ticking from when the
+              earliest running task started. It is independent of the kanban
+              column (project-management status). */}
           <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          {inProgressDuration && (
+          {runningDuration && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="inline-flex items-center gap-1 text-[10px] tabular-nums font-medium text-primary">
                   <Timer className="size-3 animate-pulse" aria-hidden />
-                  {inProgressDuration}
+                  {runningDuration}
                 </span>
               </TooltipTrigger>
               <TooltipContent side="top">
                 <span className="text-xs">
-                  {t('projects.ticketCard.inProgressSince', {
-                    date: new Date(ticket.inProgressAt as number).toLocaleString(),
+                  {t('projects.ticketCard.runningSince', {
+                    date: new Date(ticket.runningSince as number).toLocaleString(),
                   })}
                 </span>
               </TooltipContent>
