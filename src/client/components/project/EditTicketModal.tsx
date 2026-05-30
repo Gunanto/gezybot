@@ -33,6 +33,7 @@ import { getErrorMessage } from '@/client/lib/api'
 import { toast } from 'sonner'
 import { Trash2 } from 'lucide-react'
 import { cn } from '@/client/lib/utils'
+import { formatTicketRef } from '@/client/lib/ticket-ref'
 import { TICKET_STATUSES } from '@/shared/constants'
 import type { ProjectTag, Ticket, TicketStatus } from '@/shared/types'
 
@@ -40,6 +41,9 @@ interface EditTicketModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   ticket: Ticket
+  /** Project slug used to qualify the ticket ref (e.g. kinbot#42). Optional:
+   *  falls back to a bare #42 when absent or empty. */
+  projectSlug?: string | null
   availableTags: ProjectTag[]
   onSave: (input: {
     title?: string
@@ -50,8 +54,9 @@ interface EditTicketModalProps {
   onDelete: () => Promise<void>
 }
 
-export function EditTicketModal({ open, onOpenChange, ticket, availableTags, onSave, onDelete }: EditTicketModalProps) {
+export function EditTicketModal({ open, onOpenChange, ticket, projectSlug, availableTags, onSave, onDelete }: EditTicketModalProps) {
   const { t } = useTranslation()
+  const ticketRef = formatTicketRef(ticket.number, projectSlug)
   const [title, setTitle] = useState(ticket.title)
   const [description, setDescription] = useState(ticket.description)
   const [status, setStatus] = useState<TicketStatus>(ticket.status)
@@ -122,12 +127,12 @@ export function EditTicketModal({ open, onOpenChange, ticket, availableTags, onS
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              {ticket.number !== null && ticket.number !== undefined && (
+              {ticketRef && (
                 <span
                   className="font-mono text-xs font-normal text-muted-foreground"
-                  aria-label={`Ticket #${ticket.number}`}
+                  aria-label={t('projects.ticket.panel.ticketRef', { ref: ticketRef })}
                 >
-                  #{ticket.number}
+                  {ticketRef}
                 </span>
               )}
               <span>{t('projects.ticket.edit.title')}</span>

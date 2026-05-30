@@ -806,6 +806,7 @@
       "callCount_other": "{{count}} llamadas LLM"
     },
     "description": "Descripción",
+    "ticketTooltip": "Abrir el ticket principal",
     "mode": "Modo",
     "modeAwait": "Espera",
     "modeAsync": "Asíncrono",

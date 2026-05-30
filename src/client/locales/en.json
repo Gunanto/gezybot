@@ -1011,6 +1011,7 @@
       "callCount_other": "{{count}} LLM calls"
     },
     "description": "Description",
+    "ticketTooltip": "Open the parent ticket",
     "mode": "Mode",
     "modeAwait": "Await",
     "modeAsync": "Async",
@@ -2770,6 +2771,7 @@
         "noTasksDescription": "Spawn a Kin to work on this ticket and track the run here.",
         "notFound": "This ticket was not found — it may have been deleted.",
         "back": "Back to {{type}}",
+        "ticketRef": "Ticket {{ref}}",
         "editAction": "Edit ticket",
         "status": "Status",
         "tags": "Tags",
