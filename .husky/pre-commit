@@ -22,12 +22,13 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-# 3. Build check
-echo "🏗️ Build check..."
-bun run build 2>&1
-if [ $? -ne 0 ]; then
-  echo "❌ Build failed. Fix build errors before committing."
-  exit 1
-fi
+# 3. Build check — REMOVED (memory).
+# `bun run build` (the Vite SPA build) peaks at ~3.5 GB heap. Running it on
+# EVERY commit OOM'd low-RAM hosts when autonomous agent-dev tasks committed
+# concurrently (each commit spawning a 3.5 GB build). The build is fully covered
+# by CI — .github/workflows/{ci,e2e,release,showcase}.yml all run `bun run build`
+# on push/PR — so build regressions are still caught, just in CI rather than
+# pre-commit. Re-add the step here if you commit on a machine with ample RAM and
+# want the local gate back.
 
-echo "✅ All pre-commit checks passed!"
+echo "✅ Pre-commit checks passed (typecheck + tests; build runs in CI)!"
