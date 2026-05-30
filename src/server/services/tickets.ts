@@ -4,7 +4,7 @@ import { db, sqlite } from '@/server/db/index'
 import { tickets, ticketTags, projectTags, projects, tasks, kins, user, userProfiles, ticketAttachments } from '@/server/db/schema'
 import { sseManager } from '@/server/sse/index'
 import { config } from '@/server/config'
-import { TICKET_STATUSES } from '@/shared/constants'
+import { TICKET_STATUSES, TICKET_RUNNING_TASK_STATUSES } from '@/shared/constants'
 import { spawnTask } from '@/server/services/tasks'
 import {
   parseTicketRef,
@@ -101,7 +101,7 @@ async function fetchTaskCountsForTickets(
     if (!row.ticketId) continue
     const entry = result.get(row.ticketId) ?? { total: 0, running: 0, awaitingInput: 0 }
     entry.total += Number(row.n)
-    if (row.status === 'pending' || row.status === 'in_progress' || row.status === 'queued') {
+    if ((TICKET_RUNNING_TASK_STATUSES as readonly string[]).includes(row.status)) {
       entry.running += Number(row.n)
     }
     if (row.status === 'awaiting_human_input') {
@@ -132,7 +132,7 @@ async function fetchRunningKinsForTickets(
     .where(
       and(
         inArray(tasks.ticketId, ticketIds),
-        inArray(tasks.status, ['queued', 'pending', 'in_progress']),
+        inArray(tasks.status, [...TICKET_RUNNING_TASK_STATUSES]),
       ),
     )
     .all()
@@ -158,8 +158,11 @@ async function fetchRunningKinsForTickets(
 /**
  * For each ticket, compute the timestamp (unix-ms) at which the EARLIEST
  * currently-running task started being processed. "Running" here means the
- * task sits in queued/pending/in_progress — the same set that powers
- * `runningKins` and the running framing on the card. We coalesce
+ * task sits in one of TICKET_RUNNING_TASK_STATUSES (queued/pending/in_progress
+ * plus the suspended-but-alive states paused/awaiting_kin_response/
+ * awaiting_subtask) — the same set that powers `runningKins` and the running
+ * framing on the card, so a task that delegates to a scout keeps its ticket
+ * framed as running. We coalesce
  * `started_at` (actual execution start) → `queued_at` → `created_at` so a
  * task that is queued but not yet executing still contributes a sensible
  * timestamp. Tickets with no running task are absent from the map (→ null).
@@ -183,7 +186,7 @@ async function fetchRunningSinceForTickets(
     .where(
       and(
         inArray(tasks.ticketId, ticketIds),
-        inArray(tasks.status, ['queued', 'pending', 'in_progress']),
+        inArray(tasks.status, [...TICKET_RUNNING_TASK_STATUSES]),
       ),
     )
     .all()

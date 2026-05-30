@@ -62,6 +62,33 @@ export const KNOWN_CHANNEL_PLATFORMS = ['telegram', 'discord', 'slack', 'whatsap
 
 export const TASK_STATUSES = ['pending', 'in_progress', 'awaiting_human_input', 'completed', 'failed', 'cancelled'] as const
 
+/**
+ * Task statuses that mean "this task is still actively attached to its ticket"
+ * and must therefore keep the ticket framed as running (primary ring + spinner
+ * + live chrono).
+ *
+ * Crucially this includes the SUSPENDED-BUT-ALIVE states a task enters while it
+ * delegates work downward or waits on something:
+ *   - `paused`               — manually paused, still owns the slot
+ *   - `awaiting_kin_response`— blocked on an inter-Kin request it sent
+ *   - `awaiting_subtask`     — blocked on a child it spawned (e.g. the `scout`
+ *                              tool) via suspendTaskForChild
+ *
+ * Without these, a ticket whose task spawns a scout would briefly lose its
+ * "running" framing even though the work is merely delegated one level down.
+ *
+ * `awaiting_human_input` is deliberately EXCLUDED: it gets its own (louder,
+ * warning-colored) treatment via `awaitingHumanInputCount`, and the card/panel
+ * surface that state separately. */
+export const TICKET_RUNNING_TASK_STATUSES = [
+  'queued',
+  'pending',
+  'in_progress',
+  'paused',
+  'awaiting_kin_response',
+  'awaiting_subtask',
+] as const
+
 export const NOTIFICATION_TYPES = [
   'prompt:pending',
   'channel:user-pending',
