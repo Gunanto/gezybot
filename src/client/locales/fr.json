@@ -1011,6 +1011,7 @@
       "callCount_other": "{{count}} appels LLM"
     },
     "description": "Description",
+    "ticketTooltip": "Ouvrir le ticket parent",
     "mode": "Mode",
     "modeAwait": "Attente",
     "modeAsync": "Asynchrone",
@@ -2770,6 +2771,7 @@
         "noTasksDescription": "Lance un Kin sur ce ticket pour suivre son exécution ici.",
         "notFound": "Ce ticket est introuvable — il a peut-être été supprimé.",
         "back": "Retour au/à la {{type}}",
+        "ticketRef": "Ticket {{ref}}",
         "editAction": "Modifier le ticket",
         "status": "Statut",
         "tags": "Tags",

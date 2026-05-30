@@ -22,6 +22,7 @@ import { TicketCommentsList } from '@/client/components/project/TicketCommentsLi
 import { TicketCommentForm } from '@/client/components/project/TicketCommentForm'
 import { TicketAttachmentsSection } from '@/client/components/project/TicketAttachmentsSection'
 import { getErrorMessage } from '@/client/lib/api'
+import { formatTicketRef } from '@/client/lib/ticket-ref'
 import { toast } from 'sonner'
 import type { TicketTaskSummary } from '@/shared/types'
 
@@ -98,6 +99,10 @@ export function TicketPanelContent({ ticketId }: TicketPanelContentProps) {
     ? computeDurationMs(ticket?.runningSince ?? null, null, nowMs)
     : null
   const ticketRunningDuration = ticketRunningMs != null ? formatDurationMs(ticketRunningMs) : null
+
+  // Qualified ticket ref (e.g. kinbot#42) surfaced next to the title so the
+  // number is visible in the detail view, not just on the kanban card.
+  const ticketRef = formatTicketRef(ticket?.number, project?.slug)
 
   if (isLoading && !ticket) {
     return (
@@ -189,8 +194,20 @@ export function TicketPanelContent({ ticketId }: TicketPanelContentProps) {
 
       {/* Body — read-only */}
       <div className="flex-1 overflow-y-auto p-3">
-        {/* Title */}
-        <h1 className="mb-2 text-base font-semibold leading-tight">{ticket.title}</h1>
+        {/* Title — prefixed with the ticket ref (#42) so the number is visible
+            beyond the kanban card. */}
+        <div className="mb-2 flex items-baseline gap-1.5">
+          {ticketRef && (
+            <span
+              className="shrink-0 font-mono text-xs font-normal text-muted-foreground"
+              aria-label={t('projects.ticket.panel.ticketRef', { ref: ticketRef })}
+              title={t('projects.ticket.panel.ticketRef', { ref: ticketRef })}
+            >
+              {ticketRef}
+            </span>
+          )}
+          <h1 className="text-base font-semibold leading-tight">{ticket.title}</h1>
+        </div>
 
         {/* Reporter (created by ...) + created date */}
         {(ticket.reporter || ticket.createdAt) && (
@@ -374,6 +391,7 @@ export function TicketPanelContent({ ticketId }: TicketPanelContentProps) {
           open={editOpen}
           onOpenChange={setEditOpen}
           ticket={ticket}
+          projectSlug={project.slug}
           availableTags={project.tags}
           onSave={async (input) => {
             try {

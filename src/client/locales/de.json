@@ -806,6 +806,7 @@
       "callCount_other": "{{count}} LLM-Aufrufe"
     },
     "description": "Beschreibung",
+    "ticketTooltip": "Übergeordnetes Ticket öffnen",
     "mode": "Modus",
     "modeAwait": "Erwarten",
     "modeAsync": "Asynchron",

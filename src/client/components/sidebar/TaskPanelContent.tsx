@@ -54,9 +54,11 @@ import {
   RotateCcw,
   GitFork,
   Search,
+  Ticket,
 } from 'lucide-react'
 import { useAutoScroll } from '@/client/hooks/useAutoScroll'
 import { api } from '@/client/lib/api'
+import { formatTicketRef } from '@/client/lib/ticket-ref'
 import type { TaskStatus, ContextTokenBreakdown, TaskSummary } from '@/shared/types'
 
 interface TasksResponse {
@@ -153,7 +155,7 @@ export function TaskPanelContent({
   const [isRunPromptOpen, setIsRunPromptOpen] = useState(false)
 
   // Sibling runs of the same cron — for the run selector
-  const { openTask } = useSidePanel()
+  const { openTask, openTicket } = useSidePanel()
   const [siblingRuns, setSiblingRuns] = useState<TaskSummary[]>([])
   const [isLoadingRuns, setIsLoadingRuns] = useState(false)
   const [isRunSelectorOpen, setIsRunSelectorOpen] = useState(false)
@@ -226,6 +228,8 @@ export function TaskPanelContent({
   const isActive = isRunning || isPaused || task?.status === 'pending' || task?.status === 'awaiting_human_input' || task?.status === 'awaiting_kin_response' || task?.status === 'awaiting_subtask'
   const initials = kinName?.slice(0, 2).toUpperCase() ?? 'K'
   const resolvedModel = task?.model ? llmModels.find((m) => m.id === task.model) : null
+  // Qualified ticket ref (e.g. kinbot#42) for ticket-bound tasks. Null otherwise.
+  const ticketRef = formatTicketRef(task?.ticket?.number, task?.ticket?.projectSlug)
 
   // Live + persisted run duration. Ticks every second while the task is active
   // (measured from startedAt), then freezes at endedAt once terminal. Null for
@@ -346,6 +350,24 @@ export function TaskPanelContent({
         {/* Row 2: meta facts — depth, mode, model, thinking, cron runs */}
         {task && (
           <div className="flex items-center gap-1 flex-wrap pl-9">
+            {/* Parent ticket — clickable ref (e.g. kinbot#42) that opens the
+                ticket panel. Only present for ticket-bound tasks. */}
+            {ticketRef && task.ticket && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge
+                    variant="outline"
+                    className="h-5 cursor-pointer gap-1 px-1.5 py-0 text-[10px] font-mono font-normal hover:bg-muted"
+                    onClick={() => openTicket({ ticketId: task.ticket!.id, parent: { type: 'task', id: task.id } })}
+                  >
+                    <Ticket className="size-2.5" />
+                    {ticketRef}
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>{t('taskDetail.ticketTooltip')}</TooltipContent>
+              </Tooltip>
+            )}
+
             {/* Mode */}
             <Tooltip>
               <TooltipTrigger asChild>
