@@ -1478,14 +1478,17 @@ export async function processNextMessage(kinId: string): Promise<boolean> {
       kinId,
       data: {
         kinId, queueSize: 0, isProcessing: true, processingStartedAt,
-        // Always send both: contextTokens is the local BPE estimate (drives
-        // the breakdown bar), apiContextTokens is the provider ground truth
-        // from the previous turn (drives the real bar). Frontend renders
-        // whichever exist independently.
-        contextTokens,
+        // Send the CALIBRATED estimate + breakdown (raw BPE × the per-Kin
+        // real/BPE factor), the same numbers the context visualizer and the
+        // /context-usage REST endpoint return — otherwise the navbar tooltip
+        // showed raw sections (94k) while the visualizer showed calibrated
+        // (158k) for the very same messages. apiContextTokens is the provider
+        // ground truth from the previous turn (drives the real bar).
+        contextTokens: preCallUsage?.contextTokens ?? contextTokens,
         apiContextTokens: preCallUsage?.apiContextTokens,
         contextWindow,
-        contextBreakdown,
+        contextBreakdown: preCallUsage?.breakdown ?? contextBreakdown,
+        calibrationFactor: preCallUsage?.calibrationFactor,
         pipelineStatus,
         ...lastCompactingProximity.get(kinId),
       },

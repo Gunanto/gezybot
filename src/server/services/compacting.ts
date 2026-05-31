@@ -212,7 +212,10 @@ export async function getCompactingProximity(kinId: string): Promise<CompactingP
   }
 
   const activeSummaries = await getActiveSummaries(kinId)
-  const summaryTokens = activeSummaries.reduce((sum, s) => sum + (s.tokenEstimate ?? estimateTokens(s.summary)), 0)
+  // Calibrate to real tokens (same per-Kin factor as the keep-window / merge)
+  // so the displayed summary figure matches the real-token summary budget.
+  const calibration = cached?.calibrationFactor ?? 1
+  const summaryTokens = activeSummaries.reduce((sum, s) => sum + Math.round(estimateTokens(s.summary) * calibration), 0)
   // Report the EFFECTIVE budgets (after the absolute caps), not the raw
   // percentages — otherwise on a 1M-window model the bar would claim
   // "triggers at 75%" while compaction actually fires at 300k (≈30%).
@@ -321,10 +324,17 @@ export async function runCompacting(
   //    the recent tail already fits the regular budget. Without the relative
   //    cap, a Kin sitting at 90k of messages with 250k budget got "nothing to
   //    compact" forever despite the user wanting more relief.
-  const totalNonCompactedTokens = nonCompacted.reduce(
-    (sum, m) => sum + estimateTokens(m.content ?? '') + estimateTokens((m.toolCalls as string | null) ?? ''),
-    0,
-  )
+  // Calibrate raw BPE up to the Kin's measured real-token count, using the same
+  // per-Kin EMA factor (api/raw, clamped [0.7,3.0]) the navbar/visualizer use.
+  // countTokens (o200k) under-counts Anthropic by ~1.7× on tool-heavy Kins, so
+  // an un-calibrated 100k cap really kept ~170k. Anchoring on the measured factor
+  // makes "keep 100k" mean 100k REAL tokens — the same unit as the context window.
+  const { getLastContextUsage } = await import('@/server/services/kin-engine')
+  const calibration = (await getLastContextUsage(kinId))?.calibrationFactor ?? 1
+  const msgTokensOf = (m: (typeof nonCompacted)[number]) =>
+    Math.round((estimateTokens(m.content ?? '') + estimateTokens((m.toolCalls as string | null) ?? '')) * calibration)
+
+  const totalNonCompactedTokens = nonCompacted.reduce((sum, m) => sum + msgTokensOf(m), 0)
   // min(keepPercent% of window, keepMaxTokens) — the absolute cap keeps the
   // post-compaction footprint bounded on large-window models (e.g. 1M), where
   // 25% would otherwise be 250k tokens of raw messages.
@@ -336,7 +346,7 @@ export async function runCompacting(
   let keepStartIndex = nonCompacted.length
   for (let i = nonCompacted.length - 1; i >= 0; i--) {
     const m = nonCompacted[i]!
-    const msgTokens = estimateTokens(m.content ?? '') + estimateTokens((m.toolCalls as string | null) ?? '')
+    const msgTokens = msgTokensOf(m)
     if (keepTokens + msgTokens > keepBudget) break
     keepTokens += msgTokens
     keepStartIndex = i
@@ -352,10 +362,7 @@ export async function runCompacting(
   // "only 1 message" is the bug that left users stuck at 343k of non-compacted
   // history forever (the oldest non-compacted message can be huge enough that
   // the keep-window walk leaves a single-message slice).
-  const summarizeTokens = messagesToSummarize.reduce(
-    (sum, m) => sum + estimateTokens(m.content ?? '') + estimateTokens((m.toolCalls as string | null) ?? ''),
-    0,
-  )
+  const summarizeTokens = messagesToSummarize.reduce((sum, m) => sum + msgTokensOf(m), 0)
   const MIN_SUMMARIZE_TOKENS = 2000
   if (summarizeTokens < MIN_SUMMARIZE_TOKENS) return null
 
@@ -669,7 +676,14 @@ async function maybeMergeSummaries(kinId: string, contextWindow: number): Promis
 
   if (activeSummaries.length <= 2) return // nothing to merge
 
-  const totalSummaryTokens = activeSummaries.reduce((sum, s) => sum + estimateTokens(s.summary), 0)
+  // Calibrate to real tokens (same per-Kin factor as the keep-window) so the
+  // budget comparison is in the same unit as summaryMaxTokens.
+  const { getLastContextUsage } = await import('@/server/services/kin-engine')
+  const calibration = (await getLastContextUsage(kinId))?.calibrationFactor ?? 1
+  const totalSummaryTokens = activeSummaries.reduce(
+    (sum, s) => sum + Math.round(estimateTokens(s.summary) * calibration),
+    0,
+  )
   // min(summaryBudgetPercent% of window, summaryMaxTokens) — the absolute cap
   // keeps the summary block from ballooning to 20% of a 1M window (200k).
   const summaryBudget = resolveSummaryBudget(

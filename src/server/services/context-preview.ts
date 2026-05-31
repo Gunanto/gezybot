@@ -14,6 +14,7 @@ import { fetchCronLearnings } from '@/server/services/cron-learnings'
 import { getActiveChannelsForKin } from '@/server/services/channels'
 import type { KinCompactingConfig, ContextTokenBreakdown } from '@/shared/types'
 import { getModelContextWindow } from '@/shared/model-context-windows'
+import { resolveTriggerTokens } from '@/server/services/compacting'
 import { config } from '@/server/config'
 import { getCacheMultipliers } from '@/shared/billing'
 import { guessProviderType } from '@/shared/model-ref'
@@ -528,7 +529,16 @@ export async function buildContextPreview(kinId: string): Promise<ContextPreview
   if (kin.compactingConfig) {
     try { perKinCompacting = JSON.parse(kin.compactingConfig) as KinCompactingConfig } catch { /* ignore */ }
   }
-  const compactingThresholdPercent = perKinCompacting?.thresholdPercent ?? config.compacting.thresholdPercent
+  // Effective (capped) threshold — the SAME source of truth as the navbar
+  // (resolveTriggerTokens). Without the cap the visualizer showed the raw
+  // per-Kin 95% while the navbar showed the capped 30%, telling opposite
+  // stories about how close compaction is.
+  const rawThresholdPercent = perKinCompacting?.thresholdPercent ?? config.compacting.thresholdPercent
+  const triggerMaxTokens = perKinCompacting?.triggerMaxTokens ?? config.compacting.triggerMaxTokens
+  const ctxWindowForThreshold = getModelContextWindow(kin.model)
+  const compactingThresholdPercent = ctxWindowForThreshold > 0
+    ? Math.round((resolveTriggerTokens(rawThresholdPercent, ctxWindowForThreshold, triggerMaxTokens) / ctxWindowForThreshold) * 100)
+    : rawThresholdPercent
 
   const calibrationFactor = await getKinCalibrationFactor(kinId)
   const lastTurnCache = buildLastTurnCache(kinId, kin.model, kin.providerId)
