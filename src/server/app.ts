@@ -10,6 +10,7 @@ import { authRoutes } from '@/server/routes/auth'
 import { meRoutes } from '@/server/routes/me'
 import { onboardingRoutes } from '@/server/routes/onboarding'
 import { providerRoutes } from '@/server/routes/providers'
+import { emailAccountRoutes } from '@/server/routes/email-accounts'
 import { sseRoutes } from '@/server/routes/sse'
 import { kinRoutes } from '@/server/routes/kins'
 import { toolsRoutes } from '@/server/routes/tools'
@@ -158,6 +159,7 @@ app.route('/api/auth', authRoutes)
 app.route('/api/me', meRoutes)
 app.route('/api/onboarding', onboardingRoutes)
 app.route('/api/providers', providerRoutes)
+app.route('/api/email-accounts', emailAccountRoutes)
 app.route('/api/sse', sseRoutes)
 app.route('/api/kins', kinRoutes)
 app.route('/api/tools', toolsRoutes)
