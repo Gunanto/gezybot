@@ -1715,6 +1715,9 @@
       "addTitle": "Ajouter un compte email",
       "addDescription": "Choisis un fournisseur et connecte une boîte mail.",
       "provider": "Fournisseur",
+      "appsTitle": "Apps fournisseur",
+      "accountsTitle": "Comptes connectés",
+      "configureAppFirst": "Configure l'app {{provider}} ci-dessus avant de connecter un compte.",
       "help": {
         "content": "Connectez un compte Gmail via OAuth. Configurez d'abord une app OAuth Google Cloud (client ID + secret), puis cliquez sur Connecter et autorisez l'accès.",
         "bullet1": "Créez une app OAuth dans Google Cloud Console avec les scopes Gmail, et enregistrez le redirect URI affiché par votre hôte KinBot (…/api/email-accounts/oauth/callback).",

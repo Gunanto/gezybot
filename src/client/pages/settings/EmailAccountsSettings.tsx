@@ -7,7 +7,6 @@ import { cn } from '@/client/lib/utils'
 import { Button } from '@/client/components/ui/button'
 import { Badge } from '@/client/components/ui/badge'
 import { Card, CardContent } from '@/client/components/ui/card'
-import { ProviderIcon } from '@/client/components/common/ProviderIcon'
 import { Input } from '@/client/components/ui/input'
 import { PasswordInput } from '@/client/components/ui/password-input'
 import { Label } from '@/client/components/ui/label'
@@ -29,6 +28,7 @@ import { EmptyState } from '@/client/components/common/EmptyState'
 import { HelpPanel } from '@/client/components/common/HelpPanel'
 import { SettingsListSkeleton } from '@/client/components/common/SettingsListSkeleton'
 import { ConfirmDeleteButton } from '@/client/components/common/ConfirmDeleteButton'
+import { ProviderIcon } from '@/client/components/common/ProviderIcon'
 import { useEmailAccounts, type EmailAccount, type EmailProviderInfo } from '@/client/hooks/useEmailAccounts'
 import { usePendingEmailSends } from '@/client/hooks/usePendingEmailSends'
 import type { PendingEmailSend } from '@/shared/types'
@@ -39,6 +39,8 @@ export function EmailAccountsSettings() {
   const [addOpen, setAddOpen] = useState(false)
 
   if (isLoading) return <SettingsListSkeleton count={2} />
+
+  const oauthProviders = providers.filter((p) => p.usesOAuth)
 
   return (
     <div className="space-y-4">
@@ -56,92 +58,48 @@ export function EmailAccountsSettings() {
         storageKey="help.emailAccounts.open"
       />
 
-      {accounts.length === 0 ? (
-        <EmptyState
-          icon={Mail}
-          title={t('settings.emailAccounts.empty')}
-          description={t('settings.emailAccounts.emptyDescription')}
-          actionLabel={t('settings.emailAccounts.add')}
-          onAction={() => setAddOpen(true)}
-        />
-      ) : (
-        <>
-          {accounts.map((a) => (
-            <EmailAccountCard key={a.id} account={a} onChange={refetch} />
+      {/* Global OAuth app configuration — one card per OAuth provider. */}
+      {oauthProviders.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">{t('settings.emailAccounts.appsTitle')}</p>
+          {oauthProviders.map((p) => (
+            <OAuthAppCard key={p.type} provider={p} redirectUri={redirectUri} onChange={refetch} />
           ))}
-          <Button variant="outline" className="w-full" onClick={() => setAddOpen(true)}>
-            <Plus className="size-4" />
-            {t('settings.emailAccounts.add')}
-          </Button>
-        </>
+        </div>
       )}
 
-      <AddEmailAccountDialog
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        providers={providers}
-        redirectUri={redirectUri}
-        onChange={refetch}
-      />
+      {/* Connected accounts. */}
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-muted-foreground">{t('settings.emailAccounts.accountsTitle')}</p>
+        {accounts.length === 0 ? (
+          <EmptyState
+            icon={Mail}
+            title={t('settings.emailAccounts.empty')}
+            description={t('settings.emailAccounts.emptyDescription')}
+            actionLabel={t('settings.emailAccounts.add')}
+            onAction={() => setAddOpen(true)}
+          />
+        ) : (
+          <>
+            {accounts.map((a) => (
+              <EmailAccountCard key={a.id} account={a} onChange={refetch} />
+            ))}
+            <Button variant="outline" className="w-full" onClick={() => setAddOpen(true)}>
+              <Plus className="size-4" />
+              {t('settings.emailAccounts.add')}
+            </Button>
+          </>
+        )}
+      </div>
+
+      <AddEmailAccountDialog open={addOpen} onOpenChange={setAddOpen} providers={providers} onChange={refetch} />
     </div>
   )
 }
 
-function AddEmailAccountDialog({
-  open,
-  onOpenChange,
-  providers,
-  redirectUri,
-  onChange,
-}: {
-  open: boolean
-  onOpenChange: (v: boolean) => void
-  providers: EmailProviderInfo[]
-  redirectUri: string
-  onChange: () => void
-}) {
-  const { t } = useTranslation()
-  const [type, setType] = useState<string>('')
-
-  useEffect(() => {
-    if (open && providers[0]) setType((prev) => prev || providers[0]!.type)
-  }, [open, providers])
-
-  const provider = providers.find((p) => p.type === type) ?? providers[0]
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t('settings.emailAccounts.addTitle')}</DialogTitle>
-          <DialogDescription>{t('settings.emailAccounts.addDescription')}</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1">
-            <Label className="text-xs">{t('settings.emailAccounts.provider')}</Label>
-            <Select value={provider?.type ?? ''} onValueChange={setType}>
-              <SelectTrigger>
-                <SelectValue placeholder={t('settings.emailAccounts.provider')} />
-              </SelectTrigger>
-              <SelectContent>
-                {providers.map((p) => (
-                  <SelectItem key={p.type} value={p.type}>
-                    {p.displayName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {provider && <ProviderConnect provider={provider} redirectUri={redirectUri} onChange={onChange} />}
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-/** The connect step inside the Add dialog — adapts to the selected provider:
- *  OAuth (Gmail) → app-credentials form when unconfigured, else a Connect button. */
-function ProviderConnect({
+/** Global OAuth app config for a provider (client id/secret + redirect URI).
+ *  Lives on the main page — it's a one-time, account-independent setup. */
+function OAuthAppCard({
   provider,
   redirectUri,
   onChange,
@@ -155,19 +113,18 @@ function ProviderConnect({
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const [saving, setSaving] = useState(false)
-  const [connecting, setConnecting] = useState(false)
 
   const showForm = editing || !provider.oauthConfigured
 
   useEffect(() => {
-    if (!showForm || !provider.usesOAuth) return
+    if (!showForm) return
     api
       .get<{ configured: boolean; clientId: string | null }>(`/email-accounts/oauth-config/${provider.type}`)
       .then((d) => {
         if (d.clientId) setClientId(d.clientId)
       })
       .catch(() => {})
-  }, [showForm, provider.type, provider.usesOAuth])
+  }, [showForm, provider.type])
 
   const saveCreds = async () => {
     setSaving(true)
@@ -184,17 +141,6 @@ function ProviderConnect({
     }
   }
 
-  const connect = async () => {
-    setConnecting(true)
-    try {
-      const { authUrl } = await api.post<{ authUrl: string }>(`/email-accounts/connect/${provider.type}`)
-      window.location.href = authUrl
-    } catch (err) {
-      toast.error(getErrorMessage(err))
-      setConnecting(false)
-    }
-  }
-
   const copyRedirect = () => {
     navigator.clipboard
       .writeText(redirectUri)
@@ -203,14 +149,13 @@ function ProviderConnect({
   }
 
   return (
-    <div className="space-y-3">
-      {/* Provider app status — provider-card style: logo + status badge + edit. */}
-      <div className="flex items-center justify-between gap-2 rounded-md border border-border/60 p-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <ProviderIcon providerType={provider.type} variant="color" className="size-4 shrink-0" />
-          <span className="truncate text-sm font-medium">{provider.displayName}</span>
-        </div>
-        {provider.usesOAuth && (
+    <Card>
+      <CardContent className="space-y-3 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <ProviderIcon providerType={provider.type} variant="color" className="size-4 shrink-0" />
+            <span className="truncate text-sm font-medium">{provider.displayName}</span>
+          </div>
           <div className="flex shrink-0 items-center gap-1.5">
             {provider.oauthConfigured ? (
               <Badge variant="secondary" className="gap-1 text-[10px]">
@@ -234,74 +179,158 @@ function ProviderConnect({
               </Button>
             )}
           </div>
-        )}
-      </div>
+        </div>
 
-      {showForm && provider.usesOAuth && (
-        <div className="space-y-3 rounded-md border border-border/60 p-3">
-          <div className="space-y-1 text-xs text-muted-foreground">
-            <p>{t('settings.emailAccounts.oauthSetup')}</p>
-            <a
-              href="https://console.cloud.google.com/apis/credentials"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-primary hover:underline"
-            >
-              {t('settings.emailAccounts.oauthConsoleLink')}
-              <ExternalLink className="size-3" />
-            </a>
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-xs">{t('settings.emailAccounts.redirectUri')}</Label>
-            <p className="text-[10px] text-muted-foreground">{t('settings.emailAccounts.redirectUriHelp')}</p>
-            <div className="flex gap-1">
-              <Input
-                readOnly
-                value={redirectUri}
-                className="font-mono text-xs"
-                onFocus={(e) => e.currentTarget.select()}
-              />
-              <Button
-                size="icon"
-                variant="outline"
-                className="shrink-0"
-                aria-label={t('settings.emailAccounts.copy')}
-                onClick={copyRedirect}
+        {showForm && (
+          <div className="space-y-3 border-t border-border/50 pt-3">
+            <div className="space-y-1 text-xs text-muted-foreground">
+              <p>{t('settings.emailAccounts.oauthSetup')}</p>
+              <a
+                href="https://console.cloud.google.com/apis/credentials"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-primary hover:underline"
               >
-                <Copy className="size-3.5" />
+                {t('settings.emailAccounts.oauthConsoleLink')}
+                <ExternalLink className="size-3" />
+              </a>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">{t('settings.emailAccounts.redirectUri')}</Label>
+              <p className="text-[10px] text-muted-foreground">{t('settings.emailAccounts.redirectUriHelp')}</p>
+              <div className="flex gap-1">
+                <Input
+                  readOnly
+                  value={redirectUri}
+                  className="font-mono text-xs"
+                  onFocus={(e) => e.currentTarget.select()}
+                />
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="shrink-0"
+                  aria-label={t('settings.emailAccounts.copy')}
+                  onClick={copyRedirect}
+                >
+                  <Copy className="size-3.5" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">{t('settings.emailAccounts.clientId')}</Label>
+              <Input value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="…apps.googleusercontent.com" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">{t('settings.emailAccounts.clientSecret')}</Label>
+              <PasswordInput value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button size="sm" onClick={saveCreds} disabled={saving || !clientId || !clientSecret}>
+                {t('common.save')}
               </Button>
+              {provider.oauthConfigured && (
+                <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+                  {t('common.cancel')}
+                </Button>
+              )}
             </div>
           </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
 
+function AddEmailAccountDialog({
+  open,
+  onOpenChange,
+  providers,
+  onChange,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  providers: EmailProviderInfo[]
+  onChange: () => void
+}) {
+  const { t } = useTranslation()
+  const [type, setType] = useState<string>('')
+
+  useEffect(() => {
+    if (open && providers[0]) setType((prev) => prev || providers[0]!.type)
+  }, [open, providers])
+
+  const provider = providers.find((p) => p.type === type) ?? providers[0]
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('settings.emailAccounts.addTitle')}</DialogTitle>
+          <DialogDescription>{t('settings.emailAccounts.addDescription')}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
           <div className="space-y-1">
-            <Label className="text-xs">{t('settings.emailAccounts.clientId')}</Label>
-            <Input value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="…apps.googleusercontent.com" />
+            <Label className="text-xs">{t('settings.emailAccounts.provider')}</Label>
+            <Select value={provider?.type ?? ''} onValueChange={setType}>
+              <SelectTrigger className="w-full">
+                <span className="flex items-center gap-2">
+                  {provider && <ProviderIcon providerType={provider.type} variant="color" className="size-4" />}
+                  <SelectValue placeholder={t('settings.emailAccounts.provider')} />
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                {providers.map((p) => (
+                  <SelectItem key={p.type} value={p.type}>
+                    <span className="flex items-center gap-2">
+                      <ProviderIcon providerType={p.type} variant="color" className="size-4" />
+                      {p.displayName}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs">{t('settings.emailAccounts.clientSecret')}</Label>
-            <PasswordInput value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} />
-          </div>
-          <div className="flex gap-2 pt-1">
-            <Button size="sm" onClick={saveCreds} disabled={saving || !clientId || !clientSecret}>
-              {t('common.save')}
-            </Button>
-            {provider.oauthConfigured && (
-              <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
-                {t('common.cancel')}
-              </Button>
-            )}
-          </div>
+          {provider && <ConnectStep provider={provider} onChange={onChange} />}
         </div>
-      )}
+      </DialogContent>
+    </Dialog>
+  )
+}
 
-      {!showForm && (
-        <Button className="w-full" onClick={connect} disabled={connecting}>
-          <Plus className="size-4" />
-          {t('settings.emailAccounts.connect', { provider: provider.displayName })}
-        </Button>
-      )}
-    </div>
+/** The connect action in the Add dialog. OAuth providers connect via redirect
+ *  once their app is configured (on the main page); others would render their
+ *  own form (IMAP — future). */
+function ConnectStep({ provider, onChange }: { provider: EmailProviderInfo; onChange: () => void }) {
+  const { t } = useTranslation()
+  const [connecting, setConnecting] = useState(false)
+  void onChange // reserved for non-OAuth (form-based) providers
+
+  const connect = async () => {
+    setConnecting(true)
+    try {
+      const { authUrl } = await api.post<{ authUrl: string }>(`/email-accounts/connect/${provider.type}`)
+      window.location.href = authUrl
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+      setConnecting(false)
+    }
+  }
+
+  if (provider.usesOAuth && !provider.oauthConfigured) {
+    return (
+      <p className="rounded-md border border-warning/40 bg-warning/5 p-2 text-xs text-warning">
+        {t('settings.emailAccounts.configureAppFirst', { provider: provider.displayName })}
+      </p>
+    )
+  }
+
+  return (
+    <Button className="w-full" onClick={connect} disabled={connecting}>
+      <Plus className="size-4" />
+      {t('settings.emailAccounts.connect', { provider: provider.displayName })}
+    </Button>
   )
 }
 
