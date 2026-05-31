@@ -634,8 +634,19 @@ export function ChatPanel({ kin, llmModels, modelUnavailable = false, queueState
     const filtered = messages.filter((m) => m.sourceType !== 'compacting_followup')
     if (!streamingMessage) return filtered
     if (filtered.some(m => m.id === streamingMessage.id)) return filtered
+    // Only render the streaming bubble once it actually carries something to
+    // show: text content, reasoning, or a tool call. The streaming message is
+    // seeded with empty content as soon as the turn starts (or when reasoning
+    // tokens arrive before the first text token, since reasoning lives in a
+    // separate batched state), so merging it unconditionally flashed a blank
+    // bubble *alongside* the typing indicator until the first token landed.
+    // Same guard as the task panel (TaskPanelContent). See ticket kinbot#55 / #44.
+    const hasContent = streamingMessage.content.length > 0
+    const hasReasoning = streamingReasoning.length > 0
+    const hasToolCalls = (toolCallsByMessage.get(streamingMessage.id)?.length ?? 0) > 0
+    if (!hasContent && !hasReasoning && !hasToolCalls) return filtered
     return [...filtered, streamingMessage]
-  }, [messages, streamingMessage])
+  }, [messages, streamingMessage, streamingReasoning, toolCallsByMessage])
 
   const handleSearchChange = useCallback((query: string, matchIndex: number, matchCount: number) => {
     setSearchQuery(query)
