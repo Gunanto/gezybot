@@ -15,27 +15,20 @@ import { getExtractionModel, getExtractionProviderId, getDefaultCompactingModel,
 import { createMemory, updateMemory, isDuplicateMemory, pruneStaleMemories } from '@/server/services/memory'
 import { sseManager } from '@/server/sse/index'
 import { getModelContextWindow } from '@/shared/model-context-windows'
+import { countTokens } from '@/shared/token-estimator'
 import type { KinCompactingConfig, MemoryCategory } from '@/shared/types'
 
 const log = createLogger('compacting')
 
-// Rough token estimation: ~4 characters per token.
-// Kept for summary metadata (`tokenEstimate`) so stored values stay stable.
+// Token counting for every compaction budget (keep-window, trigger, summaries).
+// Uses the shared BPE tokenizer (gpt-tokenizer / o200k_base) — within ~5-15% of
+// the real provider count, vs chars/4 which under-counts JSON/tool-heavy history
+// by ~2×. The encoder is preloaded at server boot (src/server/index.ts), so the
+// synchronous path hits BPE; it falls back to chars/4 only on a cold first call.
+// Because budgets are measured in the same honest unit as the context window,
+// no estimate→real calibration factor is needed.
 function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4)
-}
-
-// chars/4 under-counts real BPE tokens on JSON/tool-heavy content by ~30-60%.
-// The keep-window and trigger budgets are expressed in REAL tokens (the context
-// window comes from the provider's `max_input_tokens`), so per-message sizes used
-// in budget math must be scaled into the same unit — otherwise the keep-window
-// fills a real-token budget with under-counted estimates and silently keeps ~40%
-// more than configured. See compacting.md "Token calibration".
-function estimateContextTokens(text: string): number {
-  // Defensive `?? 1.4`: cross-file `mock.module('@/server/config')` in the test
-  // suite can leave `config.compacting` undefined; never let calibration be NaN.
-  const calibration = config.compacting?.tokenCalibration ?? 1.4
-  return Math.ceil((text.length / 4) * calibration)
+  return countTokens(text)
 }
 
 // ─── Budget resolution (pure, exported for tests) ─────────────────────────────
@@ -131,9 +124,9 @@ async function getEffectiveCompactingConfig(kinId: string): Promise<EffectiveCom
  * Uses token-based threshold: triggers when context tokens exceed thresholdPercent of context window.
  *
  * Prefers the provider-reported `apiContextTokens` from the cache (ground
- * truth from the last LLM roundtrip) over the local BPE estimate, since the
- * local estimator typically under-counts JSON / tool-heavy contexts by
- * 30-60% — which would otherwise let compacting silently miss its threshold.
+ * truth from the last LLM roundtrip) over the local BPE estimate. The BPE
+ * estimate (gpt-tokenizer) is within ~5-15% of the real count, but the exact
+ * provider number is better still when we have a fresh one.
  */
 export async function shouldCompact(kinId: string, contextTokens?: number, contextWindow?: number): Promise<boolean> {
   const effectiveConfig = await getEffectiveCompactingConfig(kinId)
@@ -172,10 +165,10 @@ export async function shouldCompact(kinId: string, contextTokens?: number, conte
   // tool-heavy Kins by 10-100× and lets shouldCompact silently miss its
   // threshold when there's no fresh apiContextTokens in the cache yet.
   const messageTokens = nonCompactedMessages.reduce(
-    (sum, m) => sum + estimateContextTokens(m.content ?? '') + estimateContextTokens((m.toolCalls as string | null) ?? ''),
+    (sum, m) => sum + estimateTokens(m.content ?? '') + estimateTokens((m.toolCalls as string | null) ?? ''),
     0,
   )
-  const summaryTokens = activeSummaries.reduce((sum, s) => sum + estimateContextTokens(s.summary), 0)
+  const summaryTokens = activeSummaries.reduce((sum, s) => sum + estimateTokens(s.summary), 0)
 
   // Rough estimate: messages + summaries + ~2000 for system prompt + ~1000 for tools
   const estimatedTotal = messageTokens + summaryTokens + 3000
@@ -329,7 +322,7 @@ export async function runCompacting(
   //    cap, a Kin sitting at 90k of messages with 250k budget got "nothing to
   //    compact" forever despite the user wanting more relief.
   const totalNonCompactedTokens = nonCompacted.reduce(
-    (sum, m) => sum + estimateContextTokens(m.content ?? '') + estimateContextTokens((m.toolCalls as string | null) ?? ''),
+    (sum, m) => sum + estimateTokens(m.content ?? '') + estimateTokens((m.toolCalls as string | null) ?? ''),
     0,
   )
   // min(keepPercent% of window, keepMaxTokens) — the absolute cap keeps the
@@ -343,7 +336,7 @@ export async function runCompacting(
   let keepStartIndex = nonCompacted.length
   for (let i = nonCompacted.length - 1; i >= 0; i--) {
     const m = nonCompacted[i]!
-    const msgTokens = estimateContextTokens(m.content ?? '') + estimateContextTokens((m.toolCalls as string | null) ?? '')
+    const msgTokens = estimateTokens(m.content ?? '') + estimateTokens((m.toolCalls as string | null) ?? '')
     if (keepTokens + msgTokens > keepBudget) break
     keepTokens += msgTokens
     keepStartIndex = i
@@ -676,7 +669,7 @@ async function maybeMergeSummaries(kinId: string, contextWindow: number): Promis
 
   if (activeSummaries.length <= 2) return // nothing to merge
 
-  const totalSummaryTokens = activeSummaries.reduce((sum, s) => sum + estimateContextTokens(s.summary), 0)
+  const totalSummaryTokens = activeSummaries.reduce((sum, s) => sum + estimateTokens(s.summary), 0)
   // min(summaryBudgetPercent% of window, summaryMaxTokens) — the absolute cap
   // keeps the summary block from ballooning to 20% of a 1M window (200k).
   const summaryBudget = resolveSummaryBudget(

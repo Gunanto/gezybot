@@ -1,43 +1,9 @@
 import { describe, it, expect } from 'bun:test'
 import { resolveKeepBudget, resolveTriggerTokens, resolveSummaryBudget } from '@/server/services/compacting'
 
-// ─── estimateTokens (pure function, re-implemented to test the contract) ─────
-
-// The module uses: Math.ceil(text.length / 4)
-// We replicate and test the logic since it's not exported directly.
-// If the module ever exports it, switch to the real import.
-
-function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4)
-}
-
-describe('estimateTokens', () => {
-  it('returns 0 for empty string', () => {
-    expect(estimateTokens('')).toBe(0)
-  })
-
-  it('returns 1 for strings 1-4 chars', () => {
-    expect(estimateTokens('a')).toBe(1)
-    expect(estimateTokens('ab')).toBe(1)
-    expect(estimateTokens('abc')).toBe(1)
-    expect(estimateTokens('abcd')).toBe(1)
-  })
-
-  it('returns 2 for strings 5-8 chars', () => {
-    expect(estimateTokens('abcde')).toBe(2)
-    expect(estimateTokens('abcdefgh')).toBe(2)
-  })
-
-  it('handles longer text proportionally', () => {
-    const text = 'x'.repeat(400)
-    expect(estimateTokens(text)).toBe(100)
-  })
-
-  it('rounds up for non-multiples of 4', () => {
-    expect(estimateTokens('abcde')).toBe(2) // 5/4 = 1.25 → 2
-    expect(estimateTokens('abcdefg')).toBe(2) // 7/4 = 1.75 → 2
-  })
-})
+// Token counting is delegated to the shared BPE tokenizer (countTokens) — see
+// src/shared/token-estimator.ts for its coverage. Compaction no longer uses a
+// local chars/4 heuristic, so there is no private estimator to characterize here.
 
 // ─── Absolute-cap budget resolution ──────────────────────────────────────────
 //

@@ -212,9 +212,6 @@ export const config = {
     triggerMaxTokens: Number(process.env.COMPACTING_TRIGGER_MAX_TOKENS ?? 300_000),
     /** Hard ceiling on total active-summary tokens before telescopic merge (real tokens). Caps `summaryBudgetPercent`. */
     summaryMaxTokens: Number(process.env.COMPACTING_SUMMARY_MAX_TOKENS ?? 48_000),
-    /** Multiplier correcting the chars/4 estimate up to real BPE tokens (JSON/tool-heavy
-     *  content under-counts by ~30-60%). Keeps the keep-window budget honest. */
-    tokenCalibration: Number(process.env.COMPACTING_TOKEN_CALIBRATION ?? 1.4),
   },
 
   /** Max estimated tokens for conversation history injected into the LLM context.

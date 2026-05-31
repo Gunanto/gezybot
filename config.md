@@ -39,7 +39,6 @@ Toutes les valeurs configurables de la plateforme, regroupées par domaine. Ces 
 | `compacting.keepMaxTokens` | `COMPACTING_KEEP_MAX_TOKENS` | `100000` | Plafond **absolu** (tokens réels) de la keep-window — borne `keepPercent`. N'agit que sur les grandes fenêtres (1M) |
 | `compacting.triggerMaxTokens` | `COMPACTING_TRIGGER_MAX_TOKENS` | `300000` | Plafond **absolu** (tokens réels) avant déclenchement — borne `thresholdPercent` |
 | `compacting.summaryMaxTokens` | `COMPACTING_SUMMARY_MAX_TOKENS` | `48000` | Plafond **absolu** (tokens réels) des résumés avant fusion — borne `summaryBudgetPercent` |
-| `compacting.tokenCalibration` | `COMPACTING_TOKEN_CALIBRATION` | `1.4` | Multiplicateur corrigeant l'estimation `chars/4` vers les vrais tokens BPE (le JSON/outils sous-compte de ~30-60 %) |
 
 > **Budgets effectifs** : chaque budget est `min(pourcentage × fenêtre, plafond absolu)`. Sur un modèle 200k le pourcentage domine (comportement inchangé) ; sur 1M le plafond absolu borne l'empreinte. Voir `compacting.md` → « Absolute token ceilings ».
 

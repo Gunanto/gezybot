@@ -90,7 +90,8 @@ for (i = newest → oldest):
 `keepMaxTokens` ceiling. The cap is what keeps the post-compaction footprint
 bounded on large-window models: 25% of a 1M window would be 250k tokens of raw
 messages, but `keepMaxTokens` (100k) holds it to ~100k. Per-message sizes in the
-walk are **calibrated** (see below) so the budget is measured in real tokens.
+walk are counted with the **shared BPE tokenizer** (see below), so the budget is
+measured in honest tokens.
 
 #### Step 2 — Build the compacting prompt
 
@@ -276,7 +277,6 @@ After extraction, three additional processes run:
 | `COMPACTING_KEEP_MAX_TOKENS` | `100000` | **Absolute** ceiling (real tokens) on the keep-window — caps `keepPercent` |
 | `COMPACTING_TRIGGER_MAX_TOKENS` | `300000` | **Absolute** ceiling (real tokens) before compaction triggers — caps `thresholdPercent` |
 | `COMPACTING_SUMMARY_MAX_TOKENS` | `48000` | **Absolute** ceiling (real tokens) on summaries before merge — caps `summaryBudgetPercent` |
-| `COMPACTING_TOKEN_CALIBRATION` | `1.4` | Multiplier correcting the `chars/4` estimate up to real BPE tokens |
 | `COMPACTING_MODEL` | Provider default | Model used for compaction summarization |
 
 ---
@@ -285,9 +285,9 @@ After extraction, three additional processes run:
 
 Every percentage knob above scales with the model's context window. That is fine
 at 200k, but on a **1M-token** model even a "small" 25% keep-window is 250k tokens
-— and because the per-message estimate under-counts (see Token calibration), the
-real footprint was larger still. A Kin could sit at **400k+ tokens of raw kept
-messages** right after compaction.
+— and because the old `chars/4` estimate under-counted real tokens by ~2× on
+tool-heavy history (see Token counting), the real footprint was larger still. A
+Kin could sit at **400k+ tokens of raw kept messages** right after compaction.
 
 Three absolute ceilings bound the real footprint regardless of window size. Each
 effective budget is `min(percentage × window, cap)`:
@@ -303,16 +303,17 @@ unchanged — the caps only engage on large-window models. Resulting envelope on
 1M model: post-compaction floor ≈ 100k (keep) + ≤48k (summaries) + ~20k (system
 prompt + tools) ≈ **~170k**, growing to 300k before the next compaction.
 
-## Token calibration
+## Token counting
 
-The keep-window walk and the trigger/summary budgets are measured in **real**
-tokens (the context window is the provider's `max_input_tokens`). The cheap
-`chars/4` estimate under-counts real BPE tokens on JSON/tool-heavy content by
-~30-60%, so per-message sizes used in budget math are scaled by
-`COMPACTING_TOKEN_CALIBRATION` (default 1.4) to bring them into the same unit.
-Without this, the keep-window silently kept ~40% more real tokens than the
-configured budget implied. The provider-reported `apiContextTokens` (ground truth
-from the last turn) is still preferred for the trigger when available.
+All compaction budgets are measured in **real** tokens (the context window is the
+provider's `max_input_tokens`). Token counts come from the shared BPE tokenizer
+`countTokens()` (`src/shared/token-estimator.ts`, backed by `gpt-tokenizer` /
+`o200k_base`), the same estimator the chat banner and context visualizer use —
+within **~5-15%** of the real provider count, versus the old `chars/4` heuristic
+which under-counted JSON/tool-heavy history by ~2×. Because the budget math and
+the context window are now in the same honest unit, **no estimate→real
+calibration factor is needed**. The provider-reported `apiContextTokens` (ground
+truth from the last turn) is still preferred for the trigger when available.
 
 ---
 
