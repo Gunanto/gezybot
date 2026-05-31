@@ -10,6 +10,13 @@ import {
   webSearchTool,
 } from '@/server/tools/search-tools'
 import {
+  listEmailAccountsTool,
+  listEmailsTool,
+  readEmailTool,
+  searchEmailsTool,
+  sendEmailTool,
+} from '@/server/tools/email-tools'
+import {
   listTtsProvidersTool,
   listVoicesTool,
   textToSpeechTool,
@@ -266,6 +273,13 @@ export function registerAllTools(): void {
   // Search tools — discovery + action. Use browse_url for follow-up fetch.
   toolRegistry.register('list_search_providers', listSearchProvidersTool, 'search')
   toolRegistry.register('web_search', webSearchTool, 'search')
+
+  // Email tools — read/search/send through a slug-resolved email account.
+  toolRegistry.register('list_email_accounts', listEmailAccountsTool, 'email')
+  toolRegistry.register('list_emails', listEmailsTool, 'email')
+  toolRegistry.register('read_email', readEmailTool, 'email')
+  toolRegistry.register('search_emails', searchEmailsTool, 'email')
+  toolRegistry.register('send_email', sendEmailTool, 'email')
 
   // Voice tools — TTS + STT discovery and actions. Audio bytes flow
   // through the messages-attachment files table (same path as

@@ -595,6 +595,7 @@ export type ToolDomain =
   | 'kin-management'
   | 'webhooks'
   | 'channels'
+  | 'email'
   | 'system'
   | 'users'
   | 'database'

@@ -135,6 +135,17 @@ export const BUILTIN_TOOLBOXES: readonly BuiltinToolboxDef[] = [
       'extract_links',
     ],
   },
+  {
+    name: 'email',
+    description: 'Email account access: list, read, search, and send mail through connected accounts.',
+    toolNames: [
+      'list_email_accounts',
+      'list_emails',
+      'read_email',
+      'search_emails',
+      'send_email',
+    ],
+  },
 ]
 
 const BUILTIN_NAMES = new Set<string>(BUILTIN_TOOLBOXES.map((b) => b.name))
