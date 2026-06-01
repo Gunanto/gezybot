@@ -13,7 +13,7 @@ import { config } from '@/server/config'
 import { kinAvatarUrl } from '@/server/services/field-validator'
 import { getContactDisplayName } from '@/shared/contact-display'
 import { applyKinNamePrefix } from '@/server/services/channel-prefix'
-import type { IncomingMessage, OutboundAttachment } from '@/server/channels/adapter'
+import type { IncomingMessage, OutboundAttachment, DeliveryStatusUpdate } from '@/server/channels/adapter'
 import type { ChannelPlatform, ChannelStatus } from '@/shared/types'
 
 const log = createLogger('channels')
@@ -917,6 +917,121 @@ export async function deliverChannelResponse(
   } catch (err) {
     log.error({ channelId: meta.channelId, err }, 'Failed to deliver channel response')
   }
+}
+
+// ─── Asynchronous delivery-status updates (webhook status callbacks) ─────────
+
+// Short localized labels for the delivery hint shown under the bubble. The
+// status set is bounded (DeliveryStatus), so an inline map beats wiring the
+// server into the client i18n bundle. Falls back to English, then to the raw
+// status string for anything unmapped.
+const DELIVERY_STATUS_LABELS: Record<string, Partial<Record<string, string>>> = {
+  en: { delivered: 'Delivered', sent: 'Sent', queued: 'Queued', read: 'Read', undelivered: 'Delivery failed', failed: 'Delivery failed' },
+  fr: { delivered: 'Remis', sent: 'Envoyé', queued: 'En file d’attente', read: 'Lu', undelivered: 'Échec de remise', failed: 'Échec de remise' },
+  de: { delivered: 'Zugestellt', sent: 'Gesendet', queued: 'In Warteschlange', read: 'Gelesen', undelivered: 'Zustellung fehlgeschlagen', failed: 'Zustellung fehlgeschlagen' },
+  es: { delivered: 'Entregado', sent: 'Enviado', queued: 'En cola', read: 'Leído', undelivered: 'Entrega fallida', failed: 'Entrega fallida' },
+}
+
+function buildDeliveryContextLine(update: DeliveryStatusUpdate, platformName: string, locale: string): string {
+  const lang = (locale || 'en').slice(0, 2).toLowerCase()
+  const labels = DELIVERY_STATUS_LABELS[lang] ?? DELIVERY_STATUS_LABELS.en ?? {}
+  const label = labels[update.status] ?? update.status
+  const isFailure = update.status === 'failed' || update.status === 'undelivered'
+  const isSuccess = update.status === 'delivered' || update.status === 'read'
+  const icon = isFailure ? '✗ ' : isSuccess ? '✓ ' : ''
+  const errorSuffix = isFailure && update.errorCode ? ` (${update.errorCode})` : ''
+  return `${icon}${label}${errorSuffix} · ${platformName}`
+}
+
+/**
+ * Apply an asynchronous delivery-status update produced by a webhook-driven
+ * channel (e.g. a Twilio MessageStatus callback). Correlates the provider's
+ * message id back to the originating Kin message via `channelMessageLinks`,
+ * refreshes the delivery hint stored on that message, and emits SSE so the
+ * bubble updates live. No-op when the message id can't be correlated (e.g.
+ * proactive sends with no originating message, or a callback that races the
+ * link insert).
+ */
+export async function applyChannelDeliveryStatusUpdate(
+  channelId: string,
+  update: DeliveryStatusUpdate,
+): Promise<void> {
+  const channel = await getChannel(channelId)
+  if (!channel) return
+
+  const link = db
+    .select({ messageId: channelMessageLinks.messageId })
+    .from(channelMessageLinks)
+    .where(
+      and(
+        eq(channelMessageLinks.channelId, channelId),
+        eq(channelMessageLinks.platformMessageId, update.platformMessageId),
+        eq(channelMessageLinks.direction, 'outbound'),
+      ),
+    )
+    .orderBy(desc(channelMessageLinks.createdAt))
+    .get()
+
+  if (!link?.messageId) {
+    log.info(
+      { channelId, platformMessageId: update.platformMessageId, status: update.status },
+      'Delivery status update with no linked message; skipping UI update',
+    )
+    return
+  }
+
+  const platformName = channelAdapters.get(channel.platform)?.meta?.displayName ?? channel.platform
+  const locale = resolveChannelLocale(channelId)
+  const contextLine = update.contextLine ?? buildDeliveryContextLine(update, platformName, locale)
+
+  try {
+    const existing = db
+      .select({ metadata: messages.metadata })
+      .from(messages)
+      .where(eq(messages.id, link.messageId))
+      .get()
+    let merged: Record<string, unknown> = {}
+    if (existing?.metadata) {
+      try { merged = JSON.parse(existing.metadata as string) as Record<string, unknown> } catch { /* corrupted, overwrite */ }
+    }
+    const prevDelivery =
+      merged.channelDelivery && typeof merged.channelDelivery === 'object'
+        ? (merged.channelDelivery as Record<string, unknown>)
+        : {}
+    merged.channelDelivery = {
+      ...prevDelivery,
+      platform: channel.platform,
+      contextLine,
+      deliveryStatus: update.status,
+      ...(update.errorCode ? { errorCode: update.errorCode } : {}),
+      ...(update.errorMessage ? { errorMessage: update.errorMessage } : {}),
+    }
+    await db
+      .update(messages)
+      .set({ metadata: JSON.stringify(merged) })
+      .where(eq(messages.id, link.messageId))
+  } catch (err) {
+    log.warn({ messageId: link.messageId, err }, 'Failed to persist delivery status update')
+    return
+  }
+
+  // Reuse channel:message-sent — the client already updates the message's
+  // channelContextLine from this event, so the hint refreshes without a fetch.
+  sseManager.sendToKin(channel.kinId, {
+    type: 'channel:message-sent',
+    kinId: channel.kinId,
+    data: {
+      channelId,
+      platform: channel.platform,
+      messageId: link.messageId,
+      contextLine,
+    },
+  })
+
+  log.info(
+    { channelId, kinId: channel.kinId, messageId: link.messageId, status: update.status, errorCode: update.errorCode },
+    'Applied channel delivery status update',
+  )
 }
 
 // ─── Channel transfer (UI + tool share this single entry point) ─────────────

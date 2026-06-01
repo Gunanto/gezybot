@@ -16,6 +16,7 @@ import {
   countPendingApprovals,
   countPendingApprovalsForChannel,
   handleIncomingChannelMessage,
+  applyChannelDeliveryStatusUpdate,
   transferChannel,
 } from '@/server/services/channels'
 import { resolveKinId } from '@/server/services/kin-resolver'
@@ -156,6 +157,9 @@ channelRoutes.post('/plugin/:platform/webhook/:channelId', async (c) => {
     const result = await adapter.handleInboundWebhook(channelId, cfg, c.req.raw)
     if (result.incoming) {
       await handleIncomingChannelMessage(channelId, result.incoming)
+    }
+    if (result.deliveryUpdate) {
+      await applyChannelDeliveryStatusUpdate(channelId, result.deliveryUpdate)
     }
     return result.response
   } catch (err) {

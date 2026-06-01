@@ -325,3 +325,68 @@ describe('ChannelOriginMeta contract', () => {
     })
   })
 })
+
+// ─── Delivery-status context line ────────────────────────────────────────────
+// Replicates buildDeliveryContextLine() from channels.ts (kept in lockstep) to
+// verify the visible delivery hint without importing the real module, which
+// other test files mock globally (see header note). The icon/label/error-code
+// formatting is the user-facing contract for Twilio MessageStatus callbacks.
+
+const DELIVERY_STATUS_LABELS: Record<string, Partial<Record<string, string>>> = {
+  en: { delivered: 'Delivered', sent: 'Sent', queued: 'Queued', read: 'Read', undelivered: 'Delivery failed', failed: 'Delivery failed' },
+  fr: { delivered: 'Remis', sent: 'Envoyé', queued: 'En file d’attente', read: 'Lu', undelivered: 'Échec de remise', failed: 'Échec de remise' },
+}
+
+function buildDeliveryContextLine(
+  update: { status: string; errorCode?: string },
+  platformName: string,
+  locale: string,
+): string {
+  const lang = (locale || 'en').slice(0, 2).toLowerCase()
+  const labels = DELIVERY_STATUS_LABELS[lang] ?? DELIVERY_STATUS_LABELS.en ?? {}
+  const label = labels[update.status] ?? update.status
+  const isFailure = update.status === 'failed' || update.status === 'undelivered'
+  const isSuccess = update.status === 'delivered' || update.status === 'read'
+  const icon = isFailure ? '✗ ' : isSuccess ? '✓ ' : ''
+  const errorSuffix = isFailure && update.errorCode ? ` (${update.errorCode})` : ''
+  return `${icon}${label}${errorSuffix} · ${platformName}`
+}
+
+describe('buildDeliveryContextLine contract', () => {
+  it('prefixes a check on delivered', () => {
+    expect(buildDeliveryContextLine({ status: 'delivered' }, 'Twilio SMS', 'en')).toBe('✓ Delivered · Twilio SMS')
+  })
+
+  it('prefixes a cross and appends the error code on failure', () => {
+    expect(buildDeliveryContextLine({ status: 'failed', errorCode: '30007' }, 'Twilio SMS', 'en')).toBe(
+      '✗ Delivery failed (30007) · Twilio SMS',
+    )
+  })
+
+  it('treats undelivered as a failure (cross + error code)', () => {
+    expect(buildDeliveryContextLine({ status: 'undelivered', errorCode: '30006' }, 'Twilio SMS', 'en')).toBe(
+      '✗ Delivery failed (30006) · Twilio SMS',
+    )
+  })
+
+  it('omits the error suffix when no code is present', () => {
+    expect(buildDeliveryContextLine({ status: 'failed' }, 'Twilio SMS', 'en')).toBe('✗ Delivery failed · Twilio SMS')
+  })
+
+  it('uses no icon for in-flight states (sent/queued)', () => {
+    expect(buildDeliveryContextLine({ status: 'sent' }, 'Twilio SMS', 'en')).toBe('Sent · Twilio SMS')
+    expect(buildDeliveryContextLine({ status: 'queued' }, 'Twilio SMS', 'en')).toBe('Queued · Twilio SMS')
+  })
+
+  it('localizes by the channel locale (fr)', () => {
+    expect(buildDeliveryContextLine({ status: 'delivered' }, 'Twilio SMS', 'fr')).toBe('✓ Remis · Twilio SMS')
+  })
+
+  it('falls back to English for an unknown locale', () => {
+    expect(buildDeliveryContextLine({ status: 'delivered' }, 'Twilio SMS', 'pt')).toBe('✓ Delivered · Twilio SMS')
+  })
+
+  it('falls back to the raw status for an unmapped status', () => {
+    expect(buildDeliveryContextLine({ status: 'unknown' }, 'Twilio SMS', 'en')).toBe('unknown · Twilio SMS')
+  })
+})

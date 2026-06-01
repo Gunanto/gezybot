@@ -325,6 +325,41 @@ export interface OutboundMessageResult {
   deliveryMeta?: Record<string, unknown>
 }
 
+/** Normalized delivery lifecycle status for an outbound message. */
+export type DeliveryStatus =
+  | 'queued'
+  | 'sent'
+  | 'delivered'
+  | 'undelivered'
+  | 'failed'
+  | 'read'
+  | 'unknown'
+
+/**
+ * An asynchronous delivery-status update for a previously-sent outbound
+ * message. Webhook-driven channels (e.g. Twilio's MessageStatus callbacks)
+ * return this from {@link ChannelAdapter.handleInboundWebhook} when the
+ * incoming request is a status callback rather than a new inbound message.
+ *
+ * The host correlates `platformMessageId` back to the original outbound
+ * message (via its channel-message link) and refreshes the delivery hint
+ * shown under the bubble. When `contextLine` is omitted the host renders a
+ * localized default derived from `status` and `errorCode`.
+ */
+export interface DeliveryStatusUpdate {
+  /** Platform message id of the original outbound message (e.g. Twilio MessageSid). */
+  platformMessageId: string
+  /** Normalized delivery lifecycle status. */
+  status: DeliveryStatus
+  /** Optional provider-specific error code (e.g. Twilio "30007"). */
+  errorCode?: string
+  /** Optional human-readable detail about the status / failure. */
+  errorMessage?: string
+  /** Optional already-localized line to display under the bubble. When omitted
+   *  the host renders a default from `status`. */
+  contextLine?: string
+}
+
 /**
  * The contract every channel adapter implements to connect KinBot to
  * an external messaging platform (Telegram, Discord, Slack, custom
@@ -487,12 +522,23 @@ export interface ChannelAdapter {
    *
    * Adapters using long-lived connections (polling, WebSocket) don't need
    * this. Webhook-driven adapters (Twilio, …) implement it.
+   *
+   * The same endpoint also receives asynchronous delivery-status callbacks
+   * (e.g. Twilio MessageStatus). For those, return `incoming: null` and a
+   * `deliveryUpdate` describing the new status; the host updates the original
+   * outbound message instead of injecting a new one.
    */
   handleInboundWebhook?(
     channelId: string,
     config: Record<string, unknown>,
     req: Request,
-  ): Promise<{ incoming: IncomingMessage | null; response: Response }>
+  ): Promise<{
+    incoming: IncomingMessage | null
+    response: Response
+    /** Set when the request was a delivery-status callback rather than a new
+     *  inbound message. {@link DeliveryStatusUpdate} */
+    deliveryUpdate?: DeliveryStatusUpdate
+  }>
 }
 
 // ════════════════════════════════════════════════════════════════════════════

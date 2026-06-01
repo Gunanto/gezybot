@@ -18,6 +18,8 @@ export type {
   ChannelConfigField,
   ChannelConfigSchema,
   ChannelEndpoint,
+  DeliveryStatus,
+  DeliveryStatusUpdate,
   IncomingAttachment,
   IncomingMessage,
   IncomingMessageHandler,
