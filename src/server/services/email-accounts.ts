@@ -155,13 +155,32 @@ export async function resolveEmailProvider(opts: { slug?: string; kinId?: string
 
 /** Create (or update, when the same type+address already exists) an email
  *  account from a completed OAuth flow. */
+function rowCapabilities(row: ProviderRow): string[] {
+  try {
+    return JSON.parse(row.capabilities) as string[]
+  } catch {
+    return []
+  }
+}
+
+/** Union of two capability lists, order-stable. */
+function mergeCapabilities(existing: string[], add: string[]): string[] {
+  const out = [...existing]
+  for (const c of add) if (!out.includes(c)) out.push(c)
+  return out
+}
+
 export async function createOAuthEmailAccount(opts: {
   type: string
   emailAddress: string
   refreshToken: string
   scopes?: string[]
+  /** Capabilities this connection grants. Default ['email']. Merged into the
+   *  row when re-connecting, so one identity can serve email + contacts + … */
+  capabilities?: string[]
   name?: string
 }): Promise<EmailAccount> {
+  const capabilities = opts.capabilities ?? ['email']
   // Re-auth of an existing account? Match on type + address (config is
   // encrypted, so we decrypt to compare — small list, fine).
   let matched: ProviderRow | undefined
@@ -179,12 +198,19 @@ export async function createOAuthEmailAccount(opts: {
     const cfg = await decryptConfig(matched)
     cfg.refresh_token = opts.refreshToken
     if (opts.scopes) cfg.scopes = opts.scopes
+    const merged = mergeCapabilities(rowCapabilities(matched), capabilities)
     await db
       .update(providers)
-      .set({ configEncrypted: await encrypt(JSON.stringify(cfg)), isValid: true, lastError: null, updatedAt: now })
+      .set({
+        configEncrypted: await encrypt(JSON.stringify(cfg)),
+        capabilities: JSON.stringify(merged),
+        isValid: true,
+        lastError: null,
+        updatedAt: now,
+      })
       .where(eq(providers.id, matched.id))
     invalidateAccessToken(matched.id)
-    log.info({ id: matched.id, type: opts.type, email: opts.emailAddress }, 'Email account re-authorized')
+    log.info({ id: matched.id, type: opts.type, email: opts.emailAddress, capabilities: merged }, 'Email account re-authorized')
     return toAccount({ ...matched, isValid: true, lastError: null }, cfg)
   }
 
@@ -203,13 +229,13 @@ export async function createOAuthEmailAccount(opts: {
     name: opts.name ?? opts.emailAddress,
     type: opts.type,
     configEncrypted: await encrypt(JSON.stringify(cfg)),
-    capabilities: JSON.stringify(['email']),
+    capabilities: JSON.stringify(capabilities),
     isValid: true,
     lastError: null,
     createdAt: now,
     updatedAt: now,
   })
-  log.info({ id, slug, type: opts.type, email: opts.emailAddress }, 'Email account connected')
+  log.info({ id, slug, type: opts.type, email: opts.emailAddress, capabilities }, 'Email account connected')
   return toAccount({ id, slug, name: opts.name ?? opts.emailAddress, type: opts.type, configEncrypted: '', capabilities: '[]', isValid: true, lastError: null, createdAt: now, updatedAt: now }, cfg)
 }
 

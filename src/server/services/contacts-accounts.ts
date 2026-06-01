@@ -14,21 +14,36 @@ import { providers } from '@/server/db/schema'
 import { encrypt, decrypt } from '@/server/services/encryption'
 import { generateProviderSlug } from '@/server/services/provider-slug'
 import { getContactsProvider } from '@/server/contacts/registry'
+import { getFreshAccessToken } from '@/server/services/email-token-manager'
 import { createLogger } from '@/server/logger'
 import type { ContactsProvider } from '@/server/contacts/types'
 import type { ProviderConfig } from '@kinbot-developer/sdk'
 
 const log = createLogger('contacts-accounts')
 
-/** Decrypted shape stored in `providers.config_encrypted` for a contacts account. */
+/**
+ * Decrypted shape stored in `providers.config_encrypted`. This is the SHARED
+ * connected-account shape — a single row may serve several capabilities
+ * (email + contacts + …), so a contacts account created via OAuth (Google /
+ * Microsoft) carries `email_address` + `refresh_token`, while a CardDAV account
+ * carries `account_label` + `credentials`.
+ */
 interface ContactsAccountConfig {
-  account_label: string
-  /** Connection credentials declared by the provider's `configSchema`
-   *  (CardDAV: apple_id / app_password). Spread into ProviderConfig at resolve. */
+  /** Display label. Falls back to `email_address` for OAuth identities. */
+  account_label?: string
+  email_address?: string
+  /** OAuth identities — durable refresh token. */
+  refresh_token?: string
+  scopes?: string[]
+  /** Non-OAuth (CardDAV) connection credentials declared by `configSchema`. */
   credentials?: Record<string, string>
   /** null / absent / empty = global (any Kin with the contacts toolbox). A
    *  non-empty list restricts the account to those Kin ids. */
   allowed_kin_ids?: string[] | null
+}
+
+function accountLabelOf(cfg: ContactsAccountConfig): string {
+  return cfg.account_label || cfg.email_address || ''
 }
 
 /** Public, secret-free view of a contacts account. */
@@ -68,7 +83,7 @@ function toAccount(row: ProviderRow, cfg: ContactsAccountConfig): ContactsAccoun
     slug: row.slug,
     name: row.name,
     type: row.type,
-    accountLabel: cfg.account_label,
+    accountLabel: accountLabelOf(cfg),
     allowedKinIds: allowed,
     isValid: row.isValid,
     lastError: row.lastError,
@@ -122,8 +137,20 @@ export async function resolveContactsProvider(opts: { slug?: string; kinId?: str
   const provider = getContactsProvider(row.type)
   if (!provider) throw new Error(`Contacts provider not registered: ${row.type}`)
 
-  const config: ProviderConfig = { account_label: cfg.account_label }
-  if (cfg.credentials) Object.assign(config, cfg.credentials)
+  const config: ProviderConfig = { account_label: accountLabelOf(cfg) }
+  if (cfg.email_address) config.email_address = cfg.email_address
+  if (provider.oauth) {
+    // OAuth identity (Google / Microsoft): inject a fresh access token. The
+    // token covers contacts because the connect flow requested contacts scopes.
+    config.accessToken = await getFreshAccessToken({
+      id: row.id,
+      type: row.type,
+      refreshToken: cfg.refresh_token ?? '',
+    })
+  } else if (cfg.credentials) {
+    // Non-OAuth (CardDAV): hand the provider its connection fields.
+    Object.assign(config, cfg.credentials)
+  }
   return { account: toAccount(row, cfg), provider, config }
 }
 
@@ -139,7 +166,7 @@ export async function createConfigContactsAccount(opts: {
   for (const r of loadContactsRows()) {
     if (r.type !== opts.type) continue
     const cfg = await decryptConfig(r)
-    if (cfg.account_label === opts.accountLabel) {
+    if (accountLabelOf(cfg) === opts.accountLabel) {
       matched = r
       break
     }
