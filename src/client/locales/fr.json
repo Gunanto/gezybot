@@ -1727,6 +1727,7 @@
       "empty": "Aucun compte email connecté",
       "emptyDescription": "Configurez un provider ci-dessus et connectez une boîte mail pour commencer.",
       "connect": "Connecter {{provider}}",
+      "connected": "Compte {{provider}} connecté",
       "connectedToast": "{{email}} connecté",
       "editCreds": "Modifier les identifiants de l'app",
       "credsSaved": "Identifiants de l'app enregistrés",

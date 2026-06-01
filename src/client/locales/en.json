@@ -1727,6 +1727,7 @@
       "empty": "No email account connected",
       "emptyDescription": "Configure a provider above and connect a mailbox to get started.",
       "connect": "Connect {{provider}}",
+      "connected": "{{provider}} account connected",
       "connectedToast": "{{email}} connected",
       "editCreds": "Edit app credentials",
       "credsSaved": "App credentials saved",

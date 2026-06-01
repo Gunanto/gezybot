@@ -1,8 +1,9 @@
 # KinBot — Email accounts
 
 Connect email accounts so Kins can **read** (list / read / search) and **send**
-mail. Built-ins ship **Gmail** and **Microsoft / Outlook** (both OAuth); email is
-a first-class, pluggable **provider family** — adding IMAP / Proton later is one
+mail. Built-ins ship **Gmail** and **Microsoft / Outlook** (OAuth) plus a generic
+**IMAP / SMTP** provider (host/port/password); email is a first-class, pluggable
+**provider family** — adding Proton or any other provider later is one
 `EmailProvider` implementation, no core refactor.
 
 ## Model: an email account *is* a provider row
@@ -12,11 +13,11 @@ An email account is a row in the `providers` table with capability `email`
 
 | Column | Email account |
 |---|---|
-| `type` | `'gmail'` / `'microsoft'` (later `'imap'`, `plugin:x:proton`) |
+| `type` | `'gmail'` / `'microsoft'` / `'imap'` (or `plugin:x:proton`) |
 | `name` | label (defaults to the address) |
 | `slug` | stable id used by tools (`gmail-perso`, `gmail-pro`) |
 | `capabilities` | `["email"]` |
-| `config_encrypted` | `{ email_address, refresh_token, scopes, send_mode, allowed_kin_ids }` |
+| `config_encrypted` | OAuth: `{ email_address, refresh_token, scopes, … }` · non-OAuth: `{ email_address, credentials, … }` (+ `send_mode`, `allowed_kin_ids`) |
 
 Multi-account falls out for free: several rows of the same `type`. Credentials
 never leave the encrypted config — the tools resolve an account, inject a fresh
@@ -71,6 +72,20 @@ scopes (`oauth` profile); the host never bakes in provider-specific OAuth.
 > User.Read, `common` tenant). Google only allows `http` on `localhost`/loopback
 > — a LAN IP needs `https` (drive the public origin with `PUBLIC_URL`).
 
+## Non-OAuth providers (IMAP / SMTP)
+
+The generic `imap` provider needs no app registration — the user types the
+connection fields declared in its `configSchema` (email, IMAP host/port, SMTP
+host/port, username, password). TLS is inferred from the port (993 → implicit
+TLS, 587/143 → STARTTLS; SMTP 465 → implicit TLS, 587/25 → STARTTLS).
+
+`POST /api/email-accounts/connect-config/:type` validates the fields by calling
+`provider.authenticate(config)` (a live IMAP connect + SMTP `verify()`) **before**
+storing them; the credentials are encrypted in `config.credentials` and spread
+back into the `ProviderConfig` at resolve time (no token to refresh). Reading
+uses `imapflow`, sending uses `nodemailer`, MIME parsing uses `mailparser`. A
+message id is folder-scoped (`<mailbox>:<uid>`).
+
 ## Tools + toolbox
 
 Native tools (`src/server/tools/email-tools.ts`), gated by the built-in `email`
@@ -123,6 +138,6 @@ send-mode, disconnect).
 
 ## Out of v1 (fast-follows)
 
-Contacts / calendar ·
-generic IMAP / SMTP provider · agentic inbound (a light-model cron polling new
-mail; push when the provider supports it).
+Contacts / calendar · IMAP threading + auto-filing sent mail to the Sent folder ·
+agentic inbound (a light-model cron polling new mail; push when the provider
+supports it).

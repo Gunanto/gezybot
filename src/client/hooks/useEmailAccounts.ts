@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import type { ConfigField } from '@kinbot-developer/sdk'
 import { api } from '@/client/lib/api'
 import { registerProviderReactIcon } from '@/client/components/common/ProviderIcon'
 
@@ -25,6 +26,9 @@ export interface EmailProviderInfo {
   brandColor: string | null
   /** Where the operator sets up the OAuth app (Google Cloud / Azure portal). */
   consoleUrl: string | null
+  /** For non-OAuth providers (IMAP/SMTP): the fields to render in the Add
+   *  dialog. Empty for OAuth providers. */
+  configSchema: ConfigField[]
 }
 
 export function useEmailAccounts() {

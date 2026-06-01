@@ -27,8 +27,13 @@ export type SendMode = 'direct' | 'approval'
 /** Decrypted shape stored in `providers.config_encrypted` for an email account. */
 interface EmailAccountConfig {
   email_address: string
-  refresh_token: string
+  /** OAuth providers only — the durable refresh token. */
+  refresh_token?: string
   scopes?: string[]
+  /** Non-OAuth providers (IMAP/SMTP) — the connection credentials declared by
+   *  the provider's `configSchema` (host/port/username/password, …). Never
+   *  exposed in prompts; spread into the ProviderConfig at resolve time. */
+  credentials?: Record<string, string>
   send_mode?: SendMode
   /** null / absent / empty = global (any Kin with the email toolbox). A
    *  non-empty list restricts the account to those Kin ids. */
@@ -136,7 +141,14 @@ export async function resolveEmailProvider(opts: { slug?: string; kinId?: string
 
   const config: ProviderConfig = { email_address: cfg.email_address }
   if (provider.oauth) {
-    config.accessToken = await getFreshAccessToken({ id: row.id, type: row.type, refreshToken: cfg.refresh_token })
+    config.accessToken = await getFreshAccessToken({
+      id: row.id,
+      type: row.type,
+      refreshToken: cfg.refresh_token ?? '',
+    })
+  } else if (cfg.credentials) {
+    // Non-OAuth (IMAP/SMTP): hand the provider its connection fields.
+    Object.assign(config, cfg.credentials)
   }
   return { account: toAccount(row, cfg), provider, config, sendMode: cfg.send_mode ?? 'direct' }
 }
@@ -199,6 +211,63 @@ export async function createOAuthEmailAccount(opts: {
   })
   log.info({ id, slug, type: opts.type, email: opts.emailAddress }, 'Email account connected')
   return toAccount({ id, slug, name: opts.name ?? opts.emailAddress, type: opts.type, configEncrypted: '', capabilities: '[]', isValid: true, lastError: null, createdAt: now, updatedAt: now }, cfg)
+}
+
+/** Create (or update, when the same type+address already exists) a non-OAuth
+ *  email account from validated configSchema credentials (IMAP/SMTP). */
+export async function createConfigEmailAccount(opts: {
+  type: string
+  emailAddress: string
+  credentials: Record<string, string>
+  name?: string
+}): Promise<EmailAccount> {
+  let matched: ProviderRow | undefined
+  for (const r of loadEmailRows()) {
+    if (r.type !== opts.type) continue
+    const cfg = await decryptConfig(r)
+    if (cfg.email_address === opts.emailAddress) {
+      matched = r
+      break
+    }
+  }
+
+  const now = new Date()
+  if (matched) {
+    const cfg = await decryptConfig(matched)
+    cfg.credentials = opts.credentials
+    await db
+      .update(providers)
+      .set({ configEncrypted: await encrypt(JSON.stringify(cfg)), isValid: true, lastError: null, updatedAt: now })
+      .where(eq(providers.id, matched.id))
+    log.info({ id: matched.id, type: opts.type, email: opts.emailAddress }, 'Email account credentials updated')
+    return toAccount({ ...matched, isValid: true, lastError: null }, cfg)
+  }
+
+  const id = uuid()
+  const slug = generateProviderSlug(opts.name ?? opts.emailAddress)
+  const cfg: EmailAccountConfig = {
+    email_address: opts.emailAddress,
+    credentials: opts.credentials,
+    send_mode: 'direct',
+    allowed_kin_ids: null,
+  }
+  await db.insert(providers).values({
+    id,
+    slug,
+    name: opts.name ?? opts.emailAddress,
+    type: opts.type,
+    configEncrypted: await encrypt(JSON.stringify(cfg)),
+    capabilities: JSON.stringify(['email']),
+    isValid: true,
+    lastError: null,
+    createdAt: now,
+    updatedAt: now,
+  })
+  log.info({ id, slug, type: opts.type, email: opts.emailAddress }, 'Email account connected (config)')
+  return toAccount(
+    { id, slug, name: opts.name ?? opts.emailAddress, type: opts.type, configEncrypted: '', capabilities: '[]', isValid: true, lastError: null, createdAt: now, updatedAt: now },
+    cfg,
+  )
 }
 
 export async function deleteEmailAccount(id: string): Promise<void> {

@@ -12,6 +12,7 @@ import { buildAuthorizeUrl, exchangeCode, fetchAccountEmail } from '@/server/ser
 import {
   listEmailAccounts,
   createOAuthEmailAccount,
+  createConfigEmailAccount,
   deleteEmailAccount,
   setSendMode,
   setAllowList,
@@ -68,6 +69,8 @@ emailAccountRoutes.get('/providers', async (c) => {
       reactIcon: p.reactIcon ?? null,
       brandColor: p.brandColor ?? null,
       consoleUrl: p.apiKeyUrl ?? null,
+      // Non-OAuth providers (IMAP/SMTP) render this form in the Add dialog.
+      configSchema: p.oauth ? [] : p.configSchema,
     })
   }
   // The exact redirect URI the server will send — so the UI shows what to
@@ -125,6 +128,58 @@ emailAccountRoutes.post('/connect/:type', async (c) => {
     state,
   })
   return c.json({ authUrl })
+})
+
+// POST /api/email-accounts/connect-config/:type — connect a non-OAuth account
+// (IMAP/SMTP). Validates the submitted configSchema fields via authenticate()
+// before storing them encrypted.
+emailAccountRoutes.post('/connect-config/:type', async (c) => {
+  const type = c.req.param('type')
+  const provider = getEmailProvider(type)
+  if (!provider) {
+    return c.json({ error: { code: 'UNKNOWN_PROVIDER', message: `Unknown email provider: ${type}` } }, 404)
+  }
+  if (provider.oauth) {
+    return c.json({ error: { code: 'IS_OAUTH', message: `${type} uses OAuth — use /connect/${type}` } }, 400)
+  }
+
+  const body = await c.req.json<{ fields?: Record<string, string>; name?: string }>()
+  const fields = body.fields ?? {}
+
+  // Required-field check against the provider's declared schema.
+  const missing = provider.configSchema
+    .filter((f) => f.required && !fields[f.key]?.trim())
+    .map((f) => f.label)
+  if (missing.length > 0) {
+    return c.json(
+      { error: { code: 'INVALID_INPUT', message: `Missing required field(s): ${missing.join(', ')}` } },
+      400,
+    )
+  }
+
+  // Build the ProviderConfig from declared keys only (apply schema defaults).
+  const config: Record<string, string> = {}
+  for (const f of provider.configSchema) {
+    const v = fields[f.key]?.trim()
+    if (v) config[f.key] = v
+    else if ('default' in f && f.default) config[f.key] = f.default
+  }
+
+  try {
+    const auth = await provider.authenticate(config)
+    if (!auth.valid) {
+      return c.json({ error: { code: 'AUTH_FAILED', message: auth.error ?? 'Authentication failed' } }, 400)
+    }
+    const emailAddress = config.email || auth.accountLabel
+    if (!emailAddress) {
+      return c.json({ error: { code: 'NO_EMAIL', message: 'Could not determine the account email address' } }, 400)
+    }
+    const account = await createConfigEmailAccount({ type, emailAddress, credentials: config, name: body.name })
+    return c.json({ account })
+  } catch (err) {
+    log.error({ err, type }, 'Config email connect failed')
+    return c.json({ error: { code: 'CONNECT_FAILED', message: err instanceof Error ? err.message : 'Failed' } }, 400)
+  }
 })
 
 // GET /api/email-accounts/oauth/callback — OAuth redirect target.

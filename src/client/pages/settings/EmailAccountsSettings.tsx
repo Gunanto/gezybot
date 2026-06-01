@@ -293,7 +293,9 @@ function AddEmailAccountDialog({
               </SelectContent>
             </Select>
           </div>
-          {provider && <ConnectStep provider={provider} onChange={onChange} />}
+          {provider && (
+            <ConnectStep provider={provider} onChange={onChange} onClose={() => onOpenChange(false)} />
+          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -301,14 +303,27 @@ function AddEmailAccountDialog({
 }
 
 /** The connect action in the Add dialog. OAuth providers connect via redirect
- *  once their app is configured (on the main page); others would render their
- *  own form (IMAP — future). */
-function ConnectStep({ provider, onChange }: { provider: EmailProviderInfo; onChange: () => void }) {
+ *  once their app is configured (on the main page); non-OAuth providers (IMAP)
+ *  render a credentials form validated server-side before the account is saved. */
+function ConnectStep({
+  provider,
+  onChange,
+  onClose,
+}: {
+  provider: EmailProviderInfo
+  onChange: () => void
+  onClose: () => void
+}) {
   const { t } = useTranslation()
   const [connecting, setConnecting] = useState(false)
-  void onChange // reserved for non-OAuth (form-based) providers
+  const [fields, setFields] = useState<Record<string, string>>({})
 
-  const connect = async () => {
+  // Reset the form when switching providers.
+  useEffect(() => {
+    setFields({})
+  }, [provider.type])
+
+  const connectOAuth = async () => {
     setConnecting(true)
     try {
       const { authUrl } = await api.post<{ authUrl: string }>(`/email-accounts/connect/${provider.type}`)
@@ -319,19 +334,65 @@ function ConnectStep({ provider, onChange }: { provider: EmailProviderInfo; onCh
     }
   }
 
-  if (provider.usesOAuth && !provider.oauthConfigured) {
+  const connectConfig = async () => {
+    setConnecting(true)
+    try {
+      await api.post(`/email-accounts/connect-config/${provider.type}`, { fields })
+      toast.success(t('settings.emailAccounts.connected', { provider: provider.displayName }))
+      onChange()
+      onClose()
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+    } finally {
+      setConnecting(false)
+    }
+  }
+
+  if (provider.usesOAuth) {
+    if (!provider.oauthConfigured) {
+      return (
+        <p className="rounded-md border border-warning/40 bg-warning/5 p-2 text-xs text-warning">
+          {t('settings.emailAccounts.configureAppFirst', { provider: provider.displayName })}
+        </p>
+      )
+    }
     return (
-      <p className="rounded-md border border-warning/40 bg-warning/5 p-2 text-xs text-warning">
-        {t('settings.emailAccounts.configureAppFirst', { provider: provider.displayName })}
-      </p>
+      <Button className="w-full" onClick={connectOAuth} disabled={connecting}>
+        <Plus className="size-4" />
+        {t('settings.emailAccounts.connect', { provider: provider.displayName })}
+      </Button>
     )
   }
 
+  // Non-OAuth (IMAP/SMTP): a form built from the provider's configSchema.
+  const missingRequired = provider.configSchema.some((f) => f.required && !fields[f.key]?.trim())
+
   return (
-    <Button className="w-full" onClick={connect} disabled={connecting}>
-      <Plus className="size-4" />
-      {t('settings.emailAccounts.connect', { provider: provider.displayName })}
-    </Button>
+    <div className="space-y-3">
+      {provider.configSchema.map((field) => {
+        const isSecret = field.type === 'secret'
+        const Tag = isSecret ? PasswordInput : Input
+        return (
+          <div key={field.key} className="space-y-1.5">
+            <Label htmlFor={`imap-${field.key}`} className="text-xs">
+              {field.label}
+              {field.required && <span className="ml-1 text-destructive">*</span>}
+            </Label>
+            <Tag
+              id={`imap-${field.key}`}
+              value={fields[field.key] ?? ''}
+              placeholder={'placeholder' in field ? field.placeholder : undefined}
+              onChange={(e) => setFields((v) => ({ ...v, [field.key]: e.target.value }))}
+            />
+            {field.description && <p className="text-xs text-muted-foreground">{field.description}</p>}
+          </div>
+        )
+      })}
+      <Button className="w-full" onClick={connectConfig} disabled={connecting || missingRequired}>
+        <Plus className="size-4" />
+        {t('settings.emailAccounts.connect', { provider: provider.displayName })}
+      </Button>
+    </div>
   )
 }
 
