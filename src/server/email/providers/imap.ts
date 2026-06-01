@@ -235,6 +235,20 @@ export const imapProvider: EmailProvider = {
       placeholder: 'password or app password',
       description: 'Many providers require an app-specific password.',
     },
+    {
+      key: 'carddav_url',
+      type: 'url',
+      label: 'CardDAV URL (optional)',
+      placeholder: 'https://carddav.example.com',
+      description: 'Only needed if you enable Contacts for this account.',
+    },
+    {
+      key: 'caldav_url',
+      type: 'url',
+      label: 'CalDAV URL (optional)',
+      placeholder: 'https://caldav.example.com',
+      description: 'Only needed if you enable Calendar for this account.',
+    },
   ],
   capabilities: {
     supportsOAuth: false,
