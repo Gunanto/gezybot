@@ -2609,6 +2609,19 @@ body {
   }
 }
 
+/* ─── MOBILE: PREVENT ZOOM ON INPUT FOCUS ──────────────── */
+/* iOS Safari zooms in when an input's font-size is below 16px on focus.
+   Targeting touch-primary devices (hover: none, pointer: coarse) ensures
+   all interactive inputs render at least 16px, preventing the automatic
+   zoom without disabling user-initiated pinch-to-zoom (no user-scalable=no). */
+@media (hover: none) and (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: max(1rem, 16px) !important;
+  }
+}
+
 /* ─── RADIX SCROLLAREA HORIZONTAL OVERFLOW FIX ─────────── */
 
 /* Radix injects an inner wrapper (display:table; min-width:100%) inside the
