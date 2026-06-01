@@ -32,6 +32,9 @@ import { GeneratedImageRenderer } from '@/client/components/chat/renderers/Gener
 import { KnowledgeResultRenderer } from '@/client/components/chat/renderers/KnowledgeResultRenderer'
 import { BrowseUrlRenderer } from '@/client/components/chat/renderers/BrowseUrlRenderer'
 import { ContactResultRenderer } from '@/client/components/chat/renderers/ContactResultRenderer'
+import { EmailResultRenderer } from '@/client/components/chat/renderers/EmailResultRenderer'
+import { AddressBookResultRenderer } from '@/client/components/chat/renderers/AddressBookResultRenderer'
+import { CalendarResultRenderer } from '@/client/components/chat/renderers/CalendarResultRenderer'
 import { TaskSpawnRenderer } from '@/client/components/chat/renderers/TaskSpawnRenderer'
 import { CronResultRenderer } from '@/client/components/chat/renderers/CronResultRenderer'
 import { GrepResultRenderer } from '@/client/components/chat/renderers/GrepResultRenderer'
@@ -68,6 +71,29 @@ registerRenderer('search_contacts', ContactResultRenderer)
 registerRenderer('create_contact', ContactResultRenderer)
 registerRenderer('update_contact', ContactResultRenderer)
 registerRenderer('find_contact_by_identifier', ContactResultRenderer)
+
+// Email — accounts / message list / full message / send + download confirmations
+registerRenderer('list_email_accounts', EmailResultRenderer)
+registerRenderer('list_emails', EmailResultRenderer)
+registerRenderer('search_emails', EmailResultRenderer)
+registerRenderer('read_email', EmailResultRenderer)
+registerRenderer('send_email', EmailResultRenderer)
+registerRenderer('download_email_attachment', EmailResultRenderer)
+
+// Address book (external contacts) — accounts / contact list / single contact
+registerRenderer('list_address_books', AddressBookResultRenderer)
+registerRenderer('list_address_book_contacts', AddressBookResultRenderer)
+registerRenderer('get_address_book_contact', AddressBookResultRenderer)
+registerRenderer('search_address_book', AddressBookResultRenderer)
+
+// Calendar — accounts / calendars / event list / single event / delete confirmation
+registerRenderer('list_calendar_accounts', CalendarResultRenderer)
+registerRenderer('list_calendars', CalendarResultRenderer)
+registerRenderer('list_events', CalendarResultRenderer)
+registerRenderer('get_event', CalendarResultRenderer)
+registerRenderer('create_event', CalendarResultRenderer)
+registerRenderer('update_event', CalendarResultRenderer)
+registerRenderer('delete_event', CalendarResultRenderer)
 
 // Tasks — spawn confirmation / task detail card
 registerRenderer('spawn_self', TaskSpawnRenderer)

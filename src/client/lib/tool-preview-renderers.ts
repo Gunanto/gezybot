@@ -608,3 +608,82 @@ registerPreviewRenderer('update_memory', ({ args }) => {
 registerPreviewRenderer('delete_mini_app_file', ({ args }) => {
   return (args.path as string) || null
 })
+
+// --- Email ---
+
+registerPreviewRenderer('list_emails', ({ args }) => {
+  const folder = args.folder as string | undefined
+  const query = args.query as string | undefined
+  if (query) return `"${truncate(query, 40)}"`
+  return folder ? truncate(folder, 40) : 'INBOX'
+})
+
+registerPreviewRenderer('search_emails', ({ args }) => {
+  const raw = args.raw as string | undefined
+  if (raw) return truncate(raw, 50)
+  const parts = [args.from, args.to, args.subject, args.text].filter(
+    (v): v is string => typeof v === 'string' && v.length > 0,
+  )
+  return parts.length ? truncate(parts.join(' '), 50) : null
+})
+
+registerPreviewRenderer('read_email', ({ args }) => {
+  return (args.message_id as string) ? truncate(args.message_id as string, 40) : null
+})
+
+registerPreviewRenderer('send_email', ({ args }) => {
+  const to = args.to
+  const recipients = Array.isArray(to) ? to.filter((v): v is string => typeof v === 'string') : []
+  const subject = args.subject as string | undefined
+  if (recipients.length) {
+    const head = truncate(recipients[0]!, 30)
+    const extra = recipients.length > 1 ? ` +${recipients.length - 1}` : ''
+    return subject ? `${head}${extra}: ${truncate(subject, 25)}` : `${head}${extra}`
+  }
+  return subject ? truncate(subject, 50) : null
+})
+
+registerPreviewRenderer('download_email_attachment', ({ args }) => {
+  return (args.save_as as string) || (args.attachment_id as string) || null
+})
+
+// --- Address book ---
+
+registerPreviewRenderer('search_address_book', ({ args }) => {
+  return (args.query as string) ? `"${truncate(args.query as string, 40)}"` : null
+})
+
+registerPreviewRenderer('get_address_book_contact', ({ args }) => {
+  return (args.contact_id as string) ? truncate(args.contact_id as string, 40) : null
+})
+
+// --- Calendar ---
+
+registerPreviewRenderer('list_events', ({ args }) => {
+  const query = args.query as string | undefined
+  if (query) return `"${truncate(query, 40)}"`
+  const min = args.time_min as string | undefined
+  const max = args.time_max as string | undefined
+  if (min && max) return `${truncate(min, 20)} → ${truncate(max, 20)}`
+  return min ? `from ${truncate(min, 30)}` : null
+})
+
+registerPreviewRenderer('get_event', ({ args }) => {
+  return (args.event_id as string) ? truncate(args.event_id as string, 40) : null
+})
+
+registerPreviewRenderer('create_event', ({ args }) => {
+  const title = args.title as string | undefined
+  const start = args.start as string | undefined
+  return title ? `${truncate(title, 35)}${start ? ` (${truncate(start, 16)})` : ''}` : null
+})
+
+registerPreviewRenderer('update_event', ({ args }) => {
+  const title = args.title as string | undefined
+  const id = args.event_id as string | undefined
+  return title ? truncate(title, 50) : id ? truncate(id, 40) : null
+})
+
+registerPreviewRenderer('delete_event', ({ args }) => {
+  return (args.event_id as string) ? truncate(args.event_id as string, 40) : null
+})
