@@ -598,7 +598,7 @@ export const MessageInput = memo(forwardRef<MessageInputHandle, MessageInputProp
 
   return (
     <div
-      className="relative border-t bg-background/80 backdrop-blur-sm p-4"
+      className="relative border-t bg-background/80 backdrop-blur-sm px-3 py-3 sm:px-4 sm:py-4"
       onDragEnter={onAddFiles ? handleDragEnter : undefined}
       onDragLeave={onAddFiles ? handleDragLeave : undefined}
       onDragOver={onAddFiles ? handleDragOver : undefined}
@@ -611,10 +611,27 @@ export const MessageInput = memo(forwardRef<MessageInputHandle, MessageInputProp
         </div>
       )}
 
-      <div className="mx-auto max-w-3xl">
+      {/* Hidden file input */}
+      {onAddFiles && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={handleFileSelect}
+        />
+      )}
+
+      {/* Composer card */}
+      <div className={cn(
+        'mx-auto max-w-3xl rounded-2xl border bg-card shadow-sm transition-all duration-150',
+        'focus-within:border-ring/60 focus-within:shadow-md focus-within:ring-2 focus-within:ring-ring/15',
+        isDragging ? 'border-primary' : 'border-border',
+      )}>
+
         {/* Pending file chips */}
         {hasPendingFiles && (
-          <div className="mb-2 flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 px-3 pt-3 pb-1">
             {pendingFiles.map((pf) => (
               <div
                 key={pf.localId}
@@ -657,18 +674,74 @@ export const MessageInput = memo(forwardRef<MessageInputHandle, MessageInputProp
           </div>
         )}
 
-        {/* Input row */}
-        <div className="flex items-end gap-2">
-          {/* Attach button */}
-          {onAddFiles && (
-            <>
+        {/* Textarea — borderless, blends into the card */}
+        <div className="relative">
+          <Textarea
+            ref={textareaRef}
+            value={value}
+            onChange={(e) => handleChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            placeholder={disabledReason ?? t('chat.placeholder')}
+            disabled={disabled}
+            rows={1}
+            className={cn(
+              'min-h-12 max-h-48 resize-none border-0 bg-transparent shadow-none outline-none',
+              'focus-visible:ring-0 focus-visible:border-0 rounded-none',
+              'px-4 py-3 text-sm',
+              disabledReason && 'placeholder:text-warning/70',
+            )}
+          />
+
+          {/* @mention autocomplete popover */}
+          {isMentionOpen && mentionableUsers && mentionableKins && (
+            <MentionPopover
+              query={mentionQuery!}
+              users={mentionableUsers}
+              kins={mentionableKins}
+              selectedIndex={mentionSelectedIndex}
+              position={mentionPosition}
+              onSelect={handleMentionSelect}
+            />
+          )}
+
+          {/* #ticket autocomplete popover */}
+          {isTicketOpen && (
+            <TicketMentionPopover
+              hits={visibleTicketHits}
+              isLoading={isTicketLoading}
+              selectedIndex={ticketSelectedIndex}
+              position={ticketPosition}
+              scopeProjectSlug={ticketProjectSlug}
+              onSelect={handleTicketSelect}
+              onHover={setTicketSelectedIndex}
+            />
+          )}
+
+          {/* /command autocomplete popover */}
+          {isCommandOpen && !isMentionOpen && !isTicketOpen && (
+            <CommandPopover
+              query={commandQuery!}
+              selectedIndex={commandSelectedIndex}
+              position={commandPosition}
+              isStreaming={isStreaming}
+              onSelect={handleCommandSelect}
+            />
+          )}
+        </div>
+
+        {/* Action bar */}
+        <div className="flex items-center gap-1 border-t border-border/60 px-2 py-2">
+          {/* Left: attach + model + thinking */}
+          <div className="flex min-w-0 flex-1 items-center gap-0.5">
+            {onAddFiles && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="shrink-0"
+                    className="size-8 shrink-0 rounded-lg text-muted-foreground hover:text-foreground"
                     disabled={disabled}
                     onClick={() => fileInputRef.current?.click()}
                   >
@@ -677,108 +750,18 @@ export const MessageInput = memo(forwardRef<MessageInputHandle, MessageInputProp
                 </TooltipTrigger>
                 <TooltipContent>{t('chat.attachFile')}</TooltipContent>
               </Tooltip>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                onChange={handleFileSelect}
-              />
-            </>
-          )}
-
-          <div className="relative flex-1">
-            <Textarea
-              ref={textareaRef}
-              value={value}
-              onChange={(e) => handleChange(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              placeholder={disabledReason ?? t('chat.placeholder')}
-              disabled={disabled}
-              rows={1}
-              className={cn(
-                'min-h-10 max-h-40 resize-none',
-                disabledReason && 'placeholder:text-warning/70',
-              )}
-            />
-
-            {/* @mention autocomplete popover */}
-            {isMentionOpen && mentionableUsers && mentionableKins && (
-              <MentionPopover
-                query={mentionQuery!}
-                users={mentionableUsers}
-                kins={mentionableKins}
-                selectedIndex={mentionSelectedIndex}
-                position={mentionPosition}
-                onSelect={handleMentionSelect}
-              />
             )}
 
-            {/* #ticket autocomplete popover */}
-            {isTicketOpen && (
-              <TicketMentionPopover
-                hits={visibleTicketHits}
-                isLoading={isTicketLoading}
-                selectedIndex={ticketSelectedIndex}
-                position={ticketPosition}
-                scopeProjectSlug={ticketProjectSlug}
-                onSelect={handleTicketSelect}
-                onHover={setTicketSelectedIndex}
-              />
-            )}
-
-            {/* /command autocomplete popover */}
-            {isCommandOpen && !isMentionOpen && !isTicketOpen && (
-              <CommandPopover
-                query={commandQuery!}
-                selectedIndex={commandSelectedIndex}
-                position={commandPosition}
-                isStreaming={isStreaming}
-                onSelect={handleCommandSelect}
-              />
-            )}
-          </div>
-
-          {(isStreaming || isProcessing) && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={onStop}
-                  size="icon"
-                  variant="destructive"
-                  className="shrink-0"
-                >
-                  <Square className="size-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t('chat.stop')}</TooltipContent>
-            </Tooltip>
-          )}
-          <Button
-            onClick={handleSubmit}
-            disabled={disabled || isUploading || (!value.trim() && !hasPendingFiles) || value.length > MAX_MESSAGE_LENGTH}
-            size="icon"
-            className="shrink-0"
-          >
-            <SendHorizontal className="size-4" />
-          </Button>
-        </div>
-
-        {/* Composer toolbar: generation controls (model + effort) on the left,
-            character count on the right. Model/effort were relocated here from
-            the conversation header so they sit where you compose. */}
-        <div className="mt-1.5 flex items-center justify-between gap-2 px-1">
-          <div className="flex min-w-0 items-center gap-0.5">
             {llmModels && model && onModelChange && (
               <ModelPicker
                 models={llmModels}
                 value={modelPickerValue(model, providerId ?? '')}
                 onValueChange={onModelChange}
                 variant="ghost"
-                className="h-7 w-auto min-w-0 max-w-[200px] shrink gap-1.5 rounded-full px-2.5 text-xs font-normal text-muted-foreground hover:text-foreground"
+                className="h-8 w-auto min-w-0 max-w-[160px] shrink gap-1.5 rounded-lg px-2 text-xs font-normal text-muted-foreground hover:text-foreground sm:max-w-[200px]"
               />
             )}
+
             {onChangeThinking && (
               <ThinkingEffortPicker
                 enabled={thinkingEnabled}
@@ -788,23 +771,55 @@ export const MessageInput = memo(forwardRef<MessageInputHandle, MessageInputProp
               />
             )}
           </div>
-          <span className={cn(
-            'text-[10px] tabular-nums transition-opacity duration-150',
-            value.length > 0 ? 'opacity-100' : 'opacity-0',
-            value.length > MAX_MESSAGE_LENGTH
-              ? 'text-destructive font-medium'
-              : value.length > MAX_MESSAGE_LENGTH * 0.75
-                ? 'text-destructive'
-                : value.length > MAX_MESSAGE_LENGTH * 0.5
-                  ? 'text-warning'
-                  : 'text-muted-foreground/50',
-          )}>
-            {value.length > MAX_MESSAGE_LENGTH
-              ? t('chat.messageTooLong', { count: value.length, max: MAX_MESSAGE_LENGTH })
-              : value.length > 0
-                ? t('chat.charCount', { count: value.length })
-                : '\u00A0'}
-          </span>
+
+          {/* Right: char count + stop + send */}
+          <div className="flex shrink-0 items-center gap-1.5">
+            {/* Character count */}
+            <span className={cn(
+              'text-[10px] tabular-nums transition-opacity duration-150 hidden sm:block',
+              value.length > 0 ? 'opacity-100' : 'opacity-0',
+              value.length > MAX_MESSAGE_LENGTH
+                ? 'text-destructive font-medium'
+                : value.length > MAX_MESSAGE_LENGTH * 0.75
+                  ? 'text-destructive'
+                  : value.length > MAX_MESSAGE_LENGTH * 0.5
+                    ? 'text-warning'
+                    : 'text-muted-foreground/50',
+            )}>
+              {value.length > MAX_MESSAGE_LENGTH
+                ? t('chat.messageTooLong', { count: value.length, max: MAX_MESSAGE_LENGTH })
+                : value.length > 0
+                  ? t('chat.charCount', { count: value.length })
+                  : '\u00A0'}
+            </span>
+
+            {/* Stop button */}
+            {(isStreaming || isProcessing) && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={onStop}
+                    size="icon"
+                    variant="outline"
+                    className="size-8 shrink-0 rounded-lg border-destructive/40 text-destructive hover:bg-destructive/10 hover:border-destructive"
+                  >
+                    <Square className="size-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t('chat.stop')}</TooltipContent>
+              </Tooltip>
+            )}
+
+            {/* Send button */}
+            <Button
+              onClick={handleSubmit}
+              disabled={disabled || isUploading || (!value.trim() && !hasPendingFiles) || value.length > MAX_MESSAGE_LENGTH}
+              size="icon"
+              className="size-8 shrink-0 rounded-lg"
+            >
+              <SendHorizontal className="size-4" />
+            </Button>
+          </div>
         </div>
       </div>
     </div>
