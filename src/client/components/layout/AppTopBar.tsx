@@ -1,4 +1,7 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import { Home, FolderKanban } from 'lucide-react'
+import { cn } from '@/client/lib/utils'
 import { useAuth } from '@/client/hooks/useAuth'
 import { ThemeToggle } from '@/client/components/common/ThemeToggle'
 import { PaletteToggle } from '@/client/components/common/PaletteToggle'
@@ -29,6 +32,17 @@ interface AppTopBarProps {
 export function AppTopBar({ onOpenSettings, onOpenAccount }: AppTopBarProps) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const { t } = useTranslation()
+
+  // Mobile mode switch — the left ActivityBar rail is hidden below md, so the
+  // Kins/Projects switch moves into this always-present top bar as a compact
+  // segmented control. Keeps navigation reachable without wasting a full column.
+  const isProjects = location.pathname.startsWith('/projects')
+  const modeItems = [
+    { key: 'kins', to: '/', icon: Home, active: !isProjects, label: t('activityBar.kins') },
+    { key: 'projects', to: '/projects', icon: FolderKanban, active: isProjects, label: t('activityBar.projects') },
+  ] as const
 
   return (
     <header className="surface-header sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b px-4">
@@ -44,6 +58,35 @@ export function AppTopBar({ onOpenSettings, onOpenAccount }: AppTopBarProps) {
           KinBot
         </span>
       </button>
+
+      {/* Mobile mode switch (Kins / Projects) — replaces the hidden ActivityBar
+          rail below md. Icon-only segmented control to stay compact. */}
+      <nav
+        className="flex shrink-0 items-center gap-0.5 rounded-lg bg-muted/60 p-0.5 md:hidden"
+        aria-label={t('activityBar.kins')}
+      >
+        {modeItems.map((item) => {
+          const Icon = item.icon
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => navigate(item.to)}
+              title={item.label}
+              aria-label={item.label}
+              aria-current={item.active ? 'page' : undefined}
+              className={cn(
+                'flex size-8 items-center justify-center rounded-md transition-colors',
+                item.active
+                  ? 'bg-background text-primary shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <Icon className="size-4" strokeWidth={1.75} />
+            </button>
+          )
+        })}
+      </nav>
       <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
         {user && <QueueIndicator />}
         <SSEStatusIndicator />
