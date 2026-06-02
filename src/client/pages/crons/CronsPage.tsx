@@ -24,6 +24,7 @@ import { useKins } from '@/client/hooks/useKins'
 import { useToolboxes } from '@/client/hooks/useToolboxes'
 import { Plus, Loader2, Search, Timer, CalendarClock } from 'lucide-react'
 import { EmptyState } from '@/client/components/common/EmptyState'
+import { PageHeader } from '@/client/components/layout/PageHeader'
 import type { CronSummary } from '@/shared/types'
 
 const CronFormModal = lazy(() => import('@/client/components/sidebar/CronFormModal').then(m => ({ default: m.CronFormModal })))
@@ -101,29 +102,29 @@ export function CronsPage() {
   return (
     <div className="surface-base flex h-full flex-col overflow-hidden">
       {/* Page header */}
-      <header className="flex shrink-0 flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <CalendarClock className="size-5 shrink-0 text-primary" />
-          <h1 className="truncate text-base font-semibold">{t('activityBar.crons')}</h1>
-        </div>
-        <div className="flex items-center gap-2 sm:ml-auto">
-          {crons.length > 0 && (
-            <div className="relative w-full sm:w-72">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={t('sidebar.crons.search')}
-                className="h-9 pl-8"
-              />
-            </div>
-          )}
-          <Button onClick={() => setShowCreateModal(true)} className="shrink-0 gap-1.5">
-            <Plus className="size-4" />
-            <span className="max-sm:hidden">{t('sidebar.crons.create')}</span>
-          </Button>
-        </div>
-      </header>
+      <PageHeader
+        icon={CalendarClock}
+        title={t('activityBar.crons')}
+        actions={
+          <>
+            {crons.length > 0 && (
+              <div className="relative w-full sm:w-72">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={t('sidebar.crons.search')}
+                  className="h-9 pl-8"
+                />
+              </div>
+            )}
+            <Button onClick={() => setShowCreateModal(true)} className="shrink-0 gap-1.5">
+              <Plus className="size-4" />
+              <span className="max-sm:hidden">{t('sidebar.crons.create')}</span>
+            </Button>
+          </>
+        }
+      />
 
       {/* Body */}
       {isLoading ? (
