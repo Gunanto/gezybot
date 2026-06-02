@@ -310,6 +310,9 @@
       "lastRunLabel": "Last run",
       "targetLabel": "Runs as",
       "autoBadge": "Auto",
+      "executions": "{{count}} runs",
+      "allTools": "All tools",
+      "toolboxes": "{{count}} toolboxes",
       "summary": {
         "active": "{{count}} active",
         "pending": "{{count}} pending"
@@ -644,7 +647,7 @@
     }
   },
   "chat": {
-    "placeholder": "Send a message...",
+    "placeholder": "How can I help you?",
     "send": "Send",
     "stop": "Stop generating",
     "selectKin": "Select a Kin to start chatting",

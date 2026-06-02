@@ -7,6 +7,7 @@ import { useSidePanel } from '@/client/contexts/SidePanelContext'
 import { cn } from '@/client/lib/utils'
 import { AppWindow, Blocks, LayoutGrid, List, Loader2, Search } from 'lucide-react'
 import { EmptyState } from '@/client/components/common/EmptyState'
+import { PageHeader } from '@/client/components/layout/PageHeader'
 import { MiniAppCard, MiniAppTile } from '@/client/components/mini-app/MiniAppCard'
 
 // Side panel viewer — opening an app renders it here (state lives in
@@ -51,49 +52,49 @@ export function MiniAppsPage() {
     <div className="surface-base flex h-full overflow-hidden">
       <main className="flex min-w-0 flex-1 flex-col">
         {/* Page header */}
-        <header className="flex shrink-0 flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <Blocks className="size-5 shrink-0 text-primary" />
-            <h1 className="truncate text-base font-semibold">{t('activityBar.apps')}</h1>
-          </div>
-          <div className="flex items-center gap-2 sm:ml-auto">
-            {apps.length > 0 && (
-              <div className="relative w-full sm:w-72">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={t('sidebar.miniApps.search')}
-                  className="h-9 pl-8"
-                />
+        <PageHeader
+          icon={Blocks}
+          title={t('activityBar.apps')}
+          actions={
+            <>
+              {apps.length > 0 && (
+                <div className="relative w-full sm:w-72">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder={t('sidebar.miniApps.search')}
+                    className="h-9 pl-8"
+                  />
+                </div>
+              )}
+              <div className="flex shrink-0 items-center gap-0.5 rounded-md border border-border p-0.5">
+                <button
+                  type="button"
+                  onClick={() => toggleView('grid')}
+                  className={cn(
+                    'rounded p-1.5 transition-colors',
+                    viewMode === 'grid' ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground',
+                  )}
+                  title={t('sidebar.miniApps.viewGrid')}
+                >
+                  <LayoutGrid className="size-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleView('list')}
+                  className={cn(
+                    'rounded p-1.5 transition-colors',
+                    viewMode === 'list' ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground',
+                  )}
+                  title={t('sidebar.miniApps.viewList')}
+                >
+                  <List className="size-4" />
+                </button>
               </div>
-            )}
-            <div className="flex shrink-0 items-center gap-0.5 rounded-md border border-border p-0.5">
-              <button
-                type="button"
-                onClick={() => toggleView('grid')}
-                className={cn(
-                  'rounded p-1.5 transition-colors',
-                  viewMode === 'grid' ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground',
-                )}
-                title={t('sidebar.miniApps.viewGrid')}
-              >
-                <LayoutGrid className="size-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => toggleView('list')}
-                className={cn(
-                  'rounded p-1.5 transition-colors',
-                  viewMode === 'list' ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground',
-                )}
-                title={t('sidebar.miniApps.viewList')}
-              >
-                <List className="size-4" />
-              </button>
-            </div>
-          </div>
-        </header>
+            </>
+          }
+        />
 
         {/* Body */}
         {isLoading ? (

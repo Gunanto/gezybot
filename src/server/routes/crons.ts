@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
-import { eq } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { db } from '@/server/db/index'
-import { kins } from '@/server/db/schema'
+import { kins, tasks } from '@/server/db/schema'
 import {
   createCron,
   updateCron,
@@ -26,6 +26,23 @@ function kinAvatarUrl(kinId: string, avatarPath: string | null): string | null {
 
 interface KinInfo { name: string; avatarPath: string | null }
 
+/** Count how many tasks each cron has spawned (one task per execution). Returns
+ *  a cronId → count map; missing crons mean zero. Uses the idx_tasks_cron index. */
+async function countTasksByCron(cronIds: string[]): Promise<Map<string, number>> {
+  const map = new Map<string, number>()
+  if (cronIds.length === 0) return map
+  const rows = await db
+    .select({ cronId: tasks.cronId, count: sql<number>`count(*)` })
+    .from(tasks)
+    .where(inArray(tasks.cronId, cronIds))
+    .groupBy(tasks.cronId)
+    .all()
+  for (const r of rows) {
+    if (r.cronId) map.set(r.cronId, Number(r.count))
+  }
+  return map
+}
+
 // Serialize cron for API response
 function parseThinkingConfig(raw: string | null | undefined): { enabled: boolean; effort: string | null } {
   if (!raw) return { enabled: false, effort: null }
@@ -49,8 +66,9 @@ function parseToolboxIds(raw: string | null | undefined): string[] {
   }
 }
 
-function serializeCron(cron: any, kinInfo?: KinInfo, targetKinInfo?: KinInfo) {
+function serializeCron(cron: any, kinInfo?: KinInfo, targetKinInfo?: KinInfo, executionCount = 0) {
   return {
+    executionCount,
     id: cron.id,
     kinId: cron.kinId,
     kinName: kinInfo?.name ?? 'Unknown',
@@ -92,8 +110,15 @@ cronRoutes.get('/', async (c) => {
     if (kin) kinMap.set(id, kin)
   }
 
+  const execCounts = await countTasksByCron(allCrons.map((cr) => cr.id))
+
   return c.json({
-    crons: allCrons.map((cr) => serializeCron(cr, kinMap.get(cr.kinId), cr.targetKinId ? kinMap.get(cr.targetKinId) : undefined)),
+    crons: allCrons.map((cr) => serializeCron(
+      cr,
+      kinMap.get(cr.kinId),
+      cr.targetKinId ? kinMap.get(cr.targetKinId) : undefined,
+      execCounts.get(cr.id) ?? 0,
+    )),
   })
 })
 
@@ -212,7 +237,8 @@ cronRoutes.patch('/:id', async (c) => {
 
     const kin = await db.select({ name: kins.name, avatarPath: kins.avatarPath }).from(kins).where(eq(kins.id, updated.kinId)).get()
     const targetKin = updated.targetKinId ? await db.select({ name: kins.name, avatarPath: kins.avatarPath }).from(kins).where(eq(kins.id, updated.targetKinId)).get() : undefined
-    return c.json({ cron: serializeCron(updated, kin ?? undefined, targetKin ?? undefined) })
+    const execCount = (await countTasksByCron([updated.id])).get(updated.id) ?? 0
+    return c.json({ cron: serializeCron(updated, kin ?? undefined, targetKin ?? undefined, execCount) })
   } catch (err) {
     return c.json(
       { error: { code: 'CRON_UPDATE_ERROR', message: err instanceof Error ? err.message : 'Unknown error' } },
@@ -285,5 +311,6 @@ cronRoutes.post('/:id/approve', async (c) => {
 
   const kin = await db.select({ name: kins.name, avatarPath: kins.avatarPath }).from(kins).where(eq(kins.id, approved.kinId)).get()
   const targetKin = approved.targetKinId ? await db.select({ name: kins.name, avatarPath: kins.avatarPath }).from(kins).where(eq(kins.id, approved.targetKinId)).get() : undefined
-  return c.json({ cron: serializeCron(approved, kin ?? undefined, targetKin ?? undefined) })
+  const approvedExecCount = (await countTasksByCron([approved.id])).get(approved.id) ?? 0
+  return c.json({ cron: serializeCron(approved, kin ?? undefined, targetKin ?? undefined, approvedExecCount) })
 })

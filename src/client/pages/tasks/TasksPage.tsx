@@ -6,6 +6,7 @@ import { cn } from '@/client/lib/utils'
 import { useNow } from '@/client/hooks/useNow'
 import { Loader2, Search, ListTodo, ChevronDown } from 'lucide-react'
 import { EmptyState } from '@/client/components/common/EmptyState'
+import { PageHeader } from '@/client/components/layout/PageHeader'
 import { TimelineTaskCard, groupByDay } from '@/client/components/tasks/TimelineTaskCard'
 import { useTasksContext } from '@/client/contexts/TasksContext'
 import { useSidePanel } from '@/client/contexts/SidePanelContext'
@@ -137,21 +138,21 @@ export function TasksPage() {
     <div className="surface-base flex h-full overflow-hidden">
       <main className="flex min-w-0 flex-1 flex-col">
         {/* Page header */}
-        <header className="flex shrink-0 flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <ListTodo className="size-5 shrink-0 text-primary" />
-            <h1 className="truncate text-base font-semibold">{t('activityBar.tasks')}</h1>
-          </div>
-          <div className="relative sm:ml-auto sm:w-72">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t('sidebar.tasks.search')}
-              className="h-9 pl-8"
-            />
-          </div>
-        </header>
+        <PageHeader
+          icon={ListTodo}
+          title={t('activityBar.tasks')}
+          actions={
+            <div className="relative w-full sm:w-72">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t('sidebar.tasks.search')}
+                className="h-9 pl-8"
+              />
+            </div>
+          }
+        />
 
         {/* Body */}
         {isEmpty ? (

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import {
   DndContext,
@@ -349,9 +350,16 @@ export function ProjectKanban({ projectId, onNewTicket }: ProjectKanbanProps) {
                 />
               ))}
             </div>
-            <DragOverlay>
-              {activeTicket ? <TicketCard ticket={activeTicket} isOverlay /> : null}
-            </DragOverlay>
+            {/* Portal to <body> so the fixed-position overlay escapes the
+                ProjectsPage `transform: translateZ(0)` containing block (that
+                wrapper scopes the shadcn Sidebar's fixed positioning). Without
+                the portal the drag ghost would be offset. */}
+            {createPortal(
+              <DragOverlay>
+                {activeTicket ? <TicketCard ticket={activeTicket} isOverlay /> : null}
+              </DragOverlay>,
+              document.body,
+            )}
           </DndContext>
         </div>
       )}

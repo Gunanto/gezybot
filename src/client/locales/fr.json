@@ -310,6 +310,9 @@
       "lastRunLabel": "Dernière",
       "targetLabel": "Exécute en tant que",
       "autoBadge": "Auto",
+      "executions": "{{count}} exéc.",
+      "allTools": "Tous les outils",
+      "toolboxes": "{{count}} boîtes",
       "summary": {
         "active": "{{count}} actifs",
         "pending": "{{count}} à approuver"
@@ -644,7 +647,7 @@
     }
   },
   "chat": {
-    "placeholder": "Envoyer un message...",
+    "placeholder": "Comment puis-je vous aider ?",
     "send": "Envoyer",
     "stop": "Arrêter la génération",
     "selectKin": "Sélectionnez un Kin pour commencer",
