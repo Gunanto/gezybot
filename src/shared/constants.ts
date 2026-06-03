@@ -128,7 +128,7 @@ export const PALETTE_IDS = [
 // Tool domains — centralized metadata for consistent UI across the app
 // ---------------------------------------------------------------------------
 
-import type { ToolDomain } from '@/shared/types'
+import type { BuiltinToolDomain } from '@/shared/types'
 
 /** Metadata for a tool domain: icon name (Lucide), CSS classes, i18n key */
 export interface ToolDomainMeta {
@@ -148,7 +148,7 @@ export interface ToolDomainMeta {
  *  - `bg`/`border` are used only for icon containers and badges, NOT for full cards.
  *  - Cards use neutral `bg-muted` / `border-border` — domain identity comes from the icon color only.
  *  - Avoid green (success) and red (destructive) for domain colors to prevent confusion with statuses. */
-export const TOOL_DOMAIN_META: Record<ToolDomain, ToolDomainMeta> = {
+export const TOOL_DOMAIN_META: Record<BuiltinToolDomain, ToolDomainMeta> = {
   search:     { icon: 'Search',       bg: 'bg-info/40',      text: 'text-info',             border: 'border-info/40',              labelKey: 'tools.domains.search' },
   browse:     { icon: 'Globe',        bg: 'bg-chart-1/40',   text: 'text-chart-1',          border: 'border-chart-1/40',           labelKey: 'tools.domains.browse' },
   voice:      { icon: 'Mic',          bg: 'bg-chart-4/40',   text: 'text-chart-4',          border: 'border-chart-4/40',           labelKey: 'tools.domains.voice' },
@@ -176,6 +176,57 @@ export const TOOL_DOMAIN_META: Record<ToolDomain, ToolDomainMeta> = {
   plugins:         { icon: 'Puzzle',      bg: 'bg-chart-4/40',   text: 'text-chart-4',          border: 'border-chart-4/40',           labelKey: 'tools.domains.plugins' },
   projects:        { icon: 'Kanban',      bg: 'bg-chart-2/40',   text: 'text-chart-2',          border: 'border-chart-2/40',           labelKey: 'tools.domains.projects' },
 } as const
+
+// ---------------------------------------------------------------------------
+// Custom tool domains — curated color palette for USER-CREATED domains.
+//
+// Built-in domains keep their bespoke triples above (some use special cases
+// like `bg-muted`, `text-accent-foreground`, `/20` opacity). User-created
+// domains may NOT pick arbitrary Tailwind/hex — that would break static class
+// extraction, the palette/theme system, and WCAG AA. Instead the UI offers
+// this curated token set; every triple below already appears in
+// TOOL_DOMAIN_META, so Tailwind's static extractor keeps them.
+// `success` / `destructive` are intentionally excluded (status colors).
+// ---------------------------------------------------------------------------
+
+export const DOMAIN_COLOR_TOKENS = [
+  'chart-1',
+  'chart-2',
+  'chart-3',
+  'chart-4',
+  'chart-5',
+  'info',
+  'warning',
+  'primary',
+  'accent',
+] as const
+
+export type DomainColorToken = (typeof DOMAIN_COLOR_TOKENS)[number]
+
+/** token → the full {bg,text,border} Tailwind triple used by custom domains. */
+export const CURATED_DOMAIN_COLORS: Record<
+  DomainColorToken,
+  { bg: string; text: string; border: string }
+> = {
+  'chart-1': { bg: 'bg-chart-1/40', text: 'text-chart-1', border: 'border-chart-1/40' },
+  'chart-2': { bg: 'bg-chart-2/40', text: 'text-chart-2', border: 'border-chart-2/40' },
+  'chart-3': { bg: 'bg-chart-3/40', text: 'text-chart-3', border: 'border-chart-3/40' },
+  'chart-4': { bg: 'bg-chart-4/40', text: 'text-chart-4', border: 'border-chart-4/40' },
+  'chart-5': { bg: 'bg-chart-5/40', text: 'text-chart-5', border: 'border-chart-5/40' },
+  info: { bg: 'bg-info/40', text: 'text-info', border: 'border-info/40' },
+  warning: { bg: 'bg-warning/40', text: 'text-warning', border: 'border-warning/40' },
+  primary: { bg: 'bg-primary/40', text: 'text-primary', border: 'border-primary/40' },
+  accent: { bg: 'bg-accent/40', text: 'text-accent-foreground', border: 'border-accent/40' },
+} as const
+
+/** Fallback visual meta for an unknown/deleted domain slug — never throws. */
+export const FALLBACK_DOMAIN_META: ToolDomainMeta = {
+  icon: 'Puzzle',
+  bg: 'bg-muted',
+  text: 'text-muted-foreground',
+  border: 'border-muted-foreground/40',
+  labelKey: 'tools.domains.custom',
+}
 
 
 // ---------------------------------------------------------------------------

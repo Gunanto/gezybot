@@ -260,17 +260,34 @@ export const contactNotes = sqliteTable('contact_notes', {
   index('idx_contact_notes_user_id').on(table.userId),
 ])
 
+// Custom tools are now GLOBAL (platform-wide), not per-Kin. Access is scoped by
+// toolboxes (a toolbox lists `custom_<slug>` by name), exactly like MCP tools.
+// The executable script + its deps live on disk under
+// `config.customTools.baseDir/<slug>/`; this table holds metadata only.
 export const customTools = sqliteTable('custom_tools', {
   id: text('id').primaryKey(),
-  kinId: text('kin_id').notNull().references(() => kins.id),
+  slug: text('slug').notNull(),                  // → tool name `custom_<slug>`, immutable
   name: text('name').notNull(),
   description: text('description').notNull(),
-  parameters: text('parameters').notNull(), // JSON Schema
-  scriptPath: text('script_path').notNull(),
+  parameters: text('parameters').notNull(),      // JSON Schema string
+  entrypoint: text('entrypoint').notNull(),      // relative path inside the tool dir
+  // UI-ONLY localized overrides for name/description/param labels, keyed by
+  // locale. Never injected into the LLM tool definition (the base description +
+  // raw JSON-Schema parameters stay verbatim). See resolveCustomToolDisplay().
+  // Shape: { "<locale>": { name?, description?, parameters?: { "<param>": { label?, description? } } } }
+  translations: text('translations'),
+  language: text('language'),                    // explicit interpreter override (optional)
+  domainSlug: text('domain_slug')
+    .notNull()
+    .default('custom')
+    .references(() => toolDomains.slug),
+  timeoutMs: integer('timeout_ms'),              // per-tool timeout override (optional)
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  createdBy: text('created_by').notNull().default('user'), // 'user' | 'kin'
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
 }, (table) => [
-  uniqueIndex('idx_custom_tools_kin_name').on(table.kinId, table.name),
+  uniqueIndex('idx_custom_tools_slug').on(table.slug),
 ])
 
 export const quickSessions = sqliteTable('quick_sessions', {
@@ -736,6 +753,28 @@ export const toolboxes = sqliteTable('toolboxes', {
   name: text('name').notNull().unique(),
   description: text('description'),
   toolNames: text('tool_names'), // JSON string[] of native tool names ("*" = all)
+  builtin: integer('builtin', { mode: 'boolean' }).notNull().default(false),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+// ─── Tool domains ─────────────────────────────────────────────────────────────
+// Dynamic, DB-backed categories used to group tools in the UI (icon + color +
+// label). The 26 built-in domains are seeded idempotently at boot from
+// TOOL_DOMAIN_META (builtin=1, read-only); users/Kins can create custom domains
+// to organize their custom tools. `slug` is the stable key referenced by
+// custom_tools.domain_slug and by the registry's name→domain map. For builtin
+// rows the visual triple is resolved from TOOL_DOMAIN_META and the label from
+// `label_key` (i18n); custom rows carry a literal `label` and a `color` token
+// from the curated DOMAIN_COLOR_TOKENS set (see shared/constants.ts).
+
+export const toolDomains = sqliteTable('tool_domains', {
+  slug: text('slug').primaryKey(),
+  label: text('label'),                 // literal label (custom domains)
+  labelKey: text('label_key'),          // i18n key (builtin domains)
+  icon: text('icon').notNull(),         // Lucide icon name
+  color: text('color'),                 // curated color token (custom domains)
+  description: text('description'),
   builtin: integer('builtin', { mode: 'boolean' }).notNull().default(false),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),

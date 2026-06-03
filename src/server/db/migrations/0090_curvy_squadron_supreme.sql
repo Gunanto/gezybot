@@ -1,0 +1,1 @@
+ALTER TABLE `custom_tools` ADD `translations` text;

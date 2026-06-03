@@ -53,9 +53,18 @@ export const HARD_EXCLUDED_FROM_SUBKIN: readonly string[] = [
   'update_mcp_server',
   'remove_mcp_server',
   'list_mcp_servers',
-  // Custom-tool admin.
-  'register_tool',
+  // Custom-tool & tool-domain admin (the resulting custom_<slug> tools stay
+  // callable in sub-Kins when a toolbox grants them).
+  'create_custom_tool',
+  'write_custom_tool_file',
+  'run_custom_tool_setup',
+  'test_custom_tool',
+  'update_custom_tool',
+  'delete_custom_tool',
   'list_custom_tools',
+  'create_tool_domain',
+  'update_tool_domain',
+  'delete_tool_domain',
   // Kin management.
   'create_kin',
   'update_kin',

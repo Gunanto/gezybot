@@ -624,6 +624,20 @@
       "when": 1780352239520,
       "tag": "0088_melodic_killraven",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "6",
+      "when": 1780472348126,
+      "tag": "0089_high_exiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "6",
+      "when": 1780499822299,
+      "tag": "0090_curvy_squadron_supreme",
+      "breakpoints": true
     }
   ]
 }

@@ -12,7 +12,6 @@ import {
   memories,
   messages,
   contactNotes,
-  customTools,
   tasks,
   crons,
   files,
@@ -348,7 +347,7 @@ export async function deleteKin(kinId: string): Promise<boolean> {
   }
   await db.delete(crons).where(eq(crons.kinId, kinId))
   await db.delete(contactNotes).where(eq(contactNotes.kinId, kinId))
-  await db.delete(customTools).where(eq(customTools.kinId, kinId))
+  // Custom tools are GLOBAL now (not per-Kin) — nothing to cascade-delete here.
   await db.delete(webhooks).where(eq(webhooks.kinId, kinId))
   // Delete channels with full cleanup (stop adapters, delete vault secrets)
   for (const channelId of kinChannelIds) {

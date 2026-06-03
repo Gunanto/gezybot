@@ -435,7 +435,7 @@ describe('excluded tool sets', () => {
     'reply',
     'create_cron', 'update_cron', 'delete_cron', 'list_crons',
     'add_mcp_server', 'update_mcp_server', 'remove_mcp_server', 'list_mcp_servers',
-    'register_tool', 'list_custom_tools',
+    'create_custom_tool', 'list_custom_tools',
     'create_kin', 'update_kin', 'delete_kin', 'get_kin_details',
   ])
 
@@ -445,7 +445,7 @@ describe('excluded tool sets', () => {
     'send_message', 'reply', 'list_kins',
     'create_cron', 'update_cron', 'delete_cron', 'list_crons', 'get_cron_journal',
     'add_mcp_server', 'update_mcp_server', 'remove_mcp_server', 'list_mcp_servers',
-    'register_tool', 'list_custom_tools',
+    'create_custom_tool', 'list_custom_tools',
     'create_kin', 'update_kin', 'delete_kin', 'get_kin_details',
     'create_webhook', 'update_webhook', 'delete_webhook', 'list_webhooks',
     'send_channel_message', 'list_channel_conversations',

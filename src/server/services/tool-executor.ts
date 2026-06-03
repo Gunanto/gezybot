@@ -1,5 +1,6 @@
 import type { Tool, JSONValue } from '@/server/tools/tool-helper'
 import { toolRegistry } from '@/server/tools/index'
+import { getCustomTool } from '@/server/services/custom-tools'
 import { sseManager } from '@/server/sse/index'
 import { config } from '@/server/config'
 import { createLogger } from '@/server/logger'
@@ -162,14 +163,62 @@ export async function executeToolBatch(opts: ExecuteToolBatchOptions): Promise<E
   return { toolResults, toolCallsLog, wasAborted: abortController.signal.aborted }
 }
 
-async function executeSingleTool(
+/**
+ * Classify a tool name that is NOT present in the current (already-resolved,
+ * granted-only) toolset and produce a CLEAR, ACTIONABLE message for the Kin/LLM.
+ *
+ * The message distinguishes the four cases that the old "has no execute
+ * function" text conflated: not-granted, doesn't-exist, disabled, and the
+ * genuine misconfiguration. Stays synchronous: `getCustomTool` is a sync DB
+ * `.get()` and is wrapped in try/catch so a DB hiccup degrades to a generic
+ * message instead of throwing inside tool execution.
+ */
+export function describeUnavailableTool(name: string): string {
+  const existsButNotGranted = `Tool "${name}" exists but is not in your current toolset. It must be granted by one of your active toolboxes — ask the user to add it to a toolbox (or pick a toolbox that includes it). Only call tools provided in your context.`
+  const unknown = `No tool named "${name}" exists. Use only the tools provided in your context — do not invent tool names.`
+
+  // Custom tools: `custom_<slug>`.
+  if (name.startsWith('custom_')) {
+    const slug = name.slice('custom_'.length)
+    try {
+      const row = getCustomTool(slug)
+      if (row && row.enabled === false) {
+        return `Custom tool "${name}" exists but is currently disabled, so it can't be called. Re-enable it in Settings → Custom Tools (or ask the user to).`
+      }
+      if (row) {
+        return existsButNotGranted
+      }
+      return unknown
+    } catch {
+      // DB hiccup — degrade gracefully rather than throwing mid-execution.
+      return unknown
+    }
+  }
+
+  // MCP tools: `mcp_<server>_<tool>`.
+  if (name.startsWith('mcp_')) {
+    return `MCP tool "${name}" is not in your current toolset. It must be granted by one of your active toolboxes, and its MCP server must be active.`
+  }
+
+  // Native / plugin tools live in the in-memory registry.
+  if (toolRegistry.getDomain(name) !== null) {
+    return existsButNotGranted
+  }
+
+  return unknown
+}
+
+export async function executeSingleTool(
   tc: ToolCall,
   tools: Record<string, Tool<any, any>>,
   abortController: AbortController,
 ): Promise<unknown> {
   const toolDef = tools[tc.name]
-  if (!toolDef || !('execute' in toolDef) || typeof toolDef.execute !== 'function') {
-    return { error: `Tool ${tc.name} has no execute function` }
+  if (!toolDef) {
+    return { error: describeUnavailableTool(tc.name) }
+  }
+  if (!('execute' in toolDef) || typeof toolDef.execute !== 'function') {
+    return { error: `Tool "${tc.name}" is misconfigured (no execute function) — this is an internal bug, not a mistake on your part.` }
   }
   try {
     return await (toolDef.execute as Function)(tc.args, { abortSignal: abortController.signal })

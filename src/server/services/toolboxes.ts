@@ -1,21 +1,24 @@
 /**
- * Toolboxes — global, user-defined (and built-in) named sets of native tools.
+ * Toolboxes — global, user-defined (and built-in) named sets of tools.
  *
- * A toolbox is an explicit allow-list of individual native tool names. The
- * special value "*" inside a toolbox's `toolNames` means "all native tools"
- * (used by the built-in 'all' toolbox).
+ * A toolbox is an explicit allow-list of individual tool names. The special
+ * value "*" inside a toolbox's `toolNames` means "all native tools + all
+ * (enabled) custom tools" (used by the built-in 'all' toolbox). MCP and plugin
+ * tools are NOT covered by "*" — they must be listed by their explicit name.
  *
  * A task references an ARRAY of toolboxes (tasks.toolboxIds). The task's
  * resolved native toolset is:
  *
  *     CORE_TOOLS  UNION  (union of every referenced toolbox's toolNames)
  *
- * where "*" expands to every registered native tool name. CORE_TOOLS is a
- * mandatory floor that is always present regardless of the chosen toolboxes —
- * see tool-presets.ts (the authoritative list lives there).
+ * where "*" expands to every registered native tool name plus every enabled
+ * custom tool (`custom_<slug>`). CORE_TOOLS is a mandatory floor that is always
+ * present regardless of the chosen toolboxes — see tool-presets.ts (the
+ * authoritative list lives there).
  *
- * MCP servers and per-Kin custom tools are NOT part of a toolbox in v1; they
- * continue to flow from the Kin's own config.
+ * Custom tools join the "*" wildcard because they are the user's own
+ * first-class extensions. MCP servers and plugin tools are NOT covered by "*";
+ * to grant one a toolbox must list it by name.
  *
  * Built-in toolboxes (builtin=true) are seeded idempotently at startup from the
  * exact lists in tool-presets.ts and cannot be edited or deleted.
@@ -26,6 +29,7 @@ import { v4 as uuid } from 'uuid'
 import { db } from '@/server/db/index'
 import { toolboxes } from '@/server/db/schema'
 import { toolRegistry } from '@/server/tools/index'
+import { listCustomTools } from '@/server/services/custom-tools'
 import { CORE_TOOLS } from '@/server/services/tool-presets'
 import { createLogger } from '@/server/logger'
 import type { Toolbox } from '@/shared/types'
@@ -120,7 +124,7 @@ export const BUILTIN_TOOLBOXES: readonly BuiltinToolboxDef[] = [
   },
   {
     name: 'all',
-    description: 'All native tools (no filtering beyond the safety floor).',
+    description: 'All native tools plus all custom tools (no filtering beyond the safety floor). MCP and plugin tools must still be granted by name.',
     toolNames: ['*'],
   },
   {
@@ -306,9 +310,11 @@ export function deleteToolbox(id: string): void {
  * there.
  *
  * The single special value "*" expands to every registered NATIVE tool name
- * ONLY (it is the 'all' built-in). Plugin tools live in the same registry, so
- * they are explicitly excluded from the "*" expansion by their `plugin_`
- * prefix — to grant a plugin/MCP/custom tool a toolbox must list it by name.
+ * plus every ENABLED custom tool (`custom_<slug>`) — it is the 'all' built-in.
+ * Plugin tools live in the same registry but are explicitly excluded from the
+ * "*" expansion by their `plugin_` prefix; MCP tools are excluded too. To grant
+ * a plugin or MCP tool a toolbox must list it by name. Custom tools are the
+ * user's own first-class extensions, so they ride the wildcard.
  *
  * CORE_TOOLS is NOT added here — callers layer the floor on top (see
  * tool-presets / the unified resolver). Unknown ids are silently skipped.
@@ -332,10 +338,17 @@ export function resolveToolboxNames(ids: string[]): string[] {
   }
 
   if (wildcard) {
-    // "*" is native-only. Plugin tools share the registry but are namespaced
-    // with a `plugin_` prefix, so we exclude them from the wildcard expansion.
+    // "*" = native + custom. Plugin tools share the registry but are namespaced
+    // with a `plugin_` prefix, so we exclude them from the wildcard expansion;
+    // MCP tools must also be listed by name. Custom tools are the user's own
+    // first-class extensions, so they ride the wildcard (enabled-only — disabled
+    // ones are dead names in the allow-list and the resolver's universe is
+    // enabled-only anyway).
     for (const t of toolRegistry.list()) {
       if (!t.name.startsWith('plugin_')) result.add(t.name)
+    }
+    for (const ct of listCustomTools()) {
+      if (ct.enabled) result.add(`custom_${ct.slug}`)
     }
   }
 

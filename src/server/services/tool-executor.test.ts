@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
 import { toolRegistry } from '@/server/tools/index'
-import { partitionToolCalls, type ToolCall } from '@/server/services/tool-executor'
+import { partitionToolCalls, executeSingleTool, type ToolCall } from '@/server/services/tool-executor'
 import type { ToolRegistration } from '@/server/tools/types'
 import type { Tool } from '@/server/tools/tool-helper'
 
@@ -96,5 +96,64 @@ describe('partitionToolCalls', () => {
 
   it('returns an empty array for no calls', () => {
     expect(partitionToolCalls([])).toEqual([])
+  })
+})
+
+describe('executeSingleTool — unavailable tool classification', () => {
+  // The `tools` map passed in is the already-resolved (granted-only) toolset.
+  // A name absent from it must produce a clear, classified message — never the
+  // old cryptic "has no execute function".
+  const NATIVE_NAME = '__exec_test_native__'
+  const emptyTools: Record<string, Tool<any, any>> = {}
+  const run = (name: string) =>
+    executeSingleTool({ id: 'x', name, args: {}, offset: 0 }, emptyTools, new AbortController())
+
+  beforeAll(() => {
+    // Register a native tool in the in-memory registry so getDomain() != null,
+    // but deliberately keep it OUT of the empty `tools` map passed to
+    // executeSingleTool (simulating a registered-but-not-granted tool).
+    toolRegistry.register(NATIVE_NAME, fakeTool({ readOnly: true, concurrencySafe: true }), 'system')
+  })
+
+  afterAll(() => {
+    toolRegistry.unregister(NATIVE_NAME)
+  })
+
+  it('reports an unknown made-up name as non-existent', async () => {
+    const result = (await run('totally_made_up')) as { error: string }
+    expect(result.error).toContain('No tool named')
+    expect(result.error).not.toContain('has no execute function')
+  })
+
+  it('reports a custom_<slug> with no DB row as non-existent', async () => {
+    // Random slug that will not exist in the DB → deterministic "No tool named".
+    const slug = `nope_${Math.random().toString(36).slice(2)}`
+    const result = (await run(`custom_${slug}`)) as { error: string }
+    expect(result.error).toContain('No tool named')
+    expect(result.error).not.toContain('has no execute function')
+  })
+
+  it('reports an MCP tool name as not in the current toolset', async () => {
+    const result = (await run('mcp_someserver_dothing')) as { error: string }
+    expect(result.error).toContain('MCP tool')
+    expect(result.error).toContain('not in your current toolset')
+  })
+
+  it('reports a registered native tool absent from the toolset as exists-but-not-granted', async () => {
+    // NATIVE_NAME is registered in the in-memory registry by this suite, but is
+    // NOT present in the empty `tools` map passed to executeSingleTool.
+    const result = (await run(NATIVE_NAME)) as { error: string }
+    expect(result.error).toContain('exists but is not in your current toolset')
+  })
+
+  it('reports a granted tool with no execute as misconfigured (internal bug)', async () => {
+    const broken = { description: '', inputSchema: undefined } as unknown as Tool<any, any>
+    const result = (await executeSingleTool(
+      { id: 'x', name: 'broken_tool', args: {}, offset: 0 },
+      { broken_tool: broken },
+      new AbortController(),
+    )) as { error: string }
+    expect(result.error).toContain('misconfigured')
+    expect(result.error).toContain('internal bug')
   })
 })

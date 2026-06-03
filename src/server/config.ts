@@ -600,6 +600,20 @@ export const config = {
     backendEnabled: process.env.MINI_APPS_BACKEND_ENABLED !== 'false', // default: true
   },
 
+  // Global custom tools: user/Kin-authored scripts (any language + own deps)
+  // executed by the host. Each tool is a managed directory under `baseDir/<slug>/`
+  // holding its entrypoint + deps; the DB holds metadata only. The legacy
+  // KINBOT_CUSTOM_TOOL_TIMEOUT / _MAX_TIMEOUT env vars are kept for back-compat.
+  customTools: {
+    baseDir: process.env.KINBOT_CUSTOM_TOOLS_DIR ?? `${dataDir}/custom-tools`,
+    defaultTimeoutMs: Number(process.env.KINBOT_CUSTOM_TOOL_TIMEOUT ?? 30_000),
+    maxTimeoutMs: Number(process.env.KINBOT_CUSTOM_TOOL_MAX_TIMEOUT ?? 300_000),
+    // Cap captured stdout+stderr to protect the context window / server memory.
+    maxOutputBytes: Number(process.env.KINBOT_CUSTOM_TOOL_MAX_OUTPUT_BYTES ?? 256 * 1024),
+    // Longer budget for dependency installs (pip/npm/bun install).
+    setupTimeoutMs: Number(process.env.KINBOT_CUSTOM_TOOL_SETUP_TIMEOUT ?? 600_000),
+  },
+
   versionCheck: {
     enabled: process.env.VERSION_CHECK_ENABLED !== 'false',
     repo: process.env.VERSION_CHECK_REPO ?? 'MarlBurroW/kinbot',

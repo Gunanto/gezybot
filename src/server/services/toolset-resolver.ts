@@ -18,9 +18,10 @@
  *   toolset  = { name ∈ universe | name ∈ allowed }
  *
  * "*" inside a toolbox (the 'all' built-in) expands to all NATIVE tool names
- * only — MCP and custom tools must be listed by their stable name to be
- * granted. A toolbox-listed name that is absent from the universe is silently
- * skipped.
+ * plus all ENABLED custom tools — MCP and plugin tools must still be listed by
+ * their stable name to be granted. A toolbox-listed name that is absent from
+ * the universe is silently skipped (so a disabled custom tool added to the
+ * allow-list is dropped — the custom part of the universe is enabled-only).
  *
  * For sub-Kins the HARD_EXCLUDED_FROM_SUBKIN floor is subtracted AFTER the
  * allow-list, so even an 'all' toolbox can't smuggle a main-session-only tool
@@ -135,9 +136,10 @@ export async function resolveToolset(
     workspaceOverride,
   })
 
-  // ALL global active MCP tools (no per-Kin gate) + the Kin's custom tools.
+  // ALL global active MCP tools + ALL enabled GLOBAL custom tools (both
+  // toolbox-gated by name; neither is per-Kin).
   const mcpTools = await resolveMCPTools(kinId)
-  const customTools = await resolveCustomTools(kinId)
+  const customTools = resolveCustomTools()
 
   const universe: Record<string, Tool<any, any>> = {
     ...registryTools,
@@ -146,7 +148,7 @@ export async function resolveToolset(
   }
 
   // ── Allow-list ──────────────────────────────────────────────────────────────
-  // CORE_TOOLS ∪ (the toolboxes' listed names). "*" → all native only.
+  // CORE_TOOLS ∪ (the toolboxes' listed names). "*" → all native + all enabled custom.
   const resolvedIds = resolveKinToolboxIds(toolboxIds, { ticketId: ticketId ?? null })
   const allowed = new Set<string>([...CORE_TOOLS, ...resolveToolboxNames(resolvedIds)])
 

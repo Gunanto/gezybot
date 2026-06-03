@@ -3,51 +3,16 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { tool as aiTool } from '@/server/tools/tool-helper'
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
-import { readdirSync, existsSync } from 'fs'
-import { homedir } from 'os'
-import { join } from 'path'
 import { db } from '@/server/db/index'
 import { createLogger } from '@/server/logger'
+import { augmentedPath, killProcessTree } from '@/server/lib/process'
 import { mcpServers, kinMcpServers } from '@/server/db/schema'
 import type { Tool } from '@/server/tools/tool-helper'
 
 const log = createLogger('mcp')
 
-// ─── PATH augmentation for child processes ───────────────────────────────────
-// Bun installed via snap has a restricted PATH and sandboxed HOME that may not
-// include node/npx. Detect common node installation paths and build an augmented PATH.
-const augmentedPath = (() => {
-  const basePath = process.env.PATH ?? ''
-  const extraPaths: string[] = []
-
-  // Use SNAP_REAL_HOME if running inside snap, otherwise fall back to os.homedir()
-  const realHome = process.env.SNAP_REAL_HOME || homedir()
-
-  // NVM: ~/.nvm/versions/node/*/bin (use the latest)
-  const nvmDir = join(realHome, '.nvm', 'versions', 'node')
-  if (existsSync(nvmDir)) {
-    try {
-      const versions = readdirSync(nvmDir).sort().reverse()
-      for (const v of versions) {
-        const binDir = join(nvmDir, v, 'bin')
-        if (existsSync(binDir)) {
-          extraPaths.push(binDir)
-          break // only use the latest
-        }
-      }
-    } catch { /* ignore */ }
-  }
-
-  // Common system paths
-  for (const p of ['/usr/local/bin', '/usr/bin']) {
-    if (!basePath.includes(p)) extraPaths.push(p)
-  }
-
-  if (extraPaths.length === 0) return basePath
-  const result = [...extraPaths, ...basePath.split(':')].join(':')
-  log.debug({ extraPaths }, 'Augmented PATH for MCP child processes')
-  return result
-})()
+// PATH augmentation + process-tree kill now live in @/server/lib/process and are
+// shared with the custom-tools executor.
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -144,56 +109,6 @@ process.on('SIGINT', () => { disconnectAll().finally(() => process.exit(0)) })
 process.on('SIGTERM', () => { disconnectAll().finally(() => process.exit(0)) })
 
 // ─── Process tree cleanup ────────────────────────────────────────────────────
-
-/**
- * Kill a process and all its descendants.
- * Uses /proc on Linux to find child processes recursively.
- */
-async function killProcessTree(pid: number) {
-  try {
-    // Collect all descendant PIDs first (bottom-up kill avoids re-parenting)
-    const descendants = await getDescendantPids(pid)
-    const allPids = [...descendants.reverse(), pid]
-
-    // SIGTERM first
-    for (const p of allPids) {
-      try { process.kill(p, 'SIGTERM') } catch { /* already dead */ }
-    }
-
-    // Wait briefly, then SIGKILL survivors
-    await new Promise((r) => setTimeout(r, 2000))
-    for (const p of allPids) {
-      try { process.kill(p, 'SIGKILL') } catch { /* already dead */ }
-    }
-  } catch {
-    // Best effort - if we can't enumerate children, at least kill the parent
-    try { process.kill(pid, 'SIGKILL') } catch { /* already dead */ }
-  }
-}
-
-/**
- * Get all descendant PIDs of a process using /proc filesystem (Linux).
- */
-async function getDescendantPids(pid: number): Promise<number[]> {
-  try {
-    const proc = Bun.spawn(['pgrep', '-P', String(pid)], { stdout: 'pipe', stderr: 'pipe' })
-    const output = await new Response(proc.stdout).text()
-    await proc.exited
-
-    const childPids = output.trim().split('\n').filter(Boolean).map(Number).filter((n) => !isNaN(n))
-    const allDescendants: number[] = []
-
-    for (const childPid of childPids) {
-      allDescendants.push(childPid)
-      const grandchildren = await getDescendantPids(childPid)
-      allDescendants.push(...grandchildren)
-    }
-
-    return allDescendants
-  } catch {
-    return []
-  }
-}
 
 // ─── Disconnect ──────────────────────────────────────────────────────────────
 

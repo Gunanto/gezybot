@@ -122,9 +122,17 @@ import {
   triggerCronTool,
 } from '@/server/tools/cron-tools'
 import {
-  registerToolTool,
-  runCustomToolTool,
+  createCustomToolTool,
+  writeCustomToolFileTool,
+  runCustomToolSetupTool,
+  testCustomToolTool,
+  updateCustomToolTool,
+  deleteCustomToolTool,
   listCustomToolsTool,
+  createToolDomainTool,
+  listToolDomainsTool,
+  updateToolDomainTool,
+  deleteToolDomainTool,
 } from '@/server/tools/custom-tool-tools'
 import {
   listProjectsTool,
@@ -467,10 +475,20 @@ export function registerAllTools(): void {
   toolRegistry.register('delete_project_knowledge', deleteProjectKnowledgeTool, 'projects')
   toolRegistry.register('pin_project_knowledge', pinProjectKnowledgeTool, 'projects')
 
-  // Phase 19: Custom tools (main only)
-  toolRegistry.register('register_tool', registerToolTool, 'custom')
-  toolRegistry.register('run_custom_tool', runCustomToolTool, 'custom')
+  // Custom tools (GLOBAL, first-class). Authoring/admin tools are main-only;
+  // the resulting tools are exposed separately as `custom_<slug>` (resolved by
+  // services/custom-tools.ts, MCP-style — not registered here).
+  toolRegistry.register('create_custom_tool', createCustomToolTool, 'custom')
+  toolRegistry.register('write_custom_tool_file', writeCustomToolFileTool, 'custom')
+  toolRegistry.register('run_custom_tool_setup', runCustomToolSetupTool, 'custom')
+  toolRegistry.register('test_custom_tool', testCustomToolTool, 'custom')
+  toolRegistry.register('update_custom_tool', updateCustomToolTool, 'custom')
+  toolRegistry.register('delete_custom_tool', deleteCustomToolTool, 'custom')
   toolRegistry.register('list_custom_tools', listCustomToolsTool, 'custom')
+  toolRegistry.register('create_tool_domain', createToolDomainTool, 'custom')
+  toolRegistry.register('list_tool_domains', listToolDomainsTool, 'custom')
+  toolRegistry.register('update_tool_domain', updateToolDomainTool, 'custom')
+  toolRegistry.register('delete_tool_domain', deleteToolDomainTool, 'custom')
 
   // Phase 21: Image tools
   toolRegistry.register('generate_image', generateImageTool, 'images')

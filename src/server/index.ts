@@ -7,6 +7,7 @@ import { db, initVirtualTables } from '@/server/db/index'
 import { startQueueWorker } from '@/server/services/kin-engine'
 import { registerAllTools } from '@/server/tools/register'
 import { seedBuiltinToolboxes } from '@/server/services/toolboxes'
+import { seedBuiltinToolDomains } from '@/server/services/tool-domains'
 import { registerBuiltinLLMProviders } from '@/server/llm/llm/register'
 import { registerBuiltinEmbeddingProviders } from '@/server/llm/embedding/register'
 import { registerBuiltinImageProviders } from '@/server/llm/image/register'
@@ -96,6 +97,11 @@ registerAllTools()
 // migrations so the toolboxes table exists.
 log.info('Seeding built-in toolboxes...')
 seedBuiltinToolboxes()
+
+// Seed built-in tool domains (idempotent). Runs after migrations so the
+// tool_domains table exists; custom_tools.domain_slug FKs into it.
+log.info('Seeding built-in tool domains...')
+seedBuiltinToolDomains()
 
 // Register built-in LLM / embedding / image providers
 log.info('Registering built-in LLM providers...')

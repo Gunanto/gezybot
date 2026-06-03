@@ -195,8 +195,8 @@ export type ToolSource = 'native' | 'plugin' | 'mcp' | 'custom'
  *  `hardExcludedFromSubKin` flag warning the tool can never run in a task.
  *
  *  Native + plugin tools come from the registry. MCP tools come from ALL global
- *  active servers (no per-Kin gate). Custom tools are per-Kin and are only
- *  included when the request carries `?kinId=`. */
+ *  active servers (no per-Kin gate). Custom tools are GLOBAL too (no per-Kin
+ *  gate) — each carries its own (possibly custom) domain via `domain`. */
 export interface ToolCatalogEntry {
   name: string
   /** Provenance of the tool. */
@@ -212,10 +212,79 @@ export interface ToolCatalogEntry {
   hardExcludedFromSubKin: boolean
   /** MCP only: the display name of the originating server. */
   mcpServerName?: string
-  /** Custom only: the id of the owning Kin. */
+  /** Custom only: whether the tool is currently enabled (disabled tools are
+   *  listed in the catalog but never resolved into a toolset). */
+  enabled?: boolean
+  /** @deprecated Per-Kin custom tools are gone; kept optional for back-compat. */
   customKinId?: string
-  /** Custom only: the display name of the owning Kin (best-effort). */
+  /** @deprecated Per-Kin custom tools are gone; kept optional for back-compat. */
   customKinName?: string
+}
+
+/** UI-ONLY localized overrides for a custom tool, keyed by locale. NEVER sent to
+ *  the LLM — the base `name`/`description` + raw JSON-Schema `parameters` stay
+ *  verbatim in the tool definition. Each locale may override the display name,
+ *  the display description, and per-parameter label/description (matched by the
+ *  JSON-Schema property key). */
+export type CustomToolTranslations = Record<
+  string,
+  {
+    name?: string
+    description?: string
+    parameters?: Record<string, { label?: string; description?: string }>
+  }
+>
+
+/** A global custom tool (DB-backed metadata; the executable + deps live on disk
+ *  under config.customTools.baseDir/<slug>/). Exposed to Kins as `custom_<slug>`
+ *  and granted via toolboxes. */
+export interface CustomTool {
+  id: string
+  slug: string
+  name: string
+  description: string
+  parameters: string // JSON Schema string
+  entrypoint: string
+  language: string | null
+  domainSlug: string
+  timeoutMs: number | null
+  enabled: boolean
+  createdBy: string // 'user' | 'kin'
+  /** UI-only localized overrides. Null/absent when none defined. */
+  translations: CustomToolTranslations | null
+}
+
+/** A tool domain row (DB-backed). Built-in domains are read-only and carry an
+ *  i18n `labelKey`; custom domains carry a literal `label` + a curated `color`
+ *  token. See `TOOL_DOMAIN_META` (builtin visual source) and the
+ *  `tool_domains` table. */
+export interface ToolDomainEntry {
+  slug: string
+  label: string | null
+  labelKey: string | null
+  icon: string
+  color: string | null
+  description: string | null
+  builtin: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+/** Resolved visual metadata for a domain, served by GET /api/tools/domain-meta
+ *  so the client can render custom-domain badges/icons without hardcoding. For
+ *  builtins the triple comes from `TOOL_DOMAIN_META`; for custom domains from
+ *  the curated color token. */
+export interface ToolDomainMetaResolved {
+  slug: string
+  icon: string
+  bg: string
+  text: string
+  border: string
+  builtin: boolean
+  /** i18n key (builtin) — client translates it. */
+  labelKey: string | null
+  /** literal label (custom) — used when `labelKey` is null. */
+  label: string | null
 }
 
 /** Per-Kin compacting configuration (stored as JSON in kins.compacting_config) */
@@ -604,7 +673,13 @@ export interface VersionInfo {
   lastCheckedAt: number | null
 }
 
-export type ToolDomain =
+/**
+ * The well-known built-in tool domains. Each has static metadata
+ * (icon/colors/i18n label) in `TOOL_DOMAIN_META`. Native tool registration
+ * (`src/server/tools/register.ts`) passes these literals, so keeping the union
+ * gives IDE autocomplete + an exhaustiveness anchor for `TOOL_DOMAIN_META`.
+ */
+export type BuiltinToolDomain =
   | 'search'
   | 'browse'
   | 'voice'
@@ -631,6 +706,15 @@ export type ToolDomain =
   | 'mini-apps'
   | 'plugins'
   | 'projects'
+
+/**
+ * A tool domain slug. Built-in domains are the well-known ones in
+ * `BuiltinToolDomain`; user-created domains (DB-backed `tool_domains`) widen
+ * this to any string. Visual metadata for a domain is resolved at runtime
+ * (builtins from `TOOL_DOMAIN_META`, customs from the DB) — never assume the
+ * value is a member of `BuiltinToolDomain`.
+ */
+export type ToolDomain = string
 
 // ─── Context token breakdown ──────────────────────────────────────────────
 

@@ -1,11 +1,13 @@
 import { Hono } from 'hono'
+import { eq } from 'drizzle-orm'
 import { toolRegistry } from '@/server/tools/index'
 import { HARD_EXCLUDED_FROM_SUBKIN } from '@/server/services/tasks'
 import { listAllMCPCatalogTools } from '@/server/services/mcp'
-import { listCustomTools } from '@/server/services/custom-tools'
+import { listCustomTools, resolveCustomToolDisplay } from '@/server/services/custom-tools'
+import { customToolHasRenderer } from '@/server/services/custom-tool-renderer'
+import { resolveDomainMeta } from '@/server/services/tool-domains'
 import { db } from '@/server/db/index'
-import { kins } from '@/server/db/schema'
-import { eq } from 'drizzle-orm'
+import { userProfiles } from '@/server/db/schema'
 import { createLogger } from '@/server/logger'
 import type { AppVariables } from '@/server/app'
 import type { ToolCatalogEntry, ToolDomain } from '@/shared/types'
@@ -27,7 +29,66 @@ export const toolsRoutes = new Hono<{ Variables: AppVariables }>()
 toolsRoutes.get('/domains', (c) => {
   const map: Record<string, ToolDomain> = {}
   for (const t of toolRegistry.list()) map[t.name] = t.domain
+  // Custom tools are not in the registry (resolved separately, MCP-style); add
+  // their name→domain so the client colours their tool-call badges correctly.
+  try {
+    for (const ct of listCustomTools()) map[`custom_${ct.slug}`] = ct.domainSlug
+  } catch {
+    // best-effort: a custom-tools read failure must not break badge colouring.
+  }
   return c.json(map)
+})
+
+// GET /api/tools/domain-meta — render-ready visual metadata for every tool
+// domain (built-in + custom): icon name, Tailwind triple, and label/labelKey.
+// The client hydrates this once and resolves any domain (incl. user-created)
+// without hardcoding TOOL_DOMAIN_META for custom slugs.
+toolsRoutes.get('/domain-meta', (c) => {
+  return c.json({ domains: resolveDomainMeta() })
+})
+
+/** Resolve the current user's UI language (user_profiles.language). Best-effort:
+ *  returns null when the user/profile can't be read, so callers fall back to the
+ *  base (untranslated) display. */
+function currentUserLocale(c: { get: (k: 'user') => { id: string } | undefined }): string | null {
+  try {
+    const u = c.get('user')
+    if (!u) return null
+    const profile = db
+      .select({ language: userProfiles.language })
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, u.id))
+      .get()
+    return profile?.language ?? null
+  } catch {
+    return null
+  }
+}
+
+// GET /api/tools/custom-tool-names — `custom_<slug>` → { name, hasRenderer } for
+// the CURRENT user's UI language. The client hydrates this once at boot and uses
+// it to (a) show a human name for custom tool-calls instead of the raw
+// custom_<slug>, and (b) decide whether to attempt loading a result renderer (so
+// it only fetches /renderer.js for tools that actually ship one).
+// `name` is UI-ONLY — translations never alter the tool definition seen by the LLM.
+// `hasRenderer` is a cheap on-disk file-presence check (renderer.tsx/.jsx/.js).
+toolsRoutes.get('/custom-tool-names', (c) => {
+  try {
+    const locale = currentUserLocale(c)
+    const map: Record<string, { name: string; hasRenderer: boolean }> = {}
+    for (const ct of listCustomTools()) {
+      map[`custom_${ct.slug}`] = {
+        name: resolveCustomToolDisplay(ct, locale).name,
+        hasRenderer: customToolHasRenderer(ct.slug),
+      }
+    }
+    return c.json(map)
+  } catch (err) {
+    // Best-effort: a read failure must not break the chat UI (it falls back to
+    // the i18n key / raw slug name).
+    log.warn({ err }, 'tools/custom-tool-names: failed to resolve names')
+    return c.json({})
+  }
 })
 
 // GET /api/tools/catalog — Kin-agnostic catalog of every grantable tool across
@@ -46,8 +107,8 @@ toolsRoutes.get('/domains', (c) => {
 //   - plugin : registry tools registered under the `plugin_<plugin>_*` prefix.
 //   - mcp    : every tool from ALL global active MCP servers (no per-Kin gate),
 //              named `mcp_<sanitizeName(server)>_<sanitizeName(tool)>`.
-//   - custom : per-Kin scripts — only included when the request carries an
-//              optional `?kinId=` (otherwise omitted, since they are not global).
+//   - custom : GLOBAL scripts (no per-Kin gate), named `custom_<slug>`, each
+//              carrying its own (possibly custom) domain + an `enabled` flag.
 const HARD_EXCLUDED_SET = new Set<string>(HARD_EXCLUDED_FROM_SUBKIN)
 
 /** A registry tool registered by a plugin is prefixed `plugin_<plugin>_` at
@@ -58,8 +119,6 @@ function isPluginToolName(name: string): boolean {
 }
 
 toolsRoutes.get('/catalog', async (c) => {
-  const kinId = c.req.query('kinId')?.trim() || null
-
   // ── native + plugin (both from the registry) ────────────────────────────────
   const registryEntries: ToolCatalogEntry[] = toolRegistry.list().map((t) => ({
     name: t.name,
@@ -96,31 +155,30 @@ toolsRoutes.get('/catalog', async (c) => {
     log.warn({ err }, 'tools/catalog: failed to enumerate MCP tools')
   }
 
-  // ── custom (per-Kin — only when ?kinId= is supplied) ─────────────────────────
+  // ── custom (GLOBAL — no per-Kin gate) ────────────────────────────────────────
+  // `label`/`description` are localized for the current user's UI language so the
+  // toolbox editor shows a human name instead of the raw custom_<slug>. This is
+  // UI metadata only — the LLM still receives the base description + raw schema.
   let customEntries: ToolCatalogEntry[] = []
-  if (kinId) {
-    try {
-      const [tools, kin] = await Promise.all([
-        listCustomTools(kinId),
-        Promise.resolve(db.select({ name: kins.name }).from(kins).where(eq(kins.id, kinId)).get()),
-      ])
-      const kinName = kin?.name
-      customEntries = tools.map((ct) => ({
-        name: `custom_${ct.name}`,
+  try {
+    const locale = currentUserLocale(c)
+    customEntries = listCustomTools().map((ct) => {
+      const display = resolveCustomToolDisplay(ct, locale)
+      return {
+        name: `custom_${ct.slug}`,
         source: 'custom' as const,
-        domain: 'custom' as ToolDomain,
-        label: null,
-        description: ct.description ?? null,
+        domain: ct.domainSlug as ToolDomain,
+        label: display.name,
+        description: display.description || ct.description || null,
         defaultDisabled: false,
         readOnly: false,
         destructive: false,
         hardExcludedFromSubKin: false,
-        customKinId: kinId,
-        ...(kinName ? { customKinName: kinName } : {}),
-      }))
-    } catch (err) {
-      log.warn({ err, kinId }, 'tools/catalog: failed to enumerate custom tools')
-    }
+        enabled: ct.enabled,
+      }
+    })
+  } catch (err) {
+    log.warn({ err }, 'tools/catalog: failed to enumerate custom tools')
   }
 
   const tools: ToolCatalogEntry[] = [...registryEntries, ...mcpEntries, ...customEntries]

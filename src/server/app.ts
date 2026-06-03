@@ -18,6 +18,8 @@ import { sseRoutes } from '@/server/routes/sse'
 import { kinRoutes } from '@/server/routes/kins'
 import { toolsRoutes } from '@/server/routes/tools'
 import { toolboxRoutes } from '@/server/routes/toolboxes'
+import { toolDomainRoutes } from '@/server/routes/tool-domains'
+import { customToolRoutes } from '@/server/routes/custom-tools'
 import { messageRoutes } from '@/server/routes/messages'
 import { reactionRoutes } from '@/server/routes/reactions'
 import { vaultRoutes } from '@/server/routes/vault'
@@ -170,6 +172,8 @@ app.route('/api/sse', sseRoutes)
 app.route('/api/kins', kinRoutes)
 app.route('/api/tools', toolsRoutes)
 app.route('/api/toolboxes', toolboxRoutes)
+app.route('/api/tool-domains', toolDomainRoutes)
+app.route('/api/custom-tools', customToolRoutes)
 app.route('/api/kins/:kinId/messages', messageRoutes)
 app.route('/api/kins/:kinId/messages/:messageId/reactions', reactionRoutes)
 app.route('/api/vault', vaultRoutes)
