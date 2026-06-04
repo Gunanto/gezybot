@@ -467,7 +467,7 @@ export function useChat(kinId: string | null) {
         injectedMemories: null,
         memoriesExtracted: null,
         compactingError: null,
-        files: [],
+        files: (data.files as MessageFile[] | undefined) ?? [],
         reactions: [],
           stepLimitReached: false,
         tokenUsage: null,

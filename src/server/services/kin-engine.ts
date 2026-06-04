@@ -38,7 +38,7 @@ import type { KinThinkingConfig, KinThinkingEffort, ContextTokenBreakdown, Conte
 import { listAvailableKins } from '@/server/services/inter-kin'
 import { listContactsForPrompt, findContactByLinkedUserId } from '@/server/services/contacts'
 import { contactNotes as contactNotesTable } from '@/server/db/schema'
-import { linkFilesToMessage, getFilesForMessage } from '@/server/services/files'
+import { linkFilesToMessage, getFilesForMessage, serializeFile } from '@/server/services/files'
 import { popChannelQueueMeta, getChannelQueueMeta, deliverChannelResponse, getActiveChannelsForKin, getChannel, findContactByPlatformId, getChannelOriginMeta } from '@/server/services/channels'
 import { popStagedAttachments, clearStagedAttachments } from '@/server/tools/attach-file-tool'
 import { parseMentions, notifyMentionedUsers } from '@/server/services/mentions'
@@ -1035,8 +1035,10 @@ export async function processNextMessage(kinId: string): Promise<boolean> {
     // guards against the chat:done refetch racing ahead. A bare block keeps the
     // (previously skipped for sourceType 'user') channel-enrichment code intact.
     {
+      // Serialize to the same {id,name,mimeType,size,url} shape the GET endpoint
+      // returns — raw DB rows have no `url`, so the UI couldn't render them.
       const fileList = queueItem.fileIds && queueItem.fileIds.length > 0
-        ? await getFilesForMessage(userMessageId)
+        ? (await getFilesForMessage(userMessageId)).map(serializeFile)
         : []
 
       // Channel inbound enrichment: surface the adapter-provided contextLine
