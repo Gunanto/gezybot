@@ -100,11 +100,16 @@ export async function enqueueMessage(params: EnqueueParams) {
 
   const queuePosition = pending.length
 
-  // Emit queue update via SSE
+  // Emit queue update via SSE. Reflect the REAL processing state: a message
+  // enqueued WHILE the Kin is mid-turn must not report isProcessing:false —
+  // that clobbers the client's queue state and makes the live thinking bubble
+  // disappear until a manual refresh. Scope to the message's lane (quick
+  // session vs main thread) so each reflects its own processing status.
+  const processing = await isKinProcessing(params.kinId, params.sessionId ? 'quick' : 'main')
   sseManager.sendToKin(params.kinId, {
     type: 'queue:update',
     kinId: params.kinId,
-    data: { kinId: params.kinId, queueSize: queuePosition, isProcessing: false },
+    data: { kinId: params.kinId, queueSize: queuePosition, isProcessing: processing },
   })
 
   // Store file IDs in sideband map for later retrieval by kin-engine
