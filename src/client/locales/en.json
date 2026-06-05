@@ -2389,6 +2389,8 @@
       "test_provider": "Test Provider",
       "enable_provider_capability": "Enable Provider Capability",
       "set_default_provider": "Set Default Provider",
+      "set_default_model": "Set Default Model",
+      "get_default_models": "Read Default Models",
       "get_global_prompt": "Read Global Prompt",
       "set_global_prompt": "Set Global Prompt",
       "get_avatar_style": "Read Avatar Style",

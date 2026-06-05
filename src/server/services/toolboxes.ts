@@ -190,6 +190,8 @@ export const BUILTIN_TOOLBOXES: readonly BuiltinToolboxDef[] = [
       'test_provider',
       'enable_provider_capability',
       'set_default_provider',
+      'set_default_model',
+      'get_default_models',
       // Global prompt + avatar style.
       'get_global_prompt',
       'set_global_prompt',

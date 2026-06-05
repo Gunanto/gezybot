@@ -33,6 +33,32 @@ import {
   setDefaultSearchProviderId,
   setDefaultTtsProviderId,
   setDefaultSttProviderId,
+  // Model defaults (model + provider pairs).
+  setDefaultLlmModel,
+  setEmbeddingModel,
+  setDefaultImageModel,
+  setDefaultScoutModel,
+  setDefaultScoutProviderId,
+  setDefaultCompactingModel,
+  setDefaultCompactingProviderId,
+  setExtractionModel,
+  setExtractionProviderId,
+  // Getters for get_default_models.
+  getDefaultLlmModel,
+  getDefaultLlmProviderId,
+  getEmbeddingModel,
+  getEmbeddingProviderId,
+  getDefaultImageModel,
+  getDefaultImageProviderId,
+  getDefaultScoutModel,
+  getDefaultScoutProviderId,
+  getDefaultCompactingModel,
+  getDefaultCompactingProviderId,
+  getExtractionModel,
+  getExtractionProviderId,
+  getDefaultSearchProviderId,
+  getDefaultTtsProviderId,
+  getDefaultSttProviderId,
 } from '@/server/services/app-settings'
 import { PROVIDER_META } from '@/shared/provider-metadata'
 import { PROVIDER_API_KEY_URLS, PROVIDERS_WITHOUT_API_KEY } from '@/shared/constants'
@@ -78,6 +104,17 @@ const CAPABILITY_DEFAULT_SETTERS: Record<DefaultableCapability, (id: string | nu
   search: setDefaultSearchProviderId,
   tts: setDefaultTtsProviderId,
   stt: setDefaultSttProviderId,
+}
+
+// Model-bearing services: the default is a (model + provider) pair.
+type ModelService = 'llm' | 'embedding' | 'image' | 'scout' | 'compacting' | 'extraction'
+const MODEL_DEFAULT_SETTERS: Record<ModelService, { setModel: (m: string) => Promise<void>; setProvider: (id: string | null) => Promise<void> }> = {
+  llm: { setModel: setDefaultLlmModel, setProvider: setDefaultLlmProviderId },
+  embedding: { setModel: setEmbeddingModel, setProvider: setEmbeddingProviderId },
+  image: { setModel: setDefaultImageModel, setProvider: setDefaultImageProviderId },
+  scout: { setModel: setDefaultScoutModel, setProvider: setDefaultScoutProviderId },
+  compacting: { setModel: setDefaultCompactingModel, setProvider: setDefaultCompactingProviderId },
+  extraction: { setModel: setExtractionModel, setProvider: setExtractionProviderId },
 }
 
 // ─── describe_provider_config ────────────────────────────────────────────────
@@ -282,6 +319,89 @@ export const setDefaultProviderTool: ToolRegistration = {
         await setter(provider.id)
         log.info({ providerId: provider.id, capability }, 'Set default provider for capability')
         return { ok: true, capability, providerId: provider.id, providerName: provider.name }
+      },
+    }),
+}
+
+// ─── set_default_model / get_default_models ──────────────────────────────────
+
+export const setDefaultModelTool: ToolRegistration = {
+  availability: ['main', 'sub-kin'],
+  create: (ctx) =>
+    tool({
+      description:
+        'Set the default MODEL (and its provider) for a model-bearing service: llm (chat), embedding (memory indexing), image (avatars/images), scout (cheap exploration), compacting (history summarization), extraction (memory extraction). ' +
+        'For example: after connecting an embedding provider, set the default embedding model so the memory system uses it. ' +
+        'For search/tts/stt (no model selection) use set_default_provider instead. Use list_models to find a valid model id + its providerSlug.',
+      inputSchema: z.object({
+        service: z.enum(['llm', 'embedding', 'image', 'scout', 'compacting', 'extraction']),
+        model: z.string().describe('Model id (from list_models).'),
+        provider_id: z
+          .string()
+          .optional()
+          .describe('Provider id or slug that serves the model (recommended — use the providerSlug from list_models).'),
+      }),
+      execute: async ({ service, model, provider_id }) => {
+        const denied = await requireAdmin(ctx)
+        if (denied) return denied
+        const setters = MODEL_DEFAULT_SETTERS[service]
+        let providerId: string | null = null
+        if (provider_id) {
+          const provider = await findProvider(provider_id)
+          if (!provider) return { error: `Provider not found: "${provider_id}".` }
+          providerId = provider.id
+        }
+        await setters.setModel(model)
+        await setters.setProvider(providerId)
+        sseManager.broadcast({ type: 'settings:defaults-updated', data: {} })
+        log.info({ service, model, providerId }, 'Set default model')
+        return { ok: true, service, model, providerId }
+      },
+    }),
+}
+
+export const getDefaultModelsTool: ToolRegistration = {
+  availability: ['main', 'sub-kin'],
+  readOnly: true,
+  concurrencySafe: true,
+  create: (_ctx) =>
+    tool({
+      description:
+        'Read the current platform DEFAULTS — the default model (and provider) for each model-bearing service (llm/embedding/image/scout/compacting/extraction) and the default provider for search/tts/stt. Use this to see what is already configured before changing anything.',
+      inputSchema: z.object({}),
+      execute: async () => {
+        const [
+          llmModel, llmProviderId,
+          embeddingModel, embeddingProviderId,
+          imageModel, imageProviderId,
+          scoutModel, scoutProviderId,
+          compactingModel, compactingProviderId,
+          extractionModel, extractionProviderId,
+          searchProviderId, ttsProviderId, sttProviderId,
+        ] = await Promise.all([
+          getDefaultLlmModel(), getDefaultLlmProviderId(),
+          getEmbeddingModel(), getEmbeddingProviderId(),
+          getDefaultImageModel(), getDefaultImageProviderId(),
+          getDefaultScoutModel(), getDefaultScoutProviderId(),
+          getDefaultCompactingModel(), getDefaultCompactingProviderId(),
+          getExtractionModel(), getExtractionProviderId(),
+          getDefaultSearchProviderId(), getDefaultTtsProviderId(), getDefaultSttProviderId(),
+        ])
+        return {
+          models: {
+            llm: { model: llmModel, providerId: llmProviderId },
+            embedding: { model: embeddingModel, providerId: embeddingProviderId },
+            image: { model: imageModel, providerId: imageProviderId },
+            scout: { model: scoutModel, providerId: scoutProviderId },
+            compacting: { model: compactingModel, providerId: compactingProviderId },
+            extraction: { model: extractionModel, providerId: extractionProviderId },
+          },
+          providers: {
+            search: searchProviderId,
+            tts: ttsProviderId,
+            stt: sttProviderId,
+          },
+        }
       },
     }),
 }

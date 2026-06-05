@@ -2389,6 +2389,8 @@
       "test_provider": "Tester un fournisseur",
       "enable_provider_capability": "Activer une capacité de fournisseur",
       "set_default_provider": "Définir le fournisseur par défaut",
+      "set_default_model": "Définir le modèle par défaut",
+      "get_default_models": "Lire les modèles par défaut",
       "get_global_prompt": "Lire le prompt global",
       "set_global_prompt": "Définir le prompt global",
       "get_avatar_style": "Lire le style d'avatar",

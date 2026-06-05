@@ -185,6 +185,8 @@ import {
   testProviderTool,
   enableProviderCapabilityTool,
   setDefaultProviderTool,
+  setDefaultModelTool,
+  getDefaultModelsTool,
   getGlobalPromptTool,
   setGlobalPromptTool,
   getAvatarStyleTool,
@@ -521,6 +523,8 @@ export function registerAllTools(): void {
   toolRegistry.register('test_provider', testProviderTool, 'system')
   toolRegistry.register('enable_provider_capability', enableProviderCapabilityTool, 'system')
   toolRegistry.register('set_default_provider', setDefaultProviderTool, 'system')
+  toolRegistry.register('set_default_model', setDefaultModelTool, 'system')
+  toolRegistry.register('get_default_models', getDefaultModelsTool, 'system')
   toolRegistry.register('get_global_prompt', getGlobalPromptTool, 'system')
   toolRegistry.register('set_global_prompt', setGlobalPromptTool, 'system')
   toolRegistry.register('get_avatar_style', getAvatarStyleTool, 'system')
