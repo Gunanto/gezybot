@@ -161,6 +161,10 @@ describe('createKinTool', () => {
       character: 'Thoughtful and thorough',
       expertise: 'Web research and summarization',
       model: 'claude-sonnet-4-20250514',
+      // create_kin now defaults the toolbox selection to the built-in "all" so
+      // the Kin isn't tool-less; providerId stays null when a model is given.
+      providerId: null,
+      toolboxIds: ['tb-all'],
       createdBy: 'user-1',
     })
   })

@@ -29,22 +29,65 @@ export const createKinTool: ToolRegistration = {
         role: z.string(),
         character: z.string().describe('Personality and communication style'),
         expertise: z.string(),
-        model: z.string().describe('LLM model ID (e.g. "claude-sonnet-4-20250514", "gpt-4o")'),
+        model: z
+          .string()
+          .optional()
+          .describe('LLM model ID. Omit to use the platform default LLM (recommended unless the user asked for a specific model).'),
+        toolboxes: z
+          .array(z.string())
+          .optional()
+          .describe(
+            'Names of toolboxes granting this Kin its tools. A Kin with NO toolbox can only use the core floor (read/write files, shell, basic) — so give it the toolboxes it needs (don\'t be stingy). Built-ins: "all" (everything), "research" (web + memory), "ops" (memory + vault + http), "code" (projects/tickets), "scout", "email", "calendar". Omit to default to "all". Use list_toolboxes to discover more.',
+          ),
         generate_avatar: z
           .boolean()
           .optional()
           .default(false),
       }),
-      execute: async ({ name, role, character, expertise, model, generate_avatar }) => {
+      execute: async ({ name, role, character, expertise, model, toolboxes, generate_avatar }) => {
         log.info({ kinId: ctx.kinId, newKinName: name }, 'Kin creation requested via tool')
 
         try {
+          // Default the model + provider to the platform default LLM when not
+          // specified, so the new Kin row has a concrete, UI-selectable model
+          // (avoids the "Select a model" desync). When a model is given
+          // explicitly, its provider is resolved at runtime as before.
+          const { getDefaultLlmModel, getDefaultLlmProviderId } = await import('@/server/services/app-settings')
+          let finalModel = model?.trim() || undefined
+          let providerId: string | null = null
+          if (!finalModel) {
+            finalModel = (await getDefaultLlmModel()) ?? undefined
+            providerId = await getDefaultLlmProviderId()
+          }
+          if (!finalModel) {
+            return { error: 'No LLM model available — configure a default LLM first.' }
+          }
+
+          // Resolve toolbox names → ids. Default to "all" (functional) when the
+          // caller didn't specify, so the Kin isn't left tool-less.
+          const { getToolboxByName } = await import('@/server/services/toolboxes')
+          let toolboxIds: string[] | null
+          if (toolboxes && toolboxes.length > 0) {
+            const ids: string[] = []
+            for (const tbName of toolboxes) {
+              const box = getToolboxByName(tbName.trim())
+              if (box) ids.push(box.id)
+              else return { error: `Unknown toolbox "${tbName}". Use list_toolboxes to see available toolboxes.` }
+            }
+            toolboxIds = ids
+          } else {
+            const allBox = getToolboxByName('all')
+            toolboxIds = allBox ? [allBox.id] : null
+          }
+
           const newKin = await createKin({
             name,
             role,
             character,
             expertise,
-            model,
+            model: finalModel,
+            providerId,
+            toolboxIds,
             createdBy: ctx.userId ?? null,
           })
 
@@ -95,7 +138,7 @@ export const updateKinTool: ToolRegistration = {
           .array(z.string())
           .optional()
           .describe(
-            'Names of the toolboxes whose tools this Kin may use. The Kin\'s toolset is the mandatory core floor unioned with every chosen toolbox\'s tools. Built-ins: "code", "research", "ops", "scout", "all". Use list_toolboxes to discover available toolboxes. Pass [] to reset to the "all" default.',
+            'Names of the toolboxes whose tools this Kin may use. The Kin\'s toolset is the mandatory core floor unioned with every chosen toolbox\'s tools. Built-ins: "all" (everything), "research", "ops", "code", "scout", "email", "calendar". Use list_toolboxes to discover more. Pass [] to remove ALL toolboxes — the Kin then only has the core floor (it will say it lacks tools for most things), so prefer a real selection.',
           ),
         generate_avatar: z
           .boolean()

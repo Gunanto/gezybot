@@ -293,9 +293,10 @@ export function KinFormModal({
       setModel(config.suggestedModel)
     }
 
-    // Tool grants are managed exclusively through toolboxes now; a wizard-
-    // generated Kin defaults to the built-in 'all' toolbox (null selection).
-    // The user can narrow it from the Tools tab after generation.
+    // Tool grants are managed exclusively through toolboxes. A Kin with no
+    // toolbox selected has only the core floor — pick toolboxes in the Tools
+    // tab to grant web/memory/projects/etc. (the resolver no longer treats an
+    // empty selection as "all").
 
     markDirty()
   }

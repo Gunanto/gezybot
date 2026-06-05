@@ -103,6 +103,12 @@ registerAllTools()
 log.info('Seeding built-in toolboxes...')
 seedBuiltinToolboxes()
 
+// One-time: make existing null-toolbox Kins explicit ['all'] now that the
+// resolver default changed to "no toolbox → CORE floor only" (runs after the
+// built-in toolboxes are seeded so the 'all' box exists).
+import { migrateNullKinToolboxesToAll } from '@/server/services/migrate-kin-toolboxes'
+await migrateNullKinToolboxesToAll()
+
 // Seed built-in tool domains (idempotent). Runs after migrations so the
 // tool_domains table exists; custom_tools.domain_slug FKs into it.
 log.info('Seeding built-in tool domains...')

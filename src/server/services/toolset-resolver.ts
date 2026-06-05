@@ -46,13 +46,13 @@ const log = createLogger('toolset-resolver')
  * Resolve a raw `kins.toolbox_ids` / `tasks.toolbox_ids` selection into a clean
  * array of toolbox **ids**.
  *
- * A null / empty / malformed selection resolves to the 'all' built-in (by name,
- * at runtime — seeding runs at app boot, after migrations, so the row exists).
- * Ticket tasks could differ here, but for the unified resolver the default is
- * always 'all'; task-specific defaults remain in `resolveTaskToolboxIds`.
- *
- * Mirrors `resolveTaskToolboxIds` in tasks.ts (explicit ids → default by name),
- * minus the legacy `tool_preset` back-compat which only applies to tasks.
+ * A null / empty / malformed selection resolves to NO toolboxes → the Kin's
+ * toolset is just the mandatory CORE_TOOLS floor. Tools are granted by attaching
+ * toolboxes (the 'all' built-in grants everything). This changed from the legacy
+ * "null = all tools" rule, which predated toolboxes; existing null-toolbox Kins
+ * are migrated to an explicit ['all'] selection at boot (migrate-kin-toolboxes)
+ * so their behavior is preserved. Callers that create Kins (configurator,
+ * KinFormModal) assign explicit toolboxes.
  */
 export function resolveKinToolboxIds(
   raw: string[] | string | null | undefined,
@@ -73,11 +73,8 @@ export function resolveKinToolboxIds(
     }
   }
 
-  if (ids.length > 0) return ids
-
-  // Default: the 'all' built-in, resolved by name at runtime.
-  const box = getToolboxByName('all')
-  return box ? [box.id] : []
+  // No explicit selection → no toolboxes (CORE_TOOLS floor only).
+  return ids
 }
 
 export interface ResolveToolsetOptions {
