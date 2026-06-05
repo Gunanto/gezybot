@@ -97,6 +97,7 @@ kinRoutes.get('/', async (c) => {
         slug: k.slug,
         name: k.name,
         role: k.role,
+        kind: k.kind,
         avatarUrl: kinAvatarUrl(k.id, k.avatarPath, k.updatedAt),
         model: k.model,
         providerId: k.providerId ?? null,

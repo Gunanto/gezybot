@@ -1,4 +1,5 @@
 import { sqliteTable, text, integer, real, blob, primaryKey, uniqueIndex, index, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
+import type { KinKind } from '@/shared/types'
 
 // ─── Better Auth tables ────────────────────────────────────────────────────────
 // These tables are managed by Better Auth. Defined here for Drizzle relations
@@ -55,6 +56,9 @@ export const userProfiles = sqliteTable('user_profiles', {
   role: text('role').notNull().default('member'),
   kinOrder: text('kin_order'), // JSON array of kin IDs, e.g. '["id1","id2","id3"]'
   cronOrder: text('cron_order'), // JSON array of cron IDs, e.g. '["id1","id2","id3"]'
+  // Set once the user dismisses the conversational onboarding modal (Sherpa).
+  // Prevents the modal from auto-reopening; the Kin remains in the list. See sherpa.md.
+  onboardingModalDismissed: integer('onboarding_modal_dismissed', { mode: 'boolean' }).notNull().default(false),
 })
 
 export const providers = sqliteTable('providers', {
@@ -82,6 +86,11 @@ export const kins = sqliteTable('kins', {
   avatarPath: text('avatar_path'),
   character: text('character').notNull(),
   expertise: text('expertise').notNull(),
+  /** Kin kind. 'regular' for user-created Kins; 'configurator' for the seeded
+   *  onboarding guide (Sherpa) — drives the [Configurator mission]/[knowledge]
+   *  prompt blocks, the `configurator` toolbox, and exclusion from the
+   *  "first real Kin" onboarding counts. See sherpa.md. */
+  kind: text('kind').$type<KinKind>().notNull().default('regular'),
   model: text('model').notNull(),
   providerId: text('provider_id').references(() => providers.id, { onDelete: 'set null' }),
   /** Optional cheap "scout" model used when this Kin (or a sub-task it owns)

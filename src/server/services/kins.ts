@@ -40,7 +40,7 @@ import { createLogger } from '@/server/logger'
 import { deleteChannel } from '@/server/services/channels'
 import { stopJob } from '@/server/services/crons'
 import { resolveThinkingConfig } from '@/server/services/kin-engine'
-import type { KinCompactingConfig, KinThinkingConfig } from '@/shared/types'
+import type { KinCompactingConfig, KinKind, KinThinkingConfig } from '@/shared/types'
 
 const log = createLogger('services:kins')
 
@@ -63,6 +63,9 @@ export interface CreateKinInput {
   mcpServerIds?: string[]
   /** Optional toolbox selection. Null/empty → 'all' built-in at resolution. */
   toolboxIds?: string[] | null
+  /** Kin kind. Defaults to 'regular'. Set to 'configurator' only when seeding
+   *  the onboarding guide (Sherpa). See sherpa.md. */
+  kind?: KinKind
 }
 
 export interface UpdateKinInput {
@@ -94,6 +97,7 @@ export interface KinRecord {
   avatarPath: string | null
   character: string
   expertise: string
+  kind: KinKind
   model: string
   providerId: string | null
   scoutModel: string | null
@@ -152,6 +156,7 @@ export async function createKin(input: CreateKinInput): Promise<KinRecord> {
       role: input.role,
       character: input.character,
       expertise: input.expertise,
+      kind: input.kind ?? 'regular',
       model: input.model,
       providerId: input.providerId ?? null,
       scoutModel: scoutPaired ? input.scoutModel!.trim() : null,
@@ -185,6 +190,7 @@ export async function createKin(input: CreateKinInput): Promise<KinRecord> {
       slug,
       name: input.name,
       role: input.role,
+      kind: input.kind ?? 'regular',
       model: input.model,
       providerId: input.providerId ?? null,
       avatarUrl: null,

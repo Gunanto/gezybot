@@ -2,13 +2,15 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { api } from '@/client/lib/api'
 import { useSSE, useSSEStatus, useSSEResync } from '@/client/hooks/useSSE'
 import { useModels, type ProviderModel } from '@/client/hooks/useModels'
-import type { KinCompactingConfig, KinThinkingConfig, KinThinkingEffort, ContextTokenBreakdown, ContextPipelineStatus } from '@/shared/types'
+import type { KinCompactingConfig, KinThinkingConfig, KinThinkingEffort, KinKind, ContextTokenBreakdown, ContextPipelineStatus } from '@/shared/types'
 
 interface KinSummary {
   id: string
   slug: string
   name: string
   role: string
+  /** 'configurator' for the seeded onboarding guide (Sherpa), else 'regular'. */
+  kind: KinKind
   avatarUrl: string | null
   model: string
   providerId: string | null
@@ -159,6 +161,7 @@ export function useKins() {
         slug: data.slug as string,
         name: data.name as string,
         role: data.role as string,
+        kind: (data.kind as KinKind | undefined) ?? 'regular',
         model: data.model as string,
         providerId: (data.providerId as string | null) ?? null,
         activeProjectId: (data.activeProjectId as string | null) ?? null,

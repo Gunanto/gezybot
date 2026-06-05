@@ -287,6 +287,12 @@ export interface ToolDomainMetaResolved {
   label: string | null
 }
 
+/** Kin kind discriminator. 'configurator' marks the seeded conversational
+ *  onboarding guide (Sherpa) — drives its special prompt blocks, the
+ *  `configurator` toolbox, and exclusion from "first real Kin" counts.
+ *  All user-created Kins are 'regular'. See sherpa.md. */
+export type KinKind = 'regular' | 'configurator'
+
 /** Per-Kin compacting configuration (stored as JSON in kins.compacting_config) */
 export interface KinCompactingConfig {
   /** Model used for compaction (null = same as Kin's model) */

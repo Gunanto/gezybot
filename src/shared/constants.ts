@@ -52,6 +52,23 @@ export const PROVIDERS_WITH_OPTIONAL_API_KEY = metaEntries
 
 export const REQUIRED_CAPABILITIES = ['llm', 'embedding'] as const
 
+/** Preference order (case-insensitive substring match against model ids) used
+ *  to pick a balanced, tool-use-reliable model when seeding the configurator
+ *  Kin (Sherpa) on a freshly added native LLM provider. resolveConfiguratorModel()
+ *  returns the first listed model whose id matches the earliest preference; if
+ *  none match it falls back to the provider's first listed model. Keyed by
+ *  provider `type`. Drift-proof (always validated against the live model list).
+ *  See sherpa.md §4.2. */
+export const CONFIGURATOR_MODEL_PREFERENCES: Record<string, readonly string[]> = {
+  anthropic: ['sonnet', 'opus', 'haiku'],
+  'anthropic-oauth': ['sonnet', 'opus', 'haiku'],
+  openai: ['gpt-5', 'gpt-4.1', 'gpt-4o', 'o4', 'gpt-4'],
+  'openai-codex': ['gpt-5', 'gpt-4.1', 'gpt-4o'],
+  gemini: ['flash', 'pro'],
+  openrouter: ['sonnet', 'gpt-4o', 'gpt-4.1', 'llama'],
+  xai: ['grok-4', 'grok-3', 'grok-2', 'grok'],
+}
+
 export const MEMORY_CATEGORIES = ['fact', 'preference', 'decision', 'knowledge'] as const
 
 export const MEMORY_SCOPES = ['private', 'shared'] as const
