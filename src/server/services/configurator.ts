@@ -67,6 +67,14 @@ export async function seedConfiguratorKin(adminUserId: string, providerId: strin
   const toolbox = getToolboxByName('configurator')
   if (!toolbox) log.warn('configurator toolbox not found — Sherpa will fall back to the full toolset')
 
+  // Make the bootstrap provider the default LLM (model + provider) if the user
+  // hasn't set one yet — so the Kins they create next inherit a working default.
+  const { getDefaultLlmProviderId, setDefaultLlmModel, setDefaultLlmProviderId } = await import('@/server/services/app-settings')
+  if (!(await getDefaultLlmProviderId())) {
+    await setDefaultLlmModel(model)
+    await setDefaultLlmProviderId(providerId)
+  }
+
   const kin = await createKin({
     name: SHERPA.name,
     role: SHERPA.role,

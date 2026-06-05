@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Progress } from '@/client/components/ui/progress'
 import { StepIdentity } from '@/client/pages/onboarding/StepIdentity'
 import { StepPreferences } from '@/client/pages/onboarding/StepPreferences'
+import { StepBootstrapProvider } from '@/client/pages/onboarding/StepBootstrapProvider'
 
 /**
  * First-run onboarding — minimal by design.
@@ -20,7 +21,7 @@ import { StepPreferences } from '@/client/pages/onboarding/StepPreferences'
  *                    ~5 seconds. Sets the cosmetic frame before the
  *                    user sees the dashboard.
  */
-const TOTAL_STEPS = 2
+const TOTAL_STEPS = 3
 
 interface OnboardingPageProps {
   onComplete: () => void
@@ -65,7 +66,10 @@ export function OnboardingPage({ onComplete }: OnboardingPageProps) {
             <StepIdentity onComplete={() => setCurrentStep(2)} />
           )}
           {currentStep === 2 && (
-            <StepPreferences onComplete={onComplete} onBack={() => setCurrentStep(1)} />
+            <StepPreferences onComplete={() => setCurrentStep(3)} onBack={() => setCurrentStep(1)} />
+          )}
+          {currentStep === 3 && (
+            <StepBootstrapProvider onComplete={onComplete} />
           )}
         </div>
       </div>

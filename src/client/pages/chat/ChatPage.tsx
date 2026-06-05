@@ -78,6 +78,18 @@ export function ChatPage({ onOpenSettings, onOpenAccount }: ChatPageProps) {
     navigate(`/kin/${stored}`, { replace: true })
   }, [selectedKinSlug, kinsLoading, kins, location.pathname, navigate])
 
+  // First-run onboarding: land the user directly in the configurator Kin
+  // (Sherpa) — who has already greeted them — so setup happens through chat,
+  // until they create their first real Kin. Distraction-light: on a fresh
+  // install the sidebar holds only Sherpa.
+  useEffect(() => {
+    if (selectedKinSlug || kinsLoading || kins.length === 0) return
+    if (location.pathname !== '/') return
+    if (kins.some((k) => k.kind !== 'configurator')) return // a real Kin exists → normal behavior
+    const configurator = kins.find((k) => k.kind === 'configurator')
+    if (configurator?.slug) navigate(`/kin/${configurator.slug}`, { replace: true })
+  }, [selectedKinSlug, kinsLoading, kins, location.pathname, navigate])
+
   // Detect kins whose model is no longer served by any provider
   const unavailableKinIds = useMemo(() => {
     if (llmModels.length === 0) return new Set<string>()
@@ -109,7 +121,9 @@ export function ChatPage({ onOpenSettings, onOpenAccount }: ChatPageProps) {
   // Onboarding is complete when at least one LLM is configured AND at least
   // one Kin exists. The Hub Kin distinction was retired — every Kin is a
   // first-class citizen now that channels bind directly to any of them.
-  const onboardingComplete = llmModels.length > 0 && kins.length > 0
+  // The seeded configurator Kin (Sherpa) doesn't count as the user's "first
+  // Kin" — onboarding is only "done" once they've created a real one.
+  const onboardingComplete = llmModels.length > 0 && kins.some((k) => k.kind !== 'configurator')
 
   // Suppress the onboarding checklist while initial data is still loading.
   // Without this, the chat momentarily renders the checklist when arriving
