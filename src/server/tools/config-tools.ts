@@ -363,3 +363,30 @@ export const setAvatarStyleTool: ToolRegistration = {
       },
     }),
 }
+
+// ─── test_channel ────────────────────────────────────────────────────────────
+
+export const testChannelTool: ToolRegistration = {
+  availability: ['main'],
+  create: (ctx) =>
+    tool({
+      description:
+        'Test a configured messaging channel by (re)activating it and reporting whether it connects. Pass the channel id (from list_channels).',
+      inputSchema: z.object({
+        channel_id: z.string().describe('Channel id to test.'),
+      }),
+      execute: async ({ channel_id }) => {
+        const denied = await requireAdmin(ctx)
+        if (denied) return denied
+        const { getChannel, deactivateChannel, activateChannel } = await import('@/server/services/channels')
+        const channel = await getChannel(channel_id)
+        if (!channel) return { error: `Channel not found: "${channel_id}".` }
+        await deactivateChannel(channel_id)
+        const result = await activateChannel(channel_id)
+        const ok = result?.status === 'active'
+        return ok
+          ? { ok: true, status: 'active' }
+          : { ok: false, status: result?.status ?? 'error', error: result?.statusMessage ?? 'Activation failed' }
+      },
+    }),
+}

@@ -9,11 +9,15 @@
 
 import { tool } from '@/server/tools/tool-helper'
 import { z } from 'zod'
+import { or, eq } from 'drizzle-orm'
+import { db } from '@/server/db/index'
+import { kins } from '@/server/db/schema'
 import {
   getConfigSchemaForType,
   getSecretFieldKeys,
   getCapabilitiesForType,
 } from '@/server/providers/index'
+import { channelAdapters } from '@/server/channels/index'
 import { createSecretPrompt } from '@/server/services/secret-prompts'
 import { requireAdmin } from '@/server/tools/config-tools'
 import { PROVIDER_API_KEY_URLS } from '@/shared/constants'
@@ -86,6 +90,71 @@ export const requestProviderSetupTool: ToolRegistration = {
           promptId,
           message:
             'A secure popup is open for the user to paste the credential. Your turn ends now; you will be resumed with the result (valid / invalid) once they submit. Do not ask for the key in chat.',
+        }
+      },
+    }),
+}
+
+/**
+ * request_channel_setup — open a secure popup for the user to paste a messaging
+ * channel's credentials (Discord/Telegram bot token), then create + activate the
+ * channel bound to a Kin. The token goes straight to the vault.
+ */
+export const requestChannelSetupTool: ToolRegistration = {
+  availability: ['main'],
+  create: (ctx) =>
+    tool({
+      description:
+        'Open a SECURE POPUP for the user to paste a messaging channel\'s credentials (e.g. a Discord or Telegram bot token), then create + activate the channel bound to a Kin. ' +
+        'The token goes straight to the encrypted vault — you never see it; you get back whether activation succeeded. ' +
+        'Ask the user which platform and which Kin first. This ends your turn; you resume when they submit.',
+      inputSchema: z.object({
+        platform: z.string().describe('Channel platform, e.g. "discord" or "telegram".'),
+        name: z.string().describe('A name for this channel, e.g. "My Discord".'),
+        kin_id: z.string().describe('Id or slug of the Kin this channel should talk to.'),
+        config: z
+          .record(z.string(), z.string())
+          .optional()
+          .describe('Non-secret config fields declared by the platform. Do NOT put the token here — the popup collects it.'),
+      }),
+      execute: async ({ platform, name, kin_id, config }) => {
+        const denied = await requireAdmin(ctx)
+        if (denied) return denied
+        const adapter = channelAdapters.get(platform)
+        if (!adapter) {
+          return { error: `Unknown channel platform "${platform}". Supported: ${channelAdapters.list().join(', ') || 'none'}.` }
+        }
+        const kin = db.select().from(kins).where(or(eq(kins.id, kin_id), eq(kins.slug, kin_id))).get()
+        if (!kin) return { error: `Kin not found: "${kin_id}".` }
+
+        const fields: SecretPromptField[] = (adapter.configSchema?.fields ?? [])
+          .filter((f: { type: string }) => f.type === 'password')
+          .map((f: { name: string; label: string; description?: string; placeholder?: string }) => ({
+            key: f.name,
+            label: f.label,
+            secret: true,
+            ...(f.placeholder ? { placeholder: f.placeholder } : {}),
+            ...(f.description ? { description: f.description } : {}),
+          }))
+        if (fields.length === 0) {
+          return { error: `Platform "${platform}" has no secret field to prompt for.` }
+        }
+
+        const { promptId } = await createSecretPrompt({
+          kinId: ctx.kinId,
+          taskId: ctx.taskId,
+          purpose: 'channel',
+          title: `Connect ${name} (${platform})`,
+          description: `Paste the ${platform} credentials. They go straight into the encrypted vault — I never see them.`,
+          fields,
+          spec: { platform, name, kinId: kin.id, config: config ?? {} },
+        })
+
+        return {
+          status: 'pending',
+          promptId,
+          message:
+            'A secure popup is open for the user to paste the channel credentials. Your turn ends now; you resume with the activation result once they submit.',
         }
       },
     }),

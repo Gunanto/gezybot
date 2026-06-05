@@ -46,6 +46,13 @@ export interface ProviderSecretSpec {
 export interface VaultSecretSpec {
   key: string
 }
+export interface ChannelSecretSpec {
+  platform: string
+  name: string
+  kinId: string
+  /** Non-secret config fields (allowedChatIds, etc.). */
+  config?: Record<string, unknown>
+}
 
 interface CreateSecretPromptParams {
   kinId: string
@@ -191,6 +198,24 @@ export async function respondToSecretPrompt(
       resultRef = { vaultKeys: storedKeys }
       summary = `Secret${storedKeys.length > 1 ? 's' : ''} stored in the vault: ${storedKeys.join(', ')}.`
       log.info({ promptId, keys: storedKeys }, 'Secret(s) stored from secure input')
+    } else if (prompt.purpose === 'channel') {
+      const cs = spec as unknown as ChannelSecretSpec
+      const { createChannel, activateChannel } = await import('@/server/services/channels')
+      // createChannel auto-vaults the password fields; pass raw secret values + non-secret config.
+      const channel = await createChannel({
+        kinId: cs.kinId,
+        name: cs.name,
+        platform: cs.platform as Parameters<typeof createChannel>[0]['platform'],
+        platformConfig: { ...(cs.config ?? {}), ...values },
+        createdBy: 'kin',
+      })
+      const activated = await activateChannel(channel.id)
+      const ok = activated?.status === 'active'
+      resultRef = { channelId: channel.id, status: activated?.status ?? 'inactive' }
+      summary = ok
+        ? `Channel "${cs.name}" (${cs.platform}) created and activated.`
+        : `Channel "${cs.name}" (${cs.platform}) was created but activation FAILED: ${activated?.statusMessage ?? 'unknown error'}. Ask the user to double-check the token / settings.`
+      log.info({ promptId, channelId: channel.id, platform: cs.platform, ok }, 'Channel created from secure input')
     } else {
       return { success: false, error: `Unsupported secret prompt purpose: ${prompt.purpose}` }
     }
