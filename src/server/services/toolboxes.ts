@@ -226,6 +226,12 @@ export const BUILTIN_TOOLBOXES: readonly BuiltinToolboxDef[] = [
       'list_channels',
       'request_channel_setup',
       'test_channel',
+      // Connected accounts (read-only discovery). Connecting is OAuth/UI-driven —
+      // Sherpa can SEE what's linked and guide the user to the Settings UI, but
+      // there is no "connect account" tool.
+      'list_email_accounts',
+      'list_calendar_accounts',
+      'list_address_books',
       // Search + web (to find provider key pages).
       'list_search_providers',
       'web_search',
