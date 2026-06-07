@@ -81,7 +81,8 @@ export default defineConfig({
 						{ label: 'Overview', slug: 'plugins/overview' },
 						{ label: 'Developing Plugins', slug: 'plugins/developing' },
 						{ label: 'Plugin API', slug: 'plugins/api' },
-						{ label: 'Store', slug: 'plugins/store' },
+						{ label: 'Plugin Registry', slug: 'plugins/store' },
+						{ label: 'Migrating from 0.1', slug: 'plugins/migrating-from-01' },
 					],
 				},
 				{
