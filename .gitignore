@@ -74,3 +74,6 @@ promo/
 # has somewhere for the install workflow to write to.
 plugins/*
 !plugins/.gitkeep
+
+# WSL/Windows alternate-data-stream artifacts
+*:Zone.Identifier
