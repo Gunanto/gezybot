@@ -52,6 +52,7 @@ export function OnboardingChatModal({
             onEditKin={() => {}}
             onOpenSettings={onOpenSettings}
             compact
+            hideThinking
           />
         </div>
 

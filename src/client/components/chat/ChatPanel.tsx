@@ -78,9 +78,13 @@ interface ChatPanelProps {
    *  desktop sidebar trigger. Everything else (messages, input, prompts, secure
    *  input) is unchanged. */
   compact?: boolean
+  /** When true, reasoning/thinking blocks are hidden in every message (used by
+   *  the onboarding modal so Sherpa's meta-reasoning doesn't break first-use
+   *  magic). The same thread shows thinking normally in the regular chat. */
+  hideThinking?: boolean
 }
 
-export function ChatPanel({ kin, llmModels, modelUnavailable = false, queueState, onModelChange, onEditKin, onOpenSettings, compact = false }: ChatPanelProps) {
+export function ChatPanel({ kin, llmModels, modelUnavailable = false, queueState, onModelChange, onEditKin, onOpenSettings, compact = false, hideThinking = false }: ChatPanelProps) {
   const { t } = useTranslation()
   const { user } = useAuth()
   const userInitials = user ? getUserInitials(user) : 'U'
@@ -644,11 +648,14 @@ export function ChatPanel({ kin, llmModels, modelUnavailable = false, queueState
     // bubble *alongside* the typing indicator until the first token landed.
     // Same guard as the task panel (TaskPanelContent). See ticket kinbot#55 / #44.
     const hasContent = streamingMessage.content.length > 0
-    const hasReasoning = streamingReasoning.length > 0
+    // When thinking is hidden (onboarding), reasoning-only doesn't count toward
+    // showing the bubble — otherwise a blank bubble would flash next to the
+    // typing indicator while Sherpa "thinks" before the first text token.
+    const hasReasoning = !hideThinking && streamingReasoning.length > 0
     const hasToolCalls = (toolCallsByMessage.get(streamingMessage.id)?.length ?? 0) > 0
     if (!hasContent && !hasReasoning && !hasToolCalls) return filtered
     return [...filtered, streamingMessage]
-  }, [messages, streamingMessage, streamingReasoning, toolCallsByMessage])
+  }, [messages, streamingMessage, streamingReasoning, toolCallsByMessage, hideThinking])
 
   const handleSearchChange = useCallback((query: string, matchIndex: number, matchCount: number) => {
     setSearchQuery(query)
@@ -1009,6 +1016,7 @@ export function ChatPanel({ kin, llmModels, modelUnavailable = false, queueState
                       content={msg.content}
                       sourceType={msg.sourceType}
                       compact={compact}
+                      hideThinking={hideThinking}
                       files={msg.files}
                       avatarUrl={
                         isFromUser

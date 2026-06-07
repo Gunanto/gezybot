@@ -68,6 +68,11 @@ interface MessageBubbleProps {
   /** Distraction-less variant (onboarding modal): hides the per-message footer
    *  (timestamp, reading time, token usage, reactions/actions). */
   compact?: boolean
+  /** When true, reasoning/thinking blocks are not rendered at all. Used by the
+   *  onboarding modal: the meta-reasoning ("the prompt tells me to ask X, I'll
+   *  call tool Y…") breaks the magic of first use. The same thread still shows
+   *  thinking normally when reopened later in the regular chat. */
+  hideThinking?: boolean
   /** Reasoning/thinking segments with offsets into content */
   reasoning?: Array<{ offset: number; text: string }> | string
   /** Adapter-provided, already-localized line of context describing how the
@@ -902,6 +907,7 @@ export const MessageBubble = memo(function MessageBubble({
   onToggleReaction,
   tokenUsage,
   compact = false,
+  hideThinking = false,
   reasoning,
   channelContextLine,
   channelBrandColor,
@@ -950,10 +956,10 @@ export const MessageBubble = memo(function MessageBubble({
 
   // Normalize reasoning prop: string (streaming) → single segment at offset 0, array → as-is
   const reasoningSegments = useMemo(() => {
-    if (!reasoning) return undefined
+    if (hideThinking || !reasoning) return undefined
     if (typeof reasoning === 'string') return [{ offset: 0, text: reasoning }]
     return reasoning
-  }, [reasoning])
+  }, [reasoning, hideThinking])
   const hasReasoning = reasoningSegments && reasoningSegments.length > 0
 
   const contentParts = useMemo(
