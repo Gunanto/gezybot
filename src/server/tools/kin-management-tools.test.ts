@@ -266,21 +266,6 @@ describe('updateKinTool', () => {
     expect(updateKinTool.defaultDisabled).toBe(true)
   })
 
-  itMocked('prevents self-modification', async () => {
-    mockResolveKinId.mockReturnValueOnce('self-kin-id')
-
-    const t = makeTool(updateKinTool, createCtx({ kinId: 'self-kin-id' }))
-    const result = await t.execute({
-      kin_id: 'self-kin',
-      name: 'New Name',
-      generate_avatar: false,
-    }, { toolCallId: 'tc6', messages: [] })
-
-    expect(result).toEqual({
-      error: 'You cannot modify your own configuration. Ask a user or another Kin to do this.',
-    })
-  })
-
   itMocked('returns error when kin not found', async () => {
     mockResolveKinId.mockReturnValueOnce(null)
 
@@ -292,6 +277,62 @@ describe('updateKinTool', () => {
     }, { toolCallId: 'tc7', messages: [] })
 
     expect(result).toEqual({ error: 'Kin "not-found" not found' })
+  })
+
+  itMocked('allows regenerating your OWN avatar (avatar-only self update)', async () => {
+    mockResolveKinId.mockReturnValueOnce('self-kin-id')
+    mockUpdateKin.mockResolvedValueOnce({
+      kin: { id: 'self-kin-id', slug: 'sherpa', name: 'Sherpa', role: 'Guide', model: 'x', avatarUrl: null },
+    })
+    mockGenerateAndSaveAvatar.mockResolvedValueOnce('/api/uploads/kins/self-kin-id/avatar.png')
+
+    const t = makeTool(updateKinTool, createCtx({ kinId: 'self-kin-id' }))
+    const result = await t.execute({
+      kin_id: 'sherpa',
+      generate_avatar: true,
+    }, { toolCallId: 'tc6b', messages: [] })
+
+    expect(result).not.toHaveProperty('error')
+    expect(mockGenerateAndSaveAvatar).toHaveBeenCalledWith('self-kin-id')
+    expect(result.avatarUrl).toBe('/api/uploads/kins/self-kin-id/avatar.png')
+  })
+
+  itMocked('allows self-update of safe persona fields (name/role/character/expertise)', async () => {
+    mockResolveKinId.mockReturnValueOnce('self-kin-id')
+    mockUpdateKin.mockResolvedValueOnce({
+      kin: { id: 'self-kin-id', slug: 'sherpa', name: 'Sherpa the Bold', role: 'Guide', model: 'x', avatarUrl: null },
+    })
+
+    const t = makeTool(updateKinTool, createCtx({ kinId: 'self-kin-id' }))
+    const result = await t.execute({
+      kin_id: 'sherpa',
+      name: 'Sherpa the Bold',
+      role: 'Guide',
+      character: 'Warmer, more concise',
+      expertise: 'Onboarding',
+    }, { toolCallId: 'tc6c', messages: [] })
+
+    expect(result).not.toHaveProperty('error')
+    expect(mockUpdateKin).toHaveBeenCalledWith(
+      'self-kin-id',
+      expect.objectContaining({ name: 'Sherpa the Bold', character: 'Warmer, more concise' }),
+    )
+  })
+
+  itMocked('blocks self-update that touches protected fields (model/toolboxes/slug)', async () => {
+    const protectedPatches = [{ model: 'gpt-5' }, { toolboxes: ['all'] }, { slug: 'new-slug' }]
+    for (const patch of protectedPatches) {
+      mockResolveKinId.mockReturnValueOnce('self-kin-id')
+      const t = makeTool(updateKinTool, createCtx({ kinId: 'self-kin-id' }))
+      const result = await t.execute(
+        { kin_id: 'sherpa', ...patch },
+        { toolCallId: 'tc6d', messages: [] },
+      )
+      expect(result).toEqual({
+        error:
+          'You can update your own persona (name, role, character, expertise) and avatar, but not your toolboxes, model, or slug. Ask a user or another Kin to change those.',
+      })
+    }
   })
 
   itMocked('updates a kin successfully', async () => {

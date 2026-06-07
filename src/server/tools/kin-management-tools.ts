@@ -125,7 +125,7 @@ export const updateKinTool: ToolRegistration = {
   create: (ctx) =>
     tool({
       description:
-        "Update a Kin's properties or tool grants. Cannot modify yourself.",
+        "Update a Kin's properties or tool grants. On YOURSELF you may refine your persona (name, role, character, expertise) and regenerate your avatar (generate_avatar: true), but you may NOT change your own toolboxes, model, or slug — ask a user or another Kin for those.",
       inputSchema: z.object({
         kin_id: z.string().describe('Slug or UUID'),
         name: z.string().optional(),
@@ -151,8 +151,21 @@ export const updateKinTool: ToolRegistration = {
           return { error: `Kin "${kin_id}" not found` }
         }
 
+        // A Kin may refine its OWN persona (name, role, character, expertise) and
+        // regenerate its OWN avatar — this powers the self-improving flow (e.g.
+        // Sherpa refreshing its look when the user changes the avatar
+        // art-direction). But it may NOT change its toolboxes (privilege
+        // escalation), its model (cost/capability), or its slug (which breaks
+        // channel / cron / mention references). Block only those.
         if (targetKinId === ctx.kinId) {
-          return { error: 'You cannot modify your own configuration. Ask a user or another Kin to do this.' }
+          const touchesProtected =
+            toolboxes !== undefined || model !== undefined || slug !== undefined
+          if (touchesProtected) {
+            return {
+              error:
+                'You can update your own persona (name, role, character, expertise) and avatar, but not your toolboxes, model, or slug. Ask a user or another Kin to change those.',
+            }
+          }
         }
 
         log.info({ kinId: ctx.kinId, targetKinId, targetSlug: kin_id }, 'Kin update requested via tool')
