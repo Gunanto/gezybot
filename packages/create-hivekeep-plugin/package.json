@@ -1,14 +1,20 @@
 {
   "name": "create-hivekeep-plugin",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Scaffold a new Hivekeep plugin with best-practice boilerplate.",
   "license": "AGPL-3.0",
   "author": "Hivekeep Team",
-  "bin": {
-    "create-hivekeep-plugin": "./index.ts"
-  },
   "type": "module",
+  "bin": {
+    "create-hivekeep-plugin": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "index.ts"
+  ],
   "scripts": {
+    "build": "bun build index.ts --target=node --outfile=dist/index.js",
+    "prepublishOnly": "bun run build",
     "test": "bun test"
   },
   "devDependencies": {}

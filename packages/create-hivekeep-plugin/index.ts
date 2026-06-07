@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 /**
  * create-hivekeep-plugin — scaffold a new Hivekeep plugin.
  *
@@ -122,7 +122,7 @@ export function generateIndex(opts: ScaffoldOptions): string {
     )
   }
   if (opts.types.includes('providers')) {
-    typeImports.push('LLMProvider', 'ChatRequest', 'ChatChunk')
+    typeImports.push('LLMProvider', 'ProviderConfig', 'LLMModel', 'ChatRequest', 'ChatChunk')
   }
 
   const lines: string[] = []
@@ -177,15 +177,15 @@ export function generateIndex(opts: ScaffoldOptions): string {
     lines.push(`    { key: 'apiKey', type: 'secret', label: 'API Key', required: true },`)
     lines.push(`  ] as const`)
     lines.push(``)
-    lines.push(`  async authenticate(_config) {`)
+    lines.push(`  async authenticate(_config: ProviderConfig) {`)
     lines.push(`    return { valid: true }`)
     lines.push(`  }`)
     lines.push(``)
-    lines.push(`  async listModels(_config) {`)
+    lines.push(`  async listModels(_config: ProviderConfig) {`)
     lines.push(`    return [{ id: 'default', name: 'Default model', contextWindow: 4096 }]`)
     lines.push(`  }`)
     lines.push(``)
-    lines.push(`  async *chat(_model, _request: ChatRequest, _config): AsyncIterable<ChatChunk> {`)
+    lines.push(`  async *chat(_model: LLMModel, _request: ChatRequest, _config: ProviderConfig): AsyncIterable<ChatChunk> {`)
     lines.push(`    yield { type: 'text-delta', text: 'Hello from ${opts.name}!' }`)
     lines.push(`    yield {`)
     lines.push(`      type: 'finish',`)
@@ -335,14 +335,14 @@ export function generatePackageJson(opts: ScaffoldOptions): string {
     files: ['index.ts', 'plugin.json', 'README.md'],
     keywords: ['hivekeep-plugin', 'hivekeep'],
     peerDependencies: {
-      '@hivekeep/sdk': '^0.2.0',
+      '@hivekeep/sdk': '^0.10.0',
     },
     // Empty by default. Add real dependencies (axios, ws, …) as needed.
     // Bun runs `bun install --production` after a git-clone install so
     // these resolve at activation time.
     dependencies: {},
     devDependencies: {
-      '@hivekeep/sdk': '^0.2.0',
+      '@hivekeep/sdk': '^0.10.0',
     },
   }
   return JSON.stringify(pkg, null, 2) + '\n'
@@ -392,11 +392,9 @@ async function main() {
   console.log(`  • Or run: bunx hivekeep install ${opts.name} (when published)\n`)
 }
 
-// Only run main when executed directly (not imported for tests)
-const isDirectRun = process.argv[1]?.endsWith('create-hivekeep-plugin/index.ts') ||
-                    process.argv[1]?.endsWith('create-hivekeep-plugin')
-
-if (isDirectRun) {
+// Run main() only when executed as the CLI entry (not when imported by tests).
+// import.meta.main is true for the entry module under Bun and Node >= 24.
+if (import.meta.main) {
   main().catch((err) => {
     console.error('Error:', err.message)
     process.exit(1)
