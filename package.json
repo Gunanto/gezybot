@@ -83,7 +83,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@hono/node-server": "^1.19.9",
     "@hookform/resolvers": "^5.2.2",
-    "@hivekeep-developer/sdk": "workspace:*",
+    "@hivekeep/sdk": "workspace:*",
     "@lobehub/icons": "^5.0.1",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@mozilla/readability": "^0.6.0",

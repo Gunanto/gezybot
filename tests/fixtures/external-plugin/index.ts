@@ -1,6 +1,6 @@
 /**
  * External plugin fixture — simulates a third-party plugin published on
- * npm. The whole module imports from `@hivekeep-developer/sdk` only;
+ * npm. The whole module imports from `@hivekeep/sdk` only;
  * nothing from Hivekeep internals (no `@/server/...`, no `@/shared/...`).
  *
  * Loaded by `src/server/services/plugins-e2e.test.ts` to prove the SDK
@@ -19,7 +19,7 @@ import {
   type PluginContext,
   type PluginExports,
   type ProviderConfig,
-} from '@hivekeep-developer/sdk'
+} from '@hivekeep/sdk'
 
 interface ExternalConfig {
   greeting?: string

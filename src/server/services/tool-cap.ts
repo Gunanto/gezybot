@@ -25,7 +25,7 @@
  * Hivekeep picks it up automatically.
  */
 
-import type { LLMModel } from '@hivekeep-developer/sdk'
+import type { LLMModel } from '@hivekeep/sdk'
 import { getLLMProvider } from '@/server/llm/llm/registry'
 
 /** OpenAI-compatible conservative limit — matches every major

@@ -2,10 +2,10 @@
  * Hivekeep's internal tool definition helper + legacy message-shape types.
  *
  * The public surface (`tool`, `asSchema`, `Tool`, `JSONValue`) lives in
- * `@hivekeep-developer/sdk` — this file simply re-exports from there so internal
+ * `@hivekeep/sdk` — this file simply re-exports from there so internal
  * imports (`from '@/server/tools/tool-helper'`) keep working without
  * touching the ~45 native tool files. Plugins should import directly
- * from `@hivekeep-developer/sdk` instead.
+ * from `@hivekeep/sdk` instead.
  *
  * The `ModelMessage` / `UserContent` types and their part definitions
  * are NOT exported from the SDK — they're internal to Hivekeep, used only
@@ -13,8 +13,8 @@
  * is being progressively migrated to `HivekeepMessage`. They live here so
  * the rest of the codebase can keep its current import path.
  */
-export { tool, asSchema } from '@hivekeep-developer/sdk'
-export type { Tool, JSONValue, NormalizedSchema } from '@hivekeep-developer/sdk'
+export { tool, asSchema } from '@hivekeep/sdk'
+export type { Tool, JSONValue, NormalizedSchema } from '@hivekeep/sdk'
 
 // ─── Message shapes (legacy parity, used by buildMessageHistory) ─────────────
 
@@ -71,7 +71,7 @@ export interface ToolCallPart {
   input: unknown
 }
 
-import type { JSONValue } from '@hivekeep-developer/sdk'
+import type { JSONValue } from '@hivekeep/sdk'
 
 export interface ToolResultPart {
   type: 'tool-result'

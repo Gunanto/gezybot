@@ -106,11 +106,11 @@ This generates a `plugin.json` manifest, an `index.ts` entry point, and a `READM
 
 ### Plugin SDK
 
-Plugin authors should import everything they need from `@hivekeep-developer/sdk`:
+Plugin authors should import everything they need from `@hivekeep/sdk`:
 
 ```ts
-import { tool, z } from '@hivekeep-developer/sdk'
-import type { ChannelAdapter, PluginContext, PluginExports } from '@hivekeep-developer/sdk'
+import { tool, z } from '@hivekeep/sdk'
+import type { ChannelAdapter, PluginContext, PluginExports } from '@hivekeep/sdk'
 ```
 
 The SDK exposes `tool()`, `asSchema()`, `z` (re-export of zod), and the full type surface needed for tools, channels, providers, and hooks. Plugins should NOT import from `@/server/*` — that path is reserved for Hivekeep internals.

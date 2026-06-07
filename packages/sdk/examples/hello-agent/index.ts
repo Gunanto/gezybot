@@ -1,5 +1,5 @@
 /**
- * @hivekeep-developer/sdk — `hello-agent` reference example.
+ * @hivekeep/sdk — `hello-agent` reference example.
  *
  * Demonstrates every plugin extension point Hivekeep supports:
  *   - tools         (LLM-callable function with typed args)
@@ -23,7 +23,7 @@ import {
   type LLMProvider,
   type PluginContext,
   type PluginExports,
-} from '@hivekeep-developer/sdk'
+} from '@hivekeep/sdk'
 
 interface HelloAgentConfig {
   greeting?: string

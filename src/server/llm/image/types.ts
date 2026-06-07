@@ -7,4 +7,4 @@ export type {
   ImageRequest,
   ImageResult,
   ImageProvider,
-} from '@hivekeep-developer/sdk'
+} from '@hivekeep/sdk'

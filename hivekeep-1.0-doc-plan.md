@@ -83,7 +83,7 @@ Confiance & transparence (+)
 Référence
   API REST
   Événements SSE
-  SDK (@hivekeep-developer/sdk)
+  SDK (@hivekeep/sdk)
   Configuration (variables d'env)
 
 Aide
@@ -200,7 +200,7 @@ Aide
 |---|---|---|
 | `api/rest` *(existe)* | Contrats REST par route. | `api.md` |
 | `api/sse` *(existe)* | Catalogue des événements SSE et règles emit↔handle. | `sse.md` · `api.md` |
-| `reference/sdk` | API du SDK `@hivekeep-developer/sdk` (plugins + mini-apps). | `plugins/api.md` · `mini-apps/sdk-reference.md` · `PLUGIN-SPEC.md` |
+| `reference/sdk` | API du SDK `@hivekeep/sdk` (plugins + mini-apps). | `plugins/api.md` · `mini-apps/sdk-reference.md` · `PLUGIN-SPEC.md` |
 | `reference/configuration` | Toutes les variables d'env et defaults. | `config.md` |
 
 ### Aide

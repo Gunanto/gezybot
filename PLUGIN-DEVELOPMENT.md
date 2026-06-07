@@ -411,7 +411,7 @@ Hivekeep's marketplace queries the public npm registry for packages with `keywor
      "main": "index.ts",
      "files": ["index.ts", "plugin.json", "README.md"],
      "keywords": ["hivekeep-plugin", "hivekeep"],
-     "peerDependencies": { "@hivekeep-developer/sdk": "^0.2.0" }
+     "peerDependencies": { "@hivekeep/sdk": "^0.2.0" }
    }
    ```
    The `hivekeep-plugin` keyword is **required** for marketplace discovery. `peerDependencies` (not `dependencies`) ensures the SDK module identity matches the host's, so `instanceof` checks and shared types work.

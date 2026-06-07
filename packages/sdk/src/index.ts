@@ -1,10 +1,10 @@
 /**
- * @hivekeep-developer/sdk — public plugin surface for Hivekeep.
+ * @hivekeep/sdk — public plugin surface for Hivekeep.
  *
  * A plugin's `index.ts` should import everything it needs from this module:
  *
- *   import { tool, z } from '@hivekeep-developer/sdk'
- *   import type { PluginContext, PluginExports, ChannelAdapter } from '@hivekeep-developer/sdk'
+ *   import { tool, z } from '@hivekeep/sdk'
+ *   import type { PluginContext, PluginExports, ChannelAdapter } from '@hivekeep/sdk'
  *
  *   export default function (ctx: PluginContext): PluginExports {
  *     return {
@@ -27,7 +27,7 @@
  *   - Types for everything a plugin can declare: tools, channels, providers, hooks
  *
  * Hivekeep's plugin loader resolves this package against the host's installation,
- * so a plugin declaring `@hivekeep-developer/sdk` as a peer dep gets the host's
+ * so a plugin declaring `@hivekeep/sdk` as a peer dep gets the host's
  * version automatically. No Hivekeep internal imports needed.
  */
 
@@ -382,7 +382,7 @@ export interface DeliveryStatusUpdate {
  *   - `sendTypingIndicator`, `webhook`, `formatInboundContext`,
  *     `onIdentityChange` — see each method's doc.
  *
- * Adapters from plugins must consume *only* `@hivekeep-developer/sdk`.
+ * Adapters from plugins must consume *only* `@hivekeep/sdk`.
  */
 /**
  * A discoverable destination within a channel connection — a Discord
@@ -2274,7 +2274,7 @@ export type PluginCardPrimitive =
  * discriminated union literals or use these helpers for slightly more
  * ergonomic call sites with default-friendly argument shapes.
  *
- *   import { card, z } from '@hivekeep-developer/sdk'
+ *   import { card, z } from '@hivekeep/sdk'
  *
  *   ctx.cards.emit({
  *     agentId,
@@ -2399,7 +2399,7 @@ export type PluginCardActionResult = { ok: true } | { ok: false; error: string }
  * The `Config` generic lets a plugin author declare the exact shape of
  * their config so `ctx.config.<field>` is strongly typed:
  *
- *   import type { PluginContext } from '@hivekeep-developer/sdk'
+ *   import type { PluginContext } from '@hivekeep/sdk'
  *
  *   interface MyConfig { apiKey: string; region?: 'eu' | 'us' }
  *

@@ -18,4 +18,4 @@ export type {
   ChatRequest,
   ChatChunk,
   LLMProvider,
-} from '@hivekeep-developer/sdk'
+} from '@hivekeep/sdk'

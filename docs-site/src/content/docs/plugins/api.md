@@ -117,7 +117,7 @@ interface ToolRegistration {
 }
 ```
 
-Tools use the `tool()` helper exported by [`@hivekeep-developer/sdk`](https://www.npmjs.com/package/@hivekeep-developer/sdk) with [Zod](https://zod.dev/) schemas for parameters.
+Tools use the `tool()` helper exported by [`@hivekeep/sdk`](https://www.npmjs.com/package/@hivekeep/sdk) with [Zod](https://zod.dev/) schemas for parameters.
 
 ### Hook Names
 

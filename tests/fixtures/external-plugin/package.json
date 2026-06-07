@@ -1,10 +1,10 @@
 {
   "name": "hivekeep-plugin-external-fixture",
   "version": "0.1.0",
-  "description": "Test fixture simulating a third-party plugin published to npm that depends on @hivekeep-developer/sdk as a peer dep. Loaded by src/server/services/plugins-e2e.test.ts.",
+  "description": "Test fixture simulating a third-party plugin published to npm that depends on @hivekeep/sdk as a peer dep. Loaded by src/server/services/plugins-e2e.test.ts.",
   "private": true,
   "main": "./index.ts",
   "peerDependencies": {
-    "@hivekeep-developer/sdk": "^0.1.0"
+    "@hivekeep/sdk": "^0.1.0"
   }
 }

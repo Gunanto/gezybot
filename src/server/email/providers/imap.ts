@@ -25,7 +25,7 @@ import type {
   SendEmailParams,
   SendEmailResult,
 } from '@/server/email/types'
-import type { ProviderConfig, AuthResult } from '@hivekeep-developer/sdk'
+import type { ProviderConfig, AuthResult } from '@hivekeep/sdk'
 
 // ─── Pure helpers (exported for tests) ───────────────────────────────────────
 

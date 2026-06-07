@@ -12,7 +12,7 @@ CardDAV) so Agents can look up a contact — typically a phone number to hand to
 
 ## Provider family (SDK)
 
-`ContactsProvider` lives in `@hivekeep-developer/sdk` (v0.8.0), alongside
+`ContactsProvider` lives in `@hivekeep/sdk` (v0.8.0), alongside
 `EmailProvider`. The host detects the family by the presence of `listContacts`
 + `getContact` (`detectProviderFamily` in `plugins.ts`), so a plugin contributes
 a contacts provider exactly like any other provider.

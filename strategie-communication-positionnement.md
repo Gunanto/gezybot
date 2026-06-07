@@ -225,7 +225,7 @@ Connected Accounts  Mail · Calendrier · Contacts · OAuth & IMAP/CalDAV
 Security & Privacy  Vault · Comptes connectés · Multi-user/isolation · Redaction
 Transparency        Contexte & tokens · Cache · Compacting · Calibration
 Administration      Config (env vars) · Providers · Logs/SQL · Sauvegardes/migrations
-Reference           API REST · SSE events · SDK (@hivekeep-developer/sdk) · CLI
+Reference           API REST · SSE events · SDK (@hivekeep/sdk) · CLI
 Troubleshooting / FAQ
 ```
 

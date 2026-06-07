@@ -16,4 +16,4 @@ export type {
   SendEmailResult,
   OAuthProfile,
   EmailProvider,
-} from '@hivekeep-developer/sdk'
+} from '@hivekeep/sdk'

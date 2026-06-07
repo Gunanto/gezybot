@@ -25,7 +25,7 @@ access token, and hand the provider only what it needs.
 
 ## Provider family (SDK)
 
-`EmailProvider` lives in `@hivekeep-developer/sdk`, alongside `LLMProvider` /
+`EmailProvider` lives in `@hivekeep/sdk`, alongside `LLMProvider` /
 `SearchProvider`. The host detects the family by the presence of
 `sendMessage` + `listMessages` (`detectProviderFamily` in `plugins.ts`), so a
 plugin contributes an email provider exactly like any other provider.

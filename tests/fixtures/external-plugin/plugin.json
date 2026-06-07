@@ -1,5 +1,5 @@
 {
-  "$schema": "https://unpkg.com/@hivekeep-developer/sdk/schemas/plugin-manifest.schema.json",
+  "$schema": "https://unpkg.com/@hivekeep/sdk/schemas/plugin-manifest.schema.json",
   "name": "external-fixture",
   "version": "0.1.0",
   "description": "Out-of-tree plugin fixture for the SDK contract E2E test.",

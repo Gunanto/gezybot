@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://unpkg.com/@hivekeep-developer/sdk/schemas/plugin-manifest.schema.json",
+  "$id": "https://unpkg.com/@hivekeep/sdk/schemas/plugin-manifest.schema.json",
   "title": "Hivekeep Plugin Manifest",
   "description": "Schema for plugin.json — Hivekeep loads, validates, and registers plugins based on this manifest. Plugin authors get autocomplete and inline validation in any editor that supports JSON Schema (VSCode, JetBrains, …) by referencing this $id at the top of their plugin.json.",
   "type": "object",

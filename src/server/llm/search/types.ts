@@ -9,4 +9,4 @@ export type {
   SearchAnswer,
   SearchResult,
   SearchProvider,
-} from '@hivekeep-developer/sdk'
+} from '@hivekeep/sdk'

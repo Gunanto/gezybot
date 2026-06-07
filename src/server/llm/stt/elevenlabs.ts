@@ -24,8 +24,8 @@ import {
   NetworkError,
   ProviderServerError,
   InvalidRequestError,
-} from '@hivekeep-developer/sdk'
-import type { AuthResult, ProviderConfig } from '@hivekeep-developer/sdk'
+} from '@hivekeep/sdk'
+import type { AuthResult, ProviderConfig } from '@hivekeep/sdk'
 import type {
   STTProvider,
   TranscriptionModel,

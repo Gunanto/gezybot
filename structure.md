@@ -20,7 +20,7 @@ hivekeep/
 │   └── docker-compose.yml
 │
 ├── packages/                          # Packages npm publiés
-│   ├── sdk/                           # @hivekeep-developer/sdk
+│   ├── sdk/                           # @hivekeep/sdk
 │   │   ├── src/index.ts               # Surface publique (tools, channels, providers,
 │   │   │                              #  hooks, cards, plugin context)
 │   │   ├── README.md
@@ -61,7 +61,7 @@ hivekeep/
 │   │   │   └── app-settings.ts        # Paramètres globaux persistants
 │   │   │
 │   │   ├── channels/                  # ChannelAdapters built-in
-│   │   │   ├── adapter.ts             # Interface (cf. @hivekeep-developer/sdk)
+│   │   │   ├── adapter.ts             # Interface (cf. @hivekeep/sdk)
 │   │   │   ├── telegram.ts, discord.ts, slack.ts, whatsapp.ts, signal.ts, matrix.ts
 │   │   │
 │   │   ├── llm/                       # Providers IA natifs (post-Vercel SDK)
@@ -143,7 +143,7 @@ hivekeep/
 
 ## Conventions
 
-- **Imports** : alias absolus `@/server/...`, `@/client/...`, `@/shared/...`. Plugins consomment uniquement `@hivekeep-developer/sdk`.
+- **Imports** : alias absolus `@/server/...`, `@/client/...`, `@/shared/...`. Plugins consomment uniquement `@hivekeep/sdk`.
 - **Naming** : `kebab-case.ts` pour les modules, `PascalCase.tsx` pour les composants React, `snake_case` pour les tables SQL.
 - **Tests** : co-localisés (`foo.test.ts` à côté de `foo.ts`). Lancés via `bun run test`.
 - **Provider agnostic core** : le core (tout sauf `src/server/llm/{provider}/` et `plugins/`) ne doit jamais brancher sur un nom de provider. Les capacités spécifiques sont déclarées par le provider lui-même (cf. `LLMProvider.defaultMaxTools`, `LLMProvider.billing`, `ImageProvider.describeModel`).

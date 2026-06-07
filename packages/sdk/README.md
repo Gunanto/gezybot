@@ -1,11 +1,11 @@
-# `@hivekeep-developer/sdk`
+# `@hivekeep/sdk`
 
 Plugin SDK for [Hivekeep](https://github.com/MarlBurroW/hivekeep). One package, every extension point.
 
 ```bash
-bun add @hivekeep-developer/sdk
+bun add @hivekeep/sdk
 # or
-npm i @hivekeep-developer/sdk
+npm i @hivekeep/sdk
 ```
 
 > Hivekeep's plugin loader resolves this package against the host install — declare it as a peer dep in your plugin's `package.json` so the host version is the one your code links against at runtime.
@@ -24,13 +24,13 @@ npm i @hivekeep-developer/sdk
 ## Usage
 
 ```ts
-import { tool, z, card } from '@hivekeep-developer/sdk'
+import { tool, z, card } from '@hivekeep/sdk'
 import type {
   ChannelAdapter,
   LLMProvider,
   PluginContext,
   PluginExports,
-} from '@hivekeep-developer/sdk'
+} from '@hivekeep/sdk'
 
 interface MyConfig { apiKey: string; region?: 'eu' | 'us' }
 
@@ -71,7 +71,7 @@ Reference the published schema from your `plugin.json` and any JSON-aware editor
 
 ```json
 {
-  "$schema": "https://unpkg.com/@hivekeep-developer/sdk/schemas/plugin-manifest.schema.json",
+  "$schema": "https://unpkg.com/@hivekeep/sdk/schemas/plugin-manifest.schema.json",
   "name": "my-plugin",
   "version": "0.1.0",
   "description": "…",

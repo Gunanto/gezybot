@@ -1,9 +1,9 @@
 ---
 title: Migrating from 0.1
-description: Update plugins written against @hivekeep-developer/sdk 0.1 to the 0.2 contract.
+description: Update plugins written against @hivekeep/sdk 0.1 to the 0.2 contract.
 ---
 
-If you wrote a plugin against `@hivekeep-developer/sdk@0.1` (or against Hivekeep before that, when plugins reached into `@/server/...` paths), here's what changed and how to bring it forward to 0.2.
+If you wrote a plugin against `@hivekeep/sdk@0.1` (or against Hivekeep before that, when plugins reached into `@/server/...` paths), here's what changed and how to bring it forward to 0.2.
 
 Most of these are mechanical edits — the runtime behaviour is identical or strictly improved. The only "you have to think about it" item is providers (see [§ Providers](#providers)).
 
@@ -11,7 +11,7 @@ Most of these are mechanical edits — the runtime behaviour is identical or str
 
 | Area | 0.1 | 0.2 |
 |---|---|---|
-| Import path | `from 'ai'` | `from '@hivekeep-developer/sdk'` |
+| Import path | `from 'ai'` | `from '@hivekeep/sdk'` |
 | `tool()` schema field | `parameters` | `inputSchema` |
 | `PluginContext` | loose `config: any` | `PluginContext<Config>` generic |
 | Vault access | `import { getSecretValue } from '@/server/services/vault'` | `ctx.vault.getSecret(key)` |
@@ -23,12 +23,12 @@ Most of these are mechanical edits — the runtime behaviour is identical or str
 
 ## Imports
 
-Replace every `from 'ai'` import with `from '@hivekeep-developer/sdk'`:
+Replace every `from 'ai'` import with `from '@hivekeep/sdk'`:
 
 ```diff
 - import { tool } from 'ai'
 - import { z } from 'zod'
-+ import { tool, z } from '@hivekeep-developer/sdk'
++ import { tool, z } from '@hivekeep/sdk'
 ```
 
 `zod` is now re-exported from the SDK so you don't carry your own dep.
@@ -37,7 +37,7 @@ If you reached into Hivekeep internals (`from '@/server/channels/adapter'`, `fro
 
 ```diff
 - import type { ChannelAdapter, IncomingMessage } from '@/server/channels/adapter'
-+ import type { ChannelAdapter, IncomingMessage } from '@hivekeep-developer/sdk'
++ import type { ChannelAdapter, IncomingMessage } from '@hivekeep/sdk'
 ```
 
 `@/server/...` paths are Hivekeep-internal — only the host can resolve them. Third-party plugins published on npm will fail to load if they import from there.
@@ -91,7 +91,7 @@ If you read secrets via the internal vault module, switch to `ctx.vault`:
 
 ```diff
 - import type { HookHandler } from '@/server/hooks/types'
-+ import type { HookHandler } from '@hivekeep-developer/sdk'
++ import type { HookHandler } from '@hivekeep/sdk'
 
   hooks: {
 -   afterChat: (ctx) => {
@@ -132,7 +132,7 @@ That shape is **gone**. In 0.2 you implement the same native interfaces as the b
 
 ```ts
 // 0.2
-import type { LLMProvider, ChatRequest, ChatChunk } from '@hivekeep-developer/sdk'
+import type { LLMProvider, ChatRequest, ChatChunk } from '@hivekeep/sdk'
 
 class MistralProvider implements LLMProvider {
   readonly type = 'mistral'
@@ -167,7 +167,7 @@ Why bother: a native `LLMProvider` does streaming, prompt caching, thinking, too
 If you emitted cards with `Record<string, unknown>[]` layouts, you can keep doing that — the new `PluginCardPrimitive` union accepts any object that matches one of the known `type` discriminants. But you'll get autocomplete and compile-time validation by switching to the `card.*` builders:
 
 ```diff
-+ import { card } from '@hivekeep-developer/sdk'
++ import { card } from '@hivekeep/sdk'
 
   ctx.cards.emit({
     agentId,
@@ -208,7 +208,7 @@ Two small ergonomic improvements:
 
    ```diff
     {
-   +  "$schema": "https://unpkg.com/@hivekeep-developer/sdk/schemas/plugin-manifest.schema.json",
+   +  "$schema": "https://unpkg.com/@hivekeep/sdk/schemas/plugin-manifest.schema.json",
       "name": "my-plugin",
       "version": "0.1.0",
    ```

@@ -22,7 +22,7 @@ A plugin exports a `providers` array. Each entry implements one of the four nati
 
 ```typescript
 // In your plugin's main file
-import type { SearchProvider, PluginContext } from '@hivekeep-developer/sdk'
+import type { SearchProvider, PluginContext } from '@hivekeep/sdk'
 
 class MySearchProvider implements SearchProvider {
   readonly type = 'my-search'

@@ -196,7 +196,7 @@ Le positionnement est précis : *la simplicité d'un assistant grand public, en 
 
 **Les capacités clés.**
 - **Marketplace NPM intégré** (keyword `hivekeep-plugin`, recherche registry.npmjs.org live, cache 5 min, logo via unpkg, détection installés).
-- **SDK TypeScript** (`@hivekeep-developer/sdk`) : helper `tool()` à inférence zod, hiérarchie d'erreurs, 9 interfaces natives.
+- **SDK TypeScript** (`@hivekeep/sdk`) : helper `tool()` à inférence zod, hiérarchie d'erreurs, 9 interfaces natives.
 - **Installation multi-source** (npm/git) + mises à jour + topological sort des dépendances.
 - **Manifest déclaratif** strict (name, version, permissions `http:<host>`/`storage`/`vault`/`cron`/`agents`, config schema).
 - **Outils IA natifs** (factory `create` recevant ToolExecutionContext, flags readOnly/concurrencySafe/destructive, préfixe auto `plugin_<nom>_<outil>`).

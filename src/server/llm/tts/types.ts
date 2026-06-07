@@ -8,4 +8,4 @@ export type {
   SpeakResult,
   TTSCapabilities,
   TTSProvider,
-} from '@hivekeep-developer/sdk'
+} from '@hivekeep/sdk'

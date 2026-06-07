@@ -21,7 +21,7 @@ Read these files **before starting any phase**. They are the source of truth.
 
 ## Tech stack
 
-**Backend**: Bun + Hono + SQLite (bun:sqlite) + Drizzle ORM + Better Auth + croner. AI provider primitives are native, organized by capability in `src/server/llm/{llm,embedding,image,search,stt,tts,core}/`; plugins consume `@hivekeep-developer/sdk`. (Vercel AI SDK was removed pre-2.0.)
+**Backend**: Bun + Hono + SQLite (bun:sqlite) + Drizzle ORM + Better Auth + croner. AI provider primitives are native, organized by capability in `src/server/llm/{llm,embedding,image,search,stt,tts,core}/`; plugins consume `@hivekeep/sdk`. (Vercel AI SDK was removed pre-2.0.)
 **Frontend**: React + Vite + Tailwind CSS + shadcn/ui + i18next
 **Single process, single DB file, single Docker container. Zero external infrastructure.**
 

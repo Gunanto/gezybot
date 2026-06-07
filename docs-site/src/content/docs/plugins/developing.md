@@ -1,9 +1,9 @@
 ---
 title: Developing Plugins
-description: Build, test, and publish Hivekeep plugins with the @hivekeep-developer/sdk package.
+description: Build, test, and publish Hivekeep plugins with the @hivekeep/sdk package.
 ---
 
-This is the canonical guide for writing Hivekeep plugins. Every plugin imports everything it needs from `@hivekeep-developer/sdk` — there are no Hivekeep-internal imports a plugin should reach into.
+This is the canonical guide for writing Hivekeep plugins. Every plugin imports everything it needs from `@hivekeep/sdk` — there are no Hivekeep-internal imports a plugin should reach into.
 
 > The legacy plugin-store-specific `docs/plugins.md` and `PLUGIN-SPEC.md` are pointers to this page. If you're consulting them and they disagree with this guide, this guide wins.
 
@@ -20,8 +20,8 @@ Or write it by hand:
 
 ```typescript
 // plugins/hello-agent/index.ts
-import { tool, z } from '@hivekeep-developer/sdk'
-import type { PluginContext, PluginExports } from '@hivekeep-developer/sdk'
+import { tool, z } from '@hivekeep/sdk'
+import type { PluginContext, PluginExports } from '@hivekeep/sdk'
 
 export default function (ctx: PluginContext): PluginExports {
   ctx.log.info('hello-agent plugin loaded')
@@ -49,7 +49,7 @@ export default function (ctx: PluginContext): PluginExports {
 ```json
 // plugins/hello-agent/plugin.json
 {
-  "$schema": "https://unpkg.com/@hivekeep-developer/sdk/schemas/plugin-manifest.schema.json",
+  "$schema": "https://unpkg.com/@hivekeep/sdk/schemas/plugin-manifest.schema.json",
   "name": "hello-agent",
   "version": "0.1.0",
   "description": "Greet users by name.",
@@ -83,7 +83,7 @@ Hivekeep validates the manifest at load time. A bad field fails fast and the plu
 ## The Plugin Context
 
 ```ts
-import type { PluginContext } from '@hivekeep-developer/sdk'
+import type { PluginContext } from '@hivekeep/sdk'
 
 interface PluginContext<Config = Record<string, unknown>> {
   config:   Config            // <Config> generic for typed config
@@ -160,7 +160,7 @@ See the [Cards](#cards) section below.
 Tools are AI-callable functions Agents can invoke during a turn. Declare them with `tool()` from the SDK — `inputSchema` is a zod schema, the `execute` callback's argument is inferred from it.
 
 ```ts
-import { tool, z } from '@hivekeep-developer/sdk'
+import { tool, z } from '@hivekeep/sdk'
 
 return {
   tools: {
@@ -209,7 +209,7 @@ import type {
   OutboundMessageParams,
   OutboundMessageResult,
   PluginContext,
-} from '@hivekeep-developer/sdk'
+} from '@hivekeep/sdk'
 
 export default function (ctx: PluginContext) {
   const adapter: ChannelAdapter = {
@@ -248,7 +248,7 @@ import type {
   ChatRequest,
   ChatChunk,
   PluginContext,
-} from '@hivekeep-developer/sdk'
+} from '@hivekeep/sdk'
 
 class MistralProvider implements LLMProvider {
   readonly type = 'mistral'
@@ -293,7 +293,7 @@ import type {
   SearchRequest,
   SearchResult,
   PluginContext,
-} from '@hivekeep-developer/sdk'
+} from '@hivekeep/sdk'
 
 class KagiSearchProvider implements SearchProvider {
   readonly type = 'kagi-search'
@@ -348,7 +348,7 @@ For the `answer` capability: when the LLM requests `answer: true` and the provid
 Hook handlers receive a typed payload keyed by hook name — autocomplete on `ctx.message`, `ctx.toolResult`, etc.
 
 ```ts
-import type { PluginExports, HookHandler } from '@hivekeep-developer/sdk'
+import type { PluginExports, HookHandler } from '@hivekeep/sdk'
 
 const auditAfterTool: HookHandler<'afterToolCall'> = (ctx) => {
   // ctx.toolName, ctx.toolArgs, ctx.toolResult are all typed
@@ -372,7 +372,7 @@ Handlers may return a modified payload — it's passed to the next handler in th
 Plugin cards are declarative UI primitives that show up in the chat as rich live-updating messages. Useful for long-running tasks, structured data, action buttons.
 
 ```ts
-import { card } from '@hivekeep-developer/sdk'
+import { card } from '@hivekeep/sdk'
 
 const { messageId, cardInstanceId } = await ctx.cards.emit({
   agentId: execCtx.agentId,
@@ -450,7 +450,7 @@ Plugins can ship through three paths:
 
 1. **In-tree** — drop the folder in `plugins/`. Simplest, fits internal/private plugins.
 2. **Git** — push to a repo, install via the Plugins UI (`Install from Git URL`).
-3. **npm** — publish under the `@your-org/` scope, install via `Install from npm`. Your `package.json` should declare `@hivekeep-developer/sdk` as a peer dep so Hivekeep's installed version is used.
+3. **npm** — publish under the `@your-org/` scope, install via `Install from npm`. Your `package.json` should declare `@hivekeep/sdk` as a peer dep so Hivekeep's installed version is used.
 
 Either way, the plugin's runtime contract is the same: a default-exported function returning `PluginExports`.
 

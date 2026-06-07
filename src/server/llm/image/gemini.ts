@@ -44,7 +44,7 @@ import type {
   ImageRequest,
   ImageResult,
 } from '@/server/llm/image/types'
-import type { ImageModelParamsSchema, ImageParamSpec } from '@hivekeep-developer/sdk'
+import type { ImageModelParamsSchema, ImageParamSpec } from '@hivekeep/sdk'
 import { createLogger } from '@/server/logger'
 
 const log = createLogger('gemini-image')

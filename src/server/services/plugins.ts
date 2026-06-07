@@ -30,7 +30,7 @@ import { registerEmailProvider, unregisterEmailProvider } from '@/server/email/r
 import { registerContactsProvider, unregisterContactsProvider } from '@/server/contacts/registry'
 import { registerCalendarProvider, unregisterCalendarProvider } from '@/server/calendar/registry'
 import { channelAdapters } from '@/server/channels/index'
-import type { LLMProvider, EmbeddingProvider, ImageProvider, SearchProvider, TTSProvider, STTProvider, EmailProvider, ContactsProvider, CalendarProvider, PluginProvider, ProviderCapability } from '@hivekeep-developer/sdk'
+import type { LLMProvider, EmbeddingProvider, ImageProvider, SearchProvider, TTSProvider, STTProvider, EmailProvider, ContactsProvider, CalendarProvider, PluginProvider, ProviderCapability } from '@hivekeep/sdk'
 import { emitPluginCard, updatePluginCard } from '@/server/services/plugin-cards'
 import type {
   PluginContext,
@@ -42,7 +42,7 @@ import type {
   PluginStorageAPI,
   PluginHTTPClient,
   PluginVaultAPI,
-} from '@hivekeep-developer/sdk'
+} from '@hivekeep/sdk'
 
 // Re-export the plugin-facing surface so other internal modules keep their
 // existing import paths. The SDK is the source of truth.

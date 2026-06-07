@@ -21,7 +21,7 @@ import { listEmailProviders } from '@/server/email/registry'
 import { listContactsProviders } from '@/server/contacts/registry'
 import { listCalendarProviders } from '@/server/calendar/registry'
 import { createLogger } from '@/server/logger'
-import type { ConfigField } from '@hivekeep-developer/sdk'
+import type { ConfigField } from '@hivekeep/sdk'
 
 const log = createLogger('connected-accounts')
 

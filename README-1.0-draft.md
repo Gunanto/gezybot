@@ -102,7 +102,7 @@ Toutes les capacités sont détaillées sur le **[site](https://marlburrow.githu
 - Monoprocess **Bun + SQLite**, un seul conteneur, **zéro infra externe**
 - **Custom tools** multi-langage (Python, Node, Bun, TS, Bash, Deno) avec **renderers React riches** — vos outils s'affichent comme les natifs, pas en JSON brut
 - **Mini-apps** intégrées construites par vos Agents (SDK JS + 24 hooks React + 50+ composants themés + backend optionnel)
-- **Plugins NPM** via SDK TypeScript typé (`@hivekeep-developer/sdk`) + **marketplace** décentralisé
+- **Plugins NPM** via SDK TypeScript typé (`@hivekeep/sdk`) + **marketplace** décentralisé
 - **MCP** dynamique · **toolboxes** composables pour scoper finement les capacités par rôle
 
 **🎨 Une IA d'agents enfin belle et fluide**
@@ -171,7 +171,7 @@ Détails complets dans la [documentation technique](https://marlburrow.github.io
 Les contributions sont bienvenues — code, plugins, mini-apps, traductions, doc, retours.
 
 1. Lisez le **[guide de contribution](CONTRIBUTING.md)** et le **[code de conduite](CODE_OF_CONDUCT.md)**.
-2. Pour développer une extension, voir **[PLUGIN-DEVELOPMENT.md](PLUGIN-DEVELOPMENT.md)** et le SDK `@hivekeep-developer/sdk`.
+2. Pour développer une extension, voir **[PLUGIN-DEVELOPMENT.md](PLUGIN-DEVELOPMENT.md)** et le SDK `@hivekeep/sdk`.
 3. Avant de pousser : `bun run typecheck` et `bun run test` (lancés aussi par le hook pre-commit).
 
 ```bash

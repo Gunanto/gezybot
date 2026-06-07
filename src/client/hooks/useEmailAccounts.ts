@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { ConfigField } from '@hivekeep-developer/sdk'
+import type { ConfigField } from '@hivekeep/sdk'
 import { api } from '@/client/lib/api'
 import { registerProviderReactIcon } from '@/client/components/common/ProviderIcon'
 import { useSSE, useSSEResync } from '@/client/hooks/useSSE'

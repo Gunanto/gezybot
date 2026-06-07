@@ -20,7 +20,7 @@ import type {
   UpdateEventParams,
   EventAttendee,
   AuthResult,
-} from '@hivekeep-developer/sdk'
+} from '@hivekeep/sdk'
 
 export interface CalDavCreds {
   serverUrl: string

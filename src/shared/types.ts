@@ -92,7 +92,7 @@ export type ProviderType = 'anthropic' | 'anthropic-oauth' | 'openai' | 'openai-
 // with plugin authors). The SDK version includes the forward-looking
 // 'rerank' family which the host doesn't yet implement but new
 // provider plugins might.
-export type { ProviderCapability } from '@hivekeep-developer/sdk'
+export type { ProviderCapability } from '@hivekeep/sdk'
 
 export type MessageSource = 'user' | 'agent' | 'task' | 'cron' | 'system' | 'webhook' | 'channel'
 
@@ -542,7 +542,7 @@ export type ChannelUserMappingStatus = 'pending'
 // ChannelConfigField + ChannelConfigSchema live in the SDK now (single
 // source of truth shared with plugin authors). Re-exported here so
 // existing imports from `@/shared/types` keep working unchanged.
-export type { ChannelConfigField, ChannelConfigSchema } from '@hivekeep-developer/sdk'
+export type { ChannelConfigField, ChannelConfigSchema } from '@hivekeep/sdk'
 
 /** Channel summary as returned by GET /api/channels */
 export interface ChannelSummary {

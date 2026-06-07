@@ -6,7 +6,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 COPY package.json bun.lock ./
-# Workspace members must be present so `@hivekeep-developer/sdk` (workspace:*) resolves.
+# Workspace members must be present so `@hivekeep/sdk` (workspace:*) resolves.
 COPY packages ./packages
 RUN bun install --frozen-lockfile
 
@@ -30,7 +30,7 @@ LABEL org.opencontainers.image.title="Hivekeep" \
 # Install production dependencies (better-sqlite3 needs build tools for node-gyp)
 RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 COPY package.json bun.lock ./
-# The server imports `@hivekeep-developer/sdk` (workspace pkg shipping TS source)
+# The server imports `@hivekeep/sdk` (workspace pkg shipping TS source)
 # at runtime, so the workspace members must be present for the production install
 # AND must persist in the final image (Bun runs the SDK's src directly).
 COPY packages ./packages
