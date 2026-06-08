@@ -48,6 +48,6 @@ Installing from the registry runs `npm install` for the chosen package inside an
 
 ## Next Steps
 
-- [Plugins Overview](/hivekeep/docs/plugins/overview/) — What plugins can do and how they are managed
-- [Developing Plugins](/hivekeep/docs/plugins/developing/) — Build and publish your own
-- [Plugin API](/hivekeep/docs/plugins/api/) — Full API reference
+- [Plugins Overview](/hivekeep/docs/plugins/overview/): what plugins can do and how they are managed
+- [Developing Plugins](/hivekeep/docs/plugins/developing/): build and publish your own
+- [Plugin API](/hivekeep/docs/plugins/api/): full API reference

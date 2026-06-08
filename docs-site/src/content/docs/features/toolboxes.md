@@ -48,13 +48,13 @@ Hivekeep seeds these built-in toolboxes idempotently at startup. They are kept i
 | `email` | Email account access: list, read, search, send, and download attachments through connected accounts. |
 | `calendar` | Calendar access (Google, Outlook, CalDAV): list and search events, create, update, delete. |
 | `address-book` | Read-only access to **external** address books (iCloud, ...), distinct from Hivekeep's own contacts. |
-| `configurator` | The configuration toolbox used by [Queenie](/features/queenie/). See below. |
+| `configurator` | The configuration toolbox used by [Queenie](/hivekeep/docs/features/queenie/). See below. |
 
-The `code`, `research`, and `ops` toolboxes all include the `scout` tool so an Agent can offload heavy read-only exploration to a cheaper model. See [Scout](/features/scout/) for how that delegation works.
+The `code`, `research`, and `ops` toolboxes all include the `scout` tool so an Agent can offload heavy read-only exploration to a cheaper model. See [Scout](/hivekeep/docs/features/scout/) for how that delegation works.
 
 ### The configurator toolbox
 
-The `configurator` toolbox is the one assigned to [Queenie](/features/queenie/), the onboarding and configuration Agent. It is a broad, configuration-focused set that lets one Agent set the whole platform up through conversation:
+The `configurator` toolbox is the one assigned to [Queenie](/hivekeep/docs/features/queenie/), the onboarding and configuration Agent. It is a broad, configuration-focused set that lets one Agent set the whole platform up through conversation:
 
 - **Providers and defaults**: discover provider types and config schemas, connect and test providers via secure popups (`request_provider_setup`, `test_provider`), enable extra capabilities on an existing key (`enable_provider_capability`), and set the default models and providers (`set_default_model`, `set_default_provider`, `get_default_models`).
 - **Global prompt and avatars**: read and write the global prompt, and manage the avatar style, subject, and base image.
@@ -105,7 +105,7 @@ Plugin tools (and MCP tools, prefixed `mcp_`) behave differently from native and
 
 ## Related pages
 
-- [Queenie, guided setup](/features/queenie/): uses the `configurator` toolbox.
-- [Scout](/features/scout/): the cheap read-only delegation that the `scout` toolbox powers.
-- [Native Tools](/agents/tools/): the full catalogue of tools a toolbox can grant.
-- [MCP (Model Context Protocol)](/features/mcp/): external tools that must be granted by name.
+- [Queenie, guided setup](/hivekeep/docs/features/queenie/): uses the `configurator` toolbox.
+- [Scout](/hivekeep/docs/features/scout/): the cheap read-only delegation that the `scout` toolbox powers.
+- [Native Tools](/hivekeep/docs/agents/tools/): the full catalogue of tools a toolbox can grant.
+- [MCP (Model Context Protocol)](/hivekeep/docs/features/mcp/): external tools that must be granted by name.

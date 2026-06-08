@@ -57,7 +57,7 @@ As an admin you manage Vault entries from **Settings, Vault**. You can:
 - Create, edit, and delete entries.
 - Choose an entry type. Built-in types are `text`, `credential`, `card`, `note`, and `identity`; you can also define custom types with their own field schema.
 - Mark entries as favorites and search by key or description.
-- Attach files to an entry (encrypted at rest, with per-entry size and count limits, see [Configuration](/getting-started/configuration/)).
+- Attach files to an entry (encrypted at rest, with per-entry size and count limits, see [Configuration](/hivekeep/docs/getting-started/configuration/)).
 
 A plain secret (the `text` type) is just a key and an encrypted value. Typed entries store a small JSON object of fields (encrypted as one blob) so a login can carry a username, URL, and password together.
 
@@ -95,7 +95,7 @@ This keeps plugins isolated from each other while still letting them persist the
 
 ## Secure input: keeping keys out of the chat
 
-When setup needs a credential, Hivekeep does not ask you to paste it into the conversation where it would be logged. Instead an Agent (typically [Queenie](/features/queenie/) during onboarding) opens a **secure popup**. You type the secret into the popup, the server stores it straight in the encrypted Vault or into an encrypted provider config, and the Agent only ever gets back a non-sensitive confirmation of whether it worked. These secure-input tools are admin-only because they create global resources:
+When setup needs a credential, Hivekeep does not ask you to paste it into the conversation where it would be logged. Instead an Agent (typically [Queenie](/hivekeep/docs/features/queenie/) during onboarding) opens a **secure popup**. You type the secret into the popup, the server stores it straight in the encrypted Vault or into an encrypted provider config, and the Agent only ever gets back a non-sensitive confirmation of whether it worked. These secure-input tools are admin-only because they create global resources:
 
 - `request_provider_setup`: paste an AI or search provider API key, then auto-configure and test the provider. The key goes into the Vault, never to the LLM.
 - `request_channel_setup`: paste a messaging channel token (for example a Discord or Telegram bot token), then create and activate the channel.
@@ -105,6 +105,6 @@ In each case the Agent's turn ends when the popup opens and resumes only once yo
 
 ## Related
 
-- [Configuration](/getting-started/configuration/) for the data directory, Vault attachment limits, and other environment variables.
-- [Queenie, guided setup](/features/queenie/) for the onboarding flow that uses secure input.
-- [Native tools](/agents/tools/) for the wider tool set Agents can call.
+- [Configuration](/hivekeep/docs/getting-started/configuration/) for the data directory, Vault attachment limits, and other environment variables.
+- [Queenie, guided setup](/hivekeep/docs/features/queenie/) for the onboarding flow that uses secure input.
+- [Native tools](/hivekeep/docs/agents/tools/) for the wider tool set Agents can call.

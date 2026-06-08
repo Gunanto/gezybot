@@ -17,7 +17,7 @@ If you set **trigger parent turn**, the final report instead wakes the parent Ag
 
 A cron can be **recurring** (a cron expression like `0 9 * * *`) or **run once** (an ISO 8601 datetime; it fires once and then deactivates itself).
 
-Schedules are interpreted in a server-wide timezone, resolved in order from `HIVEKEEP_TIMEZONE`, then `TZ`, then the system timezone, then UTC. Set `HIVEKEEP_TIMEZONE` (for example `Europe/Paris`) so `0 9 * * *` means 9am where you are. See [Configuration](/getting-started/configuration/).
+Schedules are interpreted in a server-wide timezone, resolved in order from `HIVEKEEP_TIMEZONE`, then `TZ`, then the system timezone, then UTC. Set `HIVEKEEP_TIMEZONE` (for example `Europe/Paris`) so `0 9 * * *` means 9am where you are. See [Configuration](/hivekeep/docs/getting-started/configuration/).
 
 ### Agent-created crons require approval
 
@@ -36,7 +36,7 @@ Agents have a set of cron tools (all in the main conversation only):
 - `trigger_cron`: run a cron immediately without affecting its regular schedule.
 - `delete_cron`: remove a cron permanently.
 
-Each cron can override the model, provider, reasoning effort, and the **toolboxes** the spawned task may use, so a lightweight scheduled job can run on a cheaper model with a narrow tool surface. See [Toolboxes](/features/toolboxes/) and [Choosing a Model](/guides/model-selection/).
+Each cron can override the model, provider, reasoning effort, and the **toolboxes** the spawned task may use, so a lightweight scheduled job can run on a cheaper model with a narrow tool surface. See [Toolboxes](/hivekeep/docs/features/toolboxes/) and [Choosing a Model](/hivekeep/docs/guides/model-selection/).
 
 ### Managing crons in the UI
 
@@ -83,7 +83,7 @@ When a call passes the filter, the webhook dispatches in one of two modes:
 - **conversation** (default): the payload is injected as a message into the Agent's main session, as if you had sent it.
 - **task**: the payload spawns a sub-Agent task built from templates. `task_title_template` and `task_prompt_template` support `{{field.path}}` placeholders resolved against the JSON payload, and `{{__payload__}}` for the full raw body. A `max_concurrent_tasks` limit (default 1, 0 for unlimited) keeps a flood of calls from spawning unbounded tasks; extra calls queue.
 
-For example, a GitHub webhook filtered to `action: ["opened"]` in task mode could spawn a task titled `GitHub: opened on #{{issue.number}}` whose prompt asks the Agent to triage the new issue. See the [GitHub Issue Processor blueprint](/guides/blueprints/github-issue-processor/) for an end-to-end walk-through.
+For example, a GitHub webhook filtered to `action: ["opened"]` in task mode could spawn a task titled `GitHub: opened on #{{issue.number}}` whose prompt asks the Agent to triage the new issue. See the [GitHub Issue Processor blueprint](/hivekeep/docs/guides/blueprints/github-issue-processor/) for an end-to-end walk-through.
 
 ### Managing webhooks with tools
 
@@ -103,7 +103,7 @@ You can also manage webhooks in the UI, where the URL and token are surfaced at 
 | Rate limit | `WEBHOOKS_RATE_LIMIT_PER_MINUTE` | 60 | Calls per minute per webhook. |
 | Log retention | `WEBHOOKS_LOG_RETENTION_DAYS` | 30 | How long trigger logs are kept. |
 
-> Webhook URLs are only reachable if your Hivekeep instance is reachable by the calling service. For external services, that means a public origin (set `PUBLIC_URL`) and, usually, a reverse proxy with TLS. See [Configuration](/getting-started/configuration/).
+> Webhook URLs are only reachable if your Hivekeep instance is reachable by the calling service. For external services, that means a public origin (set `PUBLIC_URL`) and, usually, a reverse proxy with TLS. See [Configuration](/hivekeep/docs/getting-started/configuration/).
 
 ## Keeping a human in the loop
 
@@ -111,12 +111,12 @@ Automation does not mean losing control:
 
 - **Agent-created crons need your approval** before they ever run.
 - **Webhooks require a secret token**, are rate-limited and size-capped, and can be filtered to only the events you care about, deactivated, or deleted at any time.
-- **Cron tasks cannot prompt you.** The `prompt_human` tool (which suspends a task to ask a question) is disabled in cron-triggered tasks, because there is no interactive session waiting on the other side. Use webhook conversation mode or a normal task if you want a back-and-forth. (See [Projects and tickets](/features/projects/) for how `prompt_human` works on interactive ticket tasks.)
+- **Cron tasks cannot prompt you.** The `prompt_human` tool (which suspends a task to ask a question) is disabled in cron-triggered tasks, because there is no interactive session waiting on the other side. Use webhook conversation mode or a normal task if you want a back-and-forth. (See [Projects and tickets](/hivekeep/docs/features/projects/) for how `prompt_human` works on interactive ticket tasks.)
 - **By default cron results are informational**, so a scheduled Agent reports rather than barging into your conversation; opt into a parent turn only when you want the Agent to react.
 
 ## Related
 
-- [Autonomy Quickstart](/guides/autonomy-quickstart/) for a hands-on path to your first scheduled Agent.
-- [Blueprints](/guides/blueprints/github-issue-processor/) for ready-made automation recipes.
-- [Toolboxes](/features/toolboxes/) and [Choosing a Model](/guides/model-selection/) to scope and cost scheduled work.
-- [Configuration](/getting-started/configuration/) for timezone, public origin, and the env vars above.
+- [Autonomy Quickstart](/hivekeep/docs/guides/autonomy-quickstart/) for a hands-on path to your first scheduled Agent.
+- [Blueprints](/hivekeep/docs/guides/blueprints/github-issue-processor/) for ready-made automation recipes.
+- [Toolboxes](/hivekeep/docs/features/toolboxes/) and [Choosing a Model](/hivekeep/docs/guides/model-selection/) to scope and cost scheduled work.
+- [Configuration](/hivekeep/docs/getting-started/configuration/) for timezone, public origin, and the env vars above.

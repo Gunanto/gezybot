@@ -88,7 +88,7 @@ Queenie is honest about her limits. She does not have every tool; she has exactl
 
 ## Related pages
 
-- [Toolboxes](/features/toolboxes/): the `configurator` toolbox is what scopes everything Queenie can do.
-- [Vault and Secrets](/features/vault/): where the keys Queenie captures are stored.
-- [Supported Providers](/providers/supported/): the provider types Queenie can connect.
-- [Your First Agent](/getting-started/first-agent/): what Queenie helps you build.
+- [Toolboxes](/hivekeep/docs/features/toolboxes/): the `configurator` toolbox is what scopes everything Queenie can do.
+- [Vault and Secrets](/hivekeep/docs/features/vault/): where the keys Queenie captures are stored.
+- [Supported Providers](/hivekeep/docs/providers/supported/): the provider types Queenie can connect.
+- [Your First Agent](/hivekeep/docs/getting-started/first-agent/): what Queenie helps you build.

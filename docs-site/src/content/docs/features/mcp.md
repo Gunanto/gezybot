@@ -76,6 +76,6 @@ Because an MCP server runs an arbitrary local command, letting an Agent add one 
 
 ## Related
 
-- [Native tools](/agents/tools/) for the built-in tools MCP tools sit alongside.
-- [Plugins overview](/plugins/overview/) for the in-process alternative when you want to ship a tool, provider, or channel as code rather than connect an external server.
-- [Configuration](/getting-started/configuration/) for `MCP_REQUIRE_APPROVAL` and related settings.
+- [Native tools](/hivekeep/docs/agents/tools/) for the built-in tools MCP tools sit alongside.
+- [Plugins overview](/hivekeep/docs/plugins/overview/) for the in-process alternative when you want to ship a tool, provider, or channel as code rather than connect an external server.
+- [Configuration](/hivekeep/docs/getting-started/configuration/) for `MCP_REQUIRE_APPROVAL` and related settings.

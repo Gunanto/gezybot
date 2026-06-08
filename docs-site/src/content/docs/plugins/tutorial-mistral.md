@@ -10,7 +10,7 @@ This tutorial builds a complete, real provider plugin end to end: `hivekeep-plug
 
 That mirrors exactly how Hivekeep's built-in OpenAI integration works: one configured key, several capabilities (LLM + embedding + image + TTS + STT). When two providers share the same `type`, Hivekeep groups them under one configured provider row, so the user enters their key once and gets both chat and transcription.
 
-If you want the minimal single-file plugin first, read [Developing Plugins](/plugins/developing/) and study the shipped [`packages/sdk/examples/hello-agent`](https://github.com/MarlBurroW/hivekeep/tree/main/packages/sdk/examples/hello-agent) example, which exercises every extension point (tools, channels, providers, hooks, cards). This tutorial goes deeper on the **provider** surface specifically.
+If you want the minimal single-file plugin first, read [Developing Plugins](/hivekeep/docs/plugins/developing/) and study the shipped [`packages/sdk/examples/hello-agent`](https://github.com/MarlBurroW/hivekeep/tree/main/packages/sdk/examples/hello-agent) example, which exercises every extension point (tools, channels, providers, hooks, cards). This tutorial goes deeper on the **provider** surface specifically.
 
 Everything here is written against the current `@hivekeep/sdk` (the package re-exports `z` from zod v4 and ships its TypeScript directly, so Bun imports it at runtime with no build step).
 
@@ -833,4 +833,4 @@ Two distribution paths:
 - Hivekeep **auto-detects** the capability family from the method set and registers each provider under `plugin:<name>:<type>`.
 - Ship it via **npm** (with the `hivekeep-plugin` keyword) or **install-from-git**.
 
-For the full surface area (tools, channels, hooks, cards, the typed context, and all nine provider families), see [Developing Plugins](/plugins/developing/) and the [`hello-agent`](https://github.com/MarlBurroW/hivekeep/tree/main/packages/sdk/examples/hello-agent) reference example.
+For the full surface area (tools, channels, hooks, cards, the typed context, and all nine provider families), see [Developing Plugins](/hivekeep/docs/plugins/developing/) and the [`hello-agent`](https://github.com/MarlBurroW/hivekeep/tree/main/packages/sdk/examples/hello-agent) reference example.

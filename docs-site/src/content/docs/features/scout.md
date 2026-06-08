@@ -23,7 +23,7 @@ This is the only confirmed use of scout in the codebase: delegated, read-only ex
 
 ### Where the scout tool is available
 
-The `scout` tool is included in the built-in `code`, `research`, and `ops` toolboxes, so any Agent with one of those (or the `all` toolbox, or a custom toolbox that lists `scout`) can delegate exploration. See [Toolboxes](/features/toolboxes/) for how grants work.
+The `scout` tool is included in the built-in `code`, `research`, and `ops` toolboxes, so any Agent with one of those (or the `all` toolbox, or a custom toolbox that lists `scout`) can delegate exploration. See [Toolboxes](/hivekeep/docs/features/toolboxes/) for how grants work.
 
 ## How the scout model is resolved
 
@@ -55,7 +55,7 @@ These can also be set programmatically. The global default is one of the model-b
 set_default_model(service: "scout", model: "claude-haiku-4-6", provider_id: "anthropic")
 ```
 
-[Queenie](/features/queenie/) can do this for you in conversation, and `get_default_models` reports the current scout default along with the rest.
+[Queenie](/hivekeep/docs/features/queenie/) can do this for you in conversation, and `get_default_models` reports the current scout default along with the rest.
 
 ## When to use scout
 
@@ -63,6 +63,6 @@ Reach for scout when an Agent would otherwise spend many of its own steps readin
 
 ## Related pages
 
-- [Toolboxes](/features/toolboxes/): the `scout` toolbox the scout runs with, and the toolboxes that grant the `scout` tool.
-- [Choosing a Model](/guides/model-selection/): picking models for each role.
-- [Queenie, guided setup](/features/queenie/): can set your default scout model in conversation.
+- [Toolboxes](/hivekeep/docs/features/toolboxes/): the `scout` toolbox the scout runs with, and the toolboxes that grant the `scout` tool.
+- [Choosing a Model](/hivekeep/docs/guides/model-selection/): picking models for each role.
+- [Queenie, guided setup](/hivekeep/docs/features/queenie/): can set your default scout model in conversation.

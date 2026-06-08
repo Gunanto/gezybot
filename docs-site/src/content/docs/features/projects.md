@@ -15,7 +15,7 @@ A project is a first-class entity, independent of any Agent. It has a title, a d
 
 Projects have no owner Agent. Any Agent can select any project and work on it. You express the intended pairing in the Agent's character / expertise / prompt (for example, "you are the Agent for project X; start by setting it as your active project").
 
-A project can optionally point at a **GitHub repo**. Beyond a free-form link, you can configure an `owner/name` repo with a personal access token (stored in the [vault](/features/vault/), never on the project row). Hivekeep then clones the repo locally so ticket work can run against a checkout. The clone has a status (`none`, `cloning`, `ready`, `error`) shown in the project header.
+A project can optionally point at a **GitHub repo**. Beyond a free-form link, you can configure an `owner/name` repo with a personal access token (stored in the [vault](/hivekeep/docs/features/vault/), never on the project row). Hivekeep then clones the repo locally so ticket work can run against a checkout. The clone has a status (`none`, `cloning`, `ready`, `error`) shown in the project header.
 
 ### Ticket
 
@@ -68,7 +68,7 @@ Several points keep a person in control:
 
 - **Manual status.** Because the board never moves automatically, status reflects deliberate decisions, not side effects.
 - **Starting a task.** From a ticket card you choose which Agent runs the task. The card immediately shows a "running task" badge, but it stays in its current column until someone moves it.
-- **A task can ask you a question.** During a ticket task, an Agent can call `prompt_human` to ask you something. The task is suspended with a yellow "awaiting input" badge on the ticket until you answer, then it resumes. (This is not available in cron-triggered tasks; see [Automation](/features/automation/).)
+- **A task can ask you a question.** During a ticket task, an Agent can call `prompt_human` to ask you something. The task is suspended with a yellow "awaiting input" badge on the ticket until you answer, then it resumes. (This is not available in cron-triggered tasks; see [Automation](/hivekeep/docs/features/automation/).)
 - **Confirmed deletes.** Deleting a project cascades to its tickets and tags; the UI warns you, including if tasks are still in flight. In-flight tasks are not cancelled; they finish, and historical tasks are preserved (their `ticket_id` is set to null) so the audit trail survives.
 
 ## Using the UI
@@ -88,6 +88,6 @@ You file a ticket "Add rate limiting to the public API" in the backlog. Later yo
 
 ## Related
 
-- [Automation, crons and webhooks](/features/automation/) for scheduling and external triggers (note that crons are not wired to spawn ticket-bound tasks).
-- [Native Tools](/agents/tools/) for the wider tool surface and sub-Agent (task) mechanics.
-- [Vault and Secrets](/features/vault/) for how a project's GitHub token is stored.
+- [Automation, crons and webhooks](/hivekeep/docs/features/automation/) for scheduling and external triggers (note that crons are not wired to spawn ticket-bound tasks).
+- [Native Tools](/hivekeep/docs/agents/tools/) for the wider tool surface and sub-Agent (task) mechanics.
+- [Vault and Secrets](/hivekeep/docs/features/vault/) for how a project's GitHub token is stored.

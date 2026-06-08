@@ -35,7 +35,7 @@ Once an account is connected and an Agent is allowed to use it, the Agent gets a
 
 Contacts are **read-only**. The address-book tools never write to or copy your external contacts into Hivekeep; they fetch on demand. A common pattern is to look up a phone number with `search_address_book`, then hand it to `send_channel_message` to send an SMS through a messaging channel.
 
-The address books here are deliberately separate from Hivekeep's own internal contacts (the `create_contact` / `get_contact` family), which is the Agents' own writable address book. See [Native Tools](/agents/tools/) for that distinction.
+The address books here are deliberately separate from Hivekeep's own internal contacts (the `create_contact` / `get_contact` family), which is the Agents' own writable address book. See [Native Tools](/hivekeep/docs/agents/tools/) for that distinction.
 
 ## Supported providers
 
@@ -48,7 +48,7 @@ The address books here are deliberately separate from Hivekeep's own internal co
 | Generic CalDAV (`caldav`) | no | generic CalDAV by URL | no | password |
 | Generic CardDAV (`carddav`) | no | no | generic CardDAV by URL | password |
 
-Email is a pluggable provider family, so a plugin can add another provider (for example Proton) without a core change. The same is true for calendar and contacts. See [Plugins](/plugins/overview/) and [Providers](/providers/supported/).
+Email is a pluggable provider family, so a plugin can add another provider (for example Proton) without a core change. The same is true for calendar and contacts. See [Plugins](/hivekeep/docs/plugins/overview/) and [Providers](/hivekeep/docs/providers/supported/).
 
 > Scope note for CalDAV: create and update write the event summary, start, end, description, and location. Sending attendee invitations over CalDAV is out of scope; use Google or Microsoft for invites.
 
@@ -63,12 +63,12 @@ OAuth needs a one-time **operator setup** per provider type: you register an OAu
 1. In the provider's developer console, create an OAuth app and add the redirect URI exactly as Hivekeep shows it. The redirect URI is `<your-public-origin>/api/email-accounts/oauth/callback`. The UI displays the exact value to register, so copy it from there rather than guessing.
    - Google: Google Cloud Console, with Gmail / Calendar / People scopes as needed.
    - Microsoft: Azure App registrations (for example Mail.Read, Mail.Send, Calendars.ReadWrite, Contacts.Read, User.Read) on the `common` tenant.
-2. Paste the client id and client secret into the provider's card in Settings. The client id is stored in app settings; the secret is stored in the encrypted [vault](/features/vault/).
+2. Paste the client id and client secret into the provider's card in Settings. The client id is stored in app settings; the secret is stored in the encrypted [vault](/hivekeep/docs/features/vault/).
 3. Click **Connect**, optionally toggle "Also access calendar" / "Also read contacts" to request those scopes in the same consent, then complete the provider's consent screen. You are redirected back and the account appears.
 
 When you select multiple capabilities, Hivekeep requests the **union** of the email, calendar, and contacts scopes in one consent and writes a single account that serves all of them. Internally only a long-lived refresh token is stored (encrypted); short-lived access tokens are fetched on demand and never persisted.
 
-> Reverse-proxy note: the redirect URI must match what you registered exactly. Behind a TLS-terminating proxy, set `PUBLIC_URL` to your canonical public origin so Hivekeep builds the correct redirect URI. Google only allows plain `http` on `localhost`/loopback; a LAN IP needs `https`. See [Configuration](/getting-started/configuration/).
+> Reverse-proxy note: the redirect URI must match what you registered exactly. Behind a TLS-terminating proxy, set `PUBLIC_URL` to your canonical public origin so Hivekeep builds the correct redirect URI. Google only allows plain `http` on `localhost`/loopback; a LAN IP needs `https`. See [Configuration](/hivekeep/docs/getting-started/configuration/).
 
 ### Credential providers (iCloud, generic IMAP / CalDAV / CardDAV)
 
@@ -109,7 +109,7 @@ If that account is in approval mode, step 3 queues the reply and you approve it 
 
 ## Related
 
-- [Native Tools](/agents/tools/) for the full tool surface and the internal contacts CRM.
-- [Toolboxes](/features/toolboxes/) to control which tools an Agent has.
-- [Vault and Secrets](/features/vault/) for how OAuth secrets are stored.
-- [Configuration](/getting-started/configuration/) for `PUBLIC_URL` and proxy setup.
+- [Native Tools](/hivekeep/docs/agents/tools/) for the full tool surface and the internal contacts CRM.
+- [Toolboxes](/hivekeep/docs/features/toolboxes/) to control which tools an Agent has.
+- [Vault and Secrets](/hivekeep/docs/features/vault/) for how OAuth secrets are stored.
+- [Configuration](/hivekeep/docs/getting-started/configuration/) for `PUBLIC_URL` and proxy setup.

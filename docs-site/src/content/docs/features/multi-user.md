@@ -61,6 +61,6 @@ Since the session is shared and messages are broadcast over the real-time connec
 
 ## Related
 
-- [Vault and secrets](/features/vault/) for the shared, encrypted credential store admins manage.
-- [Queenie, guided setup](/features/queenie/) for the onboarding the first admin goes through.
-- [Configuration](/getting-started/configuration/) for authentication-related environment variables such as trusted origins and the auth secret.
+- [Vault and secrets](/hivekeep/docs/features/vault/) for the shared, encrypted credential store admins manage.
+- [Queenie, guided setup](/hivekeep/docs/features/queenie/) for the onboarding the first admin goes through.
+- [Configuration](/hivekeep/docs/getting-started/configuration/) for authentication-related environment variables such as trusted origins and the auth secret.
