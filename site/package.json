@@ -18,5 +18,8 @@
     "astro-icon": "^1.1.5",
     "@iconify-json/lucide": "^1.2.30",
     "@iconify-json/simple-icons": "^1.2.30"
+  },
+  "devDependencies": {
+    "@astrojs/sitemap": "~3.2.0"
   }
 }
