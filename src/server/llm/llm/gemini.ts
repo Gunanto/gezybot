@@ -282,14 +282,165 @@ function systemToGemini(system: SystemPrompt | undefined): GeminiContent | undef
   return { role: 'user', parts: [{ text }] }
 }
 
+/**
+ * Gemini's function-declaration `parameters` field accepts only a
+ * restricted OpenAPI-3.0 subset — NOT the rich JSON-Schema (draft
+ * 2020-12) that zod v4's `z.toJSONSchema()` emits. Sending the raw
+ * schema makes `generateContent`/`streamGenerateContent` 400 with
+ * `Unknown name "$schema" / "additionalProperties" / "const" … :
+ * Cannot find field`.
+ *
+ * This pure recursive sanitizer rebuilds the schema keeping ONLY the
+ * keys Gemini understands, translating the constructs it can't express:
+ *
+ * - `format`            → kept only for the values Gemini supports
+ *                         (`date-time` on strings; `int32`/`int64`/
+ *                         `float`/`double` on numbers). All others
+ *                         (`email`, `uuid`, `byte`, `int53`, …) dropped.
+ * - `const`             → `enum: [value]` (single-value constraint).
+ * - `.nullable()` idiom → `anyOf`/`oneOf` of exactly one real schema +
+ *                         `{type:'null'}` collapses to the real schema
+ *                         with `nullable: true`. `type: ['string','null']`
+ *                         collapses the same way.
+ * - other unions        → Gemini can't represent multi-branch unions in
+ *                         function params; we degrade to the FIRST branch.
+ * - everything else      (`$schema`, `additionalProperties`,
+ *                         `propertyNames`, `default`, `pattern`,
+ *                         `minimum`/`maximum`, `$ref`, `$defs`, …) is
+ *                         dropped.
+ *
+ * Gemini-local: other providers accept the rich schema verbatim, so this
+ * conversion lives here and is not shared.
+ *
+ * @internal exported for tests.
+ */
+export function sanitizeGeminiSchema(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map((el) => sanitizeGeminiSchema(el))
+  if (node === null || typeof node !== 'object') return node
+
+  const input = node as Record<string, unknown>
+
+  // ── Collapse the nullable idiom / multi-branch unions ──────────────
+  // anyOf/oneOf of [oneRealSchema, {type:'null'}] (in any order) → the
+  // real schema + nullable:true. Other multi-branch unions degrade to
+  // the first branch. allOf likewise degrades to its first branch.
+  for (const unionKey of ['anyOf', 'oneOf', 'allOf'] as const) {
+    const branches = input[unionKey]
+    if (Array.isArray(branches) && branches.length > 0) {
+      const isNull = (b: unknown): boolean =>
+        typeof b === 'object' && b !== null && (b as Record<string, unknown>)['type'] === 'null'
+      const nonNull = branches.filter((b) => !isNull(b))
+      const hadNull = nonNull.length < branches.length
+
+      // Pick the schema to keep: first non-null branch, or first branch
+      // if somehow all were null.
+      const picked = (nonNull[0] ?? branches[0]) as unknown
+      const sanitizedPick = sanitizeGeminiSchema(picked)
+      const merged: Record<string, unknown> =
+        sanitizedPick && typeof sanitizedPick === 'object' && !Array.isArray(sanitizedPick)
+          ? { ...(sanitizedPick as Record<string, unknown>) }
+          : {}
+
+      // Preserve a description that lived on the union node itself.
+      if (typeof input['description'] === 'string' && merged['description'] == null) {
+        merged['description'] = input['description']
+      }
+      if (hadNull) merged['nullable'] = true
+      return merged
+    }
+  }
+
+  const out: Record<string, unknown> = {}
+
+  for (const [key, value] of Object.entries(input)) {
+    switch (key) {
+      case 'type': {
+        // type can be an array including 'null' → collapse to the single
+        // real type + nullable:true.
+        if (Array.isArray(value)) {
+          const real = value.filter((t) => t !== 'null')
+          if (value.includes('null')) out['nullable'] = true
+          out['type'] = real[0] ?? 'object'
+        } else {
+          out['type'] = value
+        }
+        break
+      }
+      case 'description':
+      case 'enum':
+      case 'required':
+      case 'nullable':
+        out[key] = value
+        break
+      case 'properties': {
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+          const props: Record<string, unknown> = {}
+          for (const [propName, propSchema] of Object.entries(value as Record<string, unknown>)) {
+            props[propName] = sanitizeGeminiSchema(propSchema)
+          }
+          out['properties'] = props
+        }
+        break
+      }
+      case 'items': {
+        out['items'] = sanitizeGeminiSchema(value)
+        break
+      }
+      case 'format': {
+        // Keep only formats Gemini's OpenAPI subset accepts.
+        const GEMINI_FORMATS = new Set(['date-time', 'int32', 'int64', 'float', 'double'])
+        if (typeof value === 'string' && GEMINI_FORMATS.has(value)) out['format'] = value
+        break
+      }
+      case 'const': {
+        // Preserve the single-value constraint as a one-element enum
+        // (filtered to string below — Gemini enums are string-only).
+        out['enum'] = [value]
+        break
+      }
+      default:
+        // Drop everything else: $schema, additionalProperties,
+        // propertyNames, default, pattern, minimum/maximum, multipleOf,
+        // min/maxLength, min/maxItems, $ref, $defs/definitions, $id,
+        // $comment, title, examples, not, if/then/else, etc.
+        break
+    }
+  }
+
+  // Gemini `enum` only accepts STRING values (on a string-typed field). Drop any
+  // non-string members (e.g. a boolean/number z.literal -> const). If none
+  // remain, drop the enum entirely and keep the underlying type.
+  if (Array.isArray(out['enum'])) {
+    const strs = (out['enum'] as unknown[]).filter((v) => typeof v === 'string')
+    if (strs.length > 0) {
+      out['enum'] = strs
+      out['type'] = 'string'
+    } else {
+      delete out['enum']
+    }
+  }
+
+  return out
+}
+
 function toolsToGemini(tools: HivekeepTool[] | undefined): GeminiToolDeclaration[] | undefined {
   if (!tools || tools.length === 0) return undefined
   return [{
-    functionDeclarations: tools.map((t) => ({
-      name: t.name,
-      description: t.description,
-      parameters: t.inputSchema as Record<string, unknown>,
-    })),
+    functionDeclarations: tools.map((t) => {
+      const params = sanitizeGeminiSchema(t.inputSchema)
+      // Gemini wants an object schema (or the field omitted). If the
+      // sanitized params lost its `type`, default to an empty object
+      // schema — always safe.
+      const valid =
+        params && typeof params === 'object' && !Array.isArray(params) && 'type' in (params as object)
+          ? (params as Record<string, unknown>)
+          : { type: 'object', properties: {} }
+      return {
+        name: t.name,
+        description: t.description,
+        parameters: valid,
+      }
+    }),
   }]
 }
 

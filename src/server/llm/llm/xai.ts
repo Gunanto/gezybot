@@ -163,6 +163,11 @@ export function inferImageInput(model: XaiLanguageModel): boolean {
  */
 export function inferThinking(model: XaiLanguageModel): LLMModel['thinking'] | undefined {
   const names = modelNames(model)
+  // Some variants are explicitly NON-reasoning (e.g. `grok-4.20-0309-non-reasoning`):
+  // they 400 on `reasoning_effort`. Exclude them first — note the substring
+  // "reasoning" also lives inside "non-reasoning", and the family prefix
+  // (`grok-4.20`) would otherwise match the positive pattern below.
+  if (names.some((n) => /non-reasoning/i.test(n))) return undefined
   if (!names.some((n) => REASONING_PATTERN.test(n))) return undefined
   return { efforts: ['low', 'medium', 'high'] }
 }

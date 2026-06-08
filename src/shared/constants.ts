@@ -75,7 +75,7 @@ export const CONFIGURATOR_MODEL_PREFERENCES: Record<string, readonly string[]> =
   'anthropic-oauth': ['sonnet', 'opus', 'haiku'],
   openai: ['gpt-5', 'gpt-4.1', 'gpt-4o', 'o4', 'gpt-4'],
   'openai-codex': ['gpt-5', 'gpt-4.1', 'gpt-4o'],
-  gemini: ['flash', 'pro'],
+  gemini: ['pro', 'flash'],
   openrouter: ['sonnet', 'gpt-4o', 'gpt-4.1', 'llama'],
   xai: ['grok-4', 'grok-3', 'grok-2', 'grok'],
 }

@@ -97,6 +97,10 @@ export function inferContextWindow(modelId: string): number {
  * @internal exported for tests.
  */
 export function inferThinking(modelId: string): LLMModel['thinking'] | undefined {
+  // `gpt-5-chat-latest` is the NON-reasoning chat variant: it matches the
+  // gpt-5 prefix but REJECTS `reasoning_effort` (400). Exclude it (and any
+  // future `gpt-5-chat*`) so we never send an effort it can't accept.
+  if (/^gpt-5-chat/.test(modelId)) return undefined
   if (!REASONING_PATTERN.test(modelId)) return undefined
   return { efforts: ['low', 'medium', 'high'] }
 }

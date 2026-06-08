@@ -48,10 +48,28 @@ async function resolveConfiguratorModel(providerId: string): Promise<string> {
   if (ids.length === 0) throw new Error(`Provider "${provider.type}" exposes no LLM models to seed the configurator with`)
   const prefs = CONFIGURATOR_MODEL_PREFERENCES[provider.type] ?? []
   for (const pref of prefs) {
-    const match = ids.find((id) => id.toLowerCase().includes(pref.toLowerCase()))
-    if (match) return match
+    const p = pref.toLowerCase()
+    const matches = ids.filter((id) => id.toLowerCase().includes(p))
+    if (matches.length === 0) continue
+    // Drop obvious cheap/small tiers when a full-size sibling exists, so a
+    // tool-heavy conversational agent never lands on a nano/mini/lite model.
+    const nonLite = matches.filter((id) => !/-(nano|mini|lite|tiny|small|8b)(\b|[-_]|$)/i.test(id))
+    return pickStrongestModel(nonLite.length > 0 ? nonLite : matches)
   }
   return ids[0]!
+}
+
+/**
+ * Among models matching a preference substring, pick the strongest / most
+ * canonical: prefer stable ids over dated / preview / "latest" aliases, then the
+ * shortest (canonical) id. Keeps onboarding on a flagship without per-id
+ * hardcoding, regardless of the provider API's listing order.
+ */
+function pickStrongestModel(pool: string[]): string {
+  if (pool.length === 1) return pool[0]!
+  const stable = pool.filter((id) => !/(preview|-exp\b|exp-|-latest|beta|alpha|\d{4})/i.test(id))
+  const candidates = stable.length > 0 ? stable : pool
+  return candidates.slice().sort((a, b) => a.length - b.length)[0]!
 }
 
 /**
