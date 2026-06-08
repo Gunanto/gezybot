@@ -71,6 +71,9 @@ export function StepBootstrapProvider({ onComplete }: { onComplete: () => void }
           )}
         </p>
       </div>
+      <div className="rounded-xl border border-border bg-muted/40 p-3 text-center text-xs text-muted-foreground">
+        {t('onboarding.connectAi.why')}
+      </div>
       {error && <p className="text-center text-sm text-destructive">{error}</p>}
       <Button className="btn-shine w-full" onClick={() => setDialogOpen(true)}>
         {t('onboarding.bootstrap.connect', 'Connect a provider')}

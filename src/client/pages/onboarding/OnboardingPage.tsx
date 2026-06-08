@@ -33,6 +33,12 @@ export function OnboardingPage({ onComplete }: OnboardingPageProps) {
   const [currentStep, setCurrentStep] = useState(1)
 
   const progressValue = ((currentStep - 1) / (TOTAL_STEPS - 1)) * 100
+  const stepTitleKeys = [
+    'onboarding.steps.identity',
+    'onboarding.steps.preferences',
+    'onboarding.steps.provider',
+  ] as const
+  const currentStepTitle = t(stepTitleKeys[currentStep - 1] ?? stepTitleKeys[0])
 
   return (
     <div className="surface-base h-screen overflow-y-auto">
@@ -56,8 +62,9 @@ export function OnboardingPage({ onComplete }: OnboardingPageProps) {
 
         {/* Progress */}
         <div className="mb-6 space-y-2">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
             <span>{t('onboarding.step', { current: currentStep, total: TOTAL_STEPS })}</span>
+            <span className="font-medium text-foreground">{currentStepTitle}</span>
           </div>
           <Progress value={progressValue} variant="gradient" active />
         </div>

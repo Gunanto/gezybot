@@ -113,6 +113,14 @@
     "title": "Welcome to Hivekeep",
     "subtitle": "Let's set up your workspace",
     "step": "Step {{current}} of {{total}}",
+    "steps": {
+      "identity": "Your identity",
+      "preferences": "Look & feel",
+      "provider": "Connect your AI"
+    },
+    "connectAi": {
+      "why": "This provider powers your Agents and Queenie, your setup guide. Pick one built-in provider to get started — you can add more later, including plugins for other providers."
+    },
     "bootstrap": {
       "title": "Connect your AI",
       "description": "To bring your assistant to life, connect one AI provider. Pick a built-in one to start. You can add more later, including plugins for other providers.",

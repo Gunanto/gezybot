@@ -113,6 +113,14 @@
     "title": "Bienvenue sur Hivekeep",
     "subtitle": "Configurons votre espace",
     "step": "Étape {{current}} sur {{total}}",
+    "steps": {
+      "identity": "Votre identité",
+      "preferences": "Apparence",
+      "provider": "Connectez votre IA"
+    },
+    "connectAi": {
+      "why": "Ce fournisseur alimente tes Agents et Queenie, ton guide de configuration. Commence par un fournisseur intégré — tu pourras en ajouter d'autres plus tard, et des plugins pour encore plus de fournisseurs."
+    },
     "bootstrap": {
       "title": "Connecte ton IA",
       "description": "Pour donner vie à ton assistant, connecte un fournisseur d'IA. Commence par un fournisseur intégré. Tu pourras en ajouter d'autres plus tard, et des plugins pour encore plus de fournisseurs.",
