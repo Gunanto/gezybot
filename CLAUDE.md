@@ -17,7 +17,6 @@ Read these files **before starting any phase**. They are the source of truth.
 | `prompt-system.md` | How the Agent system prompt is assembled (blocks 1-12) |
 | `compacting.md` | Compacting algorithm + memory extraction pipeline |
 | `queenie.md` | **Conversational onboarding** spec — the `Queenie` configurator Agent, vault-centralized secrets, secure-input tools, avatar-style customization (Phase 27) |
-| `DEVELOPMENT_PLAN.md` | Phased development plan with checkboxes — **follow this plan** |
 
 ## Tech stack
 
@@ -116,12 +115,9 @@ All API routes return JSON. Errors follow this format:
 
 ## Development workflow
 
-1. Follow `DEVELOPMENT_PLAN.md` phase by phase — **do not skip ahead**
-2. Check off tasks as you complete them (`[ ]` → `[x]`)
-3. Validate each phase's criterion before moving to the next
-4. One commit per completed sub-task with a clear message
-5. **All frontend work MUST follow the existing design system** (see the Design system section) — it is already built; never ship UI that ignores it
-6. Run `bun run dev` frequently, and `bun run typecheck` + `bun run test` before committing (the pre-commit hook runs both)
+1. Work in small, verified increments; one commit per completed change with a clear message
+2. **All frontend work MUST follow the existing design system** (see the Design system section) — it is already built; never ship UI that ignores it
+3. Run `bun run dev` frequently, and `bun run typecheck` + `bun run test` before committing (the pre-commit hook runs both)
 
 ## Commands
 
