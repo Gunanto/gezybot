@@ -59,7 +59,7 @@ hr.rule{border:0;border-top:1px solid var(--line);margin:0;}
 .link-mono svg{width:1em;height:1em;color:var(--peach);}
 
 /* hero */
-.hero{position:relative;padding:64px 0 30px;}
+.hero{position:relative;padding:64px 0 0;}
 .glow{position:absolute;border-radius:50%;filter:blur(95px);pointer-events:none;z-index:0;}
 .glow.a{width:520px;height:520px;background:oklch(0.84 0.14 55/.18);top:-160px;right:-90px;}
 .glow.b{width:420px;height:420px;background:oklch(0.58 0.22 305/.16);top:120px;left:-160px;}
