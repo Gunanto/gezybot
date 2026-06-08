@@ -49,6 +49,7 @@ export default defineConfig({
 					items: [
 						{ label: 'Installation', slug: 'getting-started/installation' },
 						{ label: 'Configuration', slug: 'getting-started/configuration' },
+						{ label: 'Queenie (Guided Setup)', slug: 'features/queenie' },
 						{ label: 'Your First Agent', slug: 'getting-started/first-agent' },
 						{ label: 'Autonomy Quickstart', slug: 'guides/autonomy-quickstart' },
 					],
@@ -63,6 +64,19 @@ export default defineConfig({
 						{ label: 'How Memory Works', slug: 'memory/how-it-works' },
 						{ label: 'Memory Configuration', slug: 'memory/configuration' },
 						{ label: 'Choosing a Model', slug: 'guides/model-selection' },
+					],
+				},
+				{
+					label: 'Capabilities',
+					items: [
+						{ label: 'Toolboxes', slug: 'features/toolboxes' },
+						{ label: 'Scout', slug: 'features/scout' },
+						{ label: 'Connected Accounts', slug: 'features/connected-accounts' },
+						{ label: 'Projects and Tickets', slug: 'features/projects' },
+						{ label: 'Automation, Crons and Webhooks', slug: 'features/automation' },
+						{ label: 'Vault and Secrets', slug: 'features/vault' },
+						{ label: 'Multi-User and the Household', slug: 'features/multi-user' },
+						{ label: 'MCP (Model Context Protocol)', slug: 'features/mcp' },
 					],
 				},
 				{
