@@ -540,17 +540,19 @@ preflight_checks() {
     else
       success "Port $HIVEKEEP_PORT is available"
     fi
+  fi
 
-    # Proactively warn about privileged ports (<1024) for non-root installs.
-    # Binding these requires root; a normal user install will otherwise fail at
-    # startup with an opaque permission error.
-    if [ "$IS_ROOT" != true ] && [ "$HIVEKEEP_PORT" -lt 1024 ] 2>/dev/null; then
-      warn "Port $HIVEKEEP_PORT is a privileged port (<1024) and you are not root."
-      warn "A non-root service cannot bind it and will fail to start."
-      info "Pick a port >= 1024 (e.g. 3000), or expose port 80/443 with a reverse proxy"
-      info "(Caddy, nginx, Traefik) in front of Hivekeep. To run on the privileged port"
-      info "directly, re-run the installer as root."
-    fi
+  # Proactively warn about privileged ports (<1024) for non-root installs.
+  # Binding these requires root; a normal user install will otherwise fail at
+  # startup with an opaque permission error. Hoisted out of the install-only
+  # branch above so it also fires on updates and under -y/CI (where the
+  # configure wizard is skipped). Runs exactly once per preflight.
+  if [ -n "${HIVEKEEP_PORT:-}" ] && [ "$IS_ROOT" != true ] && [ "$HIVEKEEP_PORT" -lt 1024 ] 2>/dev/null; then
+    warn "Port $HIVEKEEP_PORT is a privileged port (<1024) and you are not root."
+    warn "A non-root service cannot bind it and will fail to start."
+    info "Pick a port >= 1024 (e.g. 3000), or expose port 80/443 with a reverse proxy"
+    info "(Caddy, nginx, Traefik) in front of Hivekeep. To run on the privileged port"
+    info "directly, re-run the installer as root."
   fi
 
   # Check available memory (Bun builds can OOM on small machines)
@@ -941,10 +943,16 @@ install_or_update() {
 
     if [ "$working_tree_dirty" = true ]; then
       warn "Local changes detected in $HIVEKEEP_DIR. Stashing them before updating."
-      if retry 3 "git pull (autostash)" git -C "$HIVEKEEP_DIR" -c rebase.autoStash=true pull --rebase origin "$HIVEKEEP_BRANCH"; then
+      # Run as a SINGLE attempt: a merge conflict is not transient, so retrying
+      # would only re-fail with "a rebase is in progress" after each backoff and
+      # could leave a half-finished rebase tree littered with conflict markers.
+      if git -C "$HIVEKEEP_DIR" -c rebase.autoStash=true pull --rebase origin "$HIVEKEEP_BRANCH"; then
         info "Your local changes were stashed and re-applied on top of the update."
         info "If anything looks off, run: git -C \"$HIVEKEEP_DIR\" stash list"
       else
+        # Abort any in-progress rebase so the tree is left clean (guarded: this is
+        # a no-op if no rebase is actually in progress).
+        git -C "$HIVEKEEP_DIR" rebase --abort &>/dev/null || true
         error "Update could not merge your local changes automatically.
   Your installation has uncommitted edits that conflict with the new version.
   ${BOLD}Fix:${NC} reset to a clean copy (your data and config are preserved):
