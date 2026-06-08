@@ -363,17 +363,23 @@ export const getSetupHealthTool: ToolRegistration = {
 
         // ─── 6. Public URL / access-origin sanity ────────────────────────────
         const publicUrlInfo = describePublicUrl()
+        // A localhost PUBLIC_URL is only a real problem when the install is
+        // typically reached from another device (docker / systemd-system): then
+        // invitation/webhook/OAuth links and the CORS allowlist point at the
+        // wrong host. A systemd-user (single-machine) or manual install legitimately
+        // runs on localhost, so don't cry wolf there: surface a gentle, conditional
+        // heads-up at most. The browser-side warning still catches a live origin mismatch.
         if (publicUrlInfo.isLocalhostDefault && publicUrlInfo.installationType !== 'manual') {
-          // A deployed install (docker/systemd) still on a localhost PUBLIC_URL
-          // will mint invitation/webhook/OAuth links that point at the wrong
-          // host. Surface it; the browser-side warning catches the live origin
-          // mismatch, this catches the "never set it" case.
+          const isRemoteByDefault =
+            publicUrlInfo.installationType === 'docker' || publicUrlInfo.installationType === 'systemd-system'
           issues.push({
-            severity: 'warning',
-            problem: `PUBLIC_URL is still "${publicUrlInfo.publicUrl}" (a localhost default) on a ${publicUrlInfo.installationType} install. Invitation links, channel webhooks, OAuth callbacks and the CORS allowlist all derive from PUBLIC_URL, so they will point at the wrong host when accessed remotely.`,
+            severity: isRemoteByDefault ? 'warning' : 'info',
+            problem: isRemoteByDefault
+              ? `PUBLIC_URL is still "${publicUrlInfo.publicUrl}" (a localhost default) on a ${publicUrlInfo.installationType} install. Invitation links, channel webhooks, OAuth callbacks and the CORS allowlist all derive from PUBLIC_URL, so they will point at the wrong host when accessed remotely.`
+              : `PUBLIC_URL is "${publicUrlInfo.publicUrl}" (a localhost default). That's fine if you only ever open Hivekeep on this machine. If you access it from another device (phone, another computer) or use invitation links, channel webhooks or OAuth callbacks, set PUBLIC_URL to the address you actually reach it at.`,
             fix: publicUrlInfo.isDocker
               ? 'Set PUBLIC_URL to the URL users actually reach (e.g. https://hivekeep.example.com) via the Docker -e PUBLIC_URL / compose env, then recreate the container. (update_platform_config returns Docker guidance.)'
-              : 'Set PUBLIC_URL to the URL users actually reach via update_platform_config(key:"PUBLIC_URL", value:"https://your-host"), then restart. Ask the user what address they open Hivekeep at.',
+              : 'If you reach Hivekeep from another device, set PUBLIC_URL to that address via update_platform_config(key:"PUBLIC_URL", value:"https://your-host"), then restart. Ask the user what address they open Hivekeep at; if it really is only ever this machine, leave it as is.',
           })
         }
 
