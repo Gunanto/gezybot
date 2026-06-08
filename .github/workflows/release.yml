@@ -86,7 +86,10 @@ jobs:
         with:
           context: .
           file: docker/Dockerfile
-          platforms: ${{ startsWith(github.ref, 'refs/tags/') && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
+          # amd64-only: emulated arm64 builds of the vite/bun image under QEMU are
+          # too slow/fragile for releases. arm64 users can use the native install.sh
+          # (it builds locally on any arch). Add arm64 later via a native arm runner.
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
