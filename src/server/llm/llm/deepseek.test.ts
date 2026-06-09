@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'bun:test'
-import { inferContextWindow, mapModel, type DeepSeekModel } from './deepseek'
+import {
+  assistantMessage,
+  inferContextWindow,
+  inferThinking,
+  mapModel,
+  type DeepSeekModel,
+} from './deepseek'
 
 // Representative fixtures drawn from the live /models payload shape:
 // the bare OpenAI listing `{object:'list', data:[{id, object, owned_by}]}`.
@@ -19,42 +25,89 @@ const v4Flash: DeepSeekModel = {
 // ─── inferContextWindow ──────────────────────────────────────────────────────
 
 describe('inferContextWindow', () => {
-  it('maps the deepseek-v4 family to 128k', () => {
-    expect(inferContextWindow(v4Pro)).toBe(128_000)
-    expect(inferContextWindow(v4Flash)).toBe(128_000)
+  it('maps the deepseek-v4 family to 1M tokens', () => {
+    expect(inferContextWindow(v4Pro)).toBe(1_048_576)
+    expect(inferContextWindow(v4Flash)).toBe(1_048_576)
   })
 
-  it('falls back to the 128k default when no family matches', () => {
+  it('falls back to the conservative 128k default when no family matches', () => {
     expect(inferContextWindow({ id: 'mystery-model' })).toBe(128_000)
+  })
+})
+
+// ─── inferThinking ───────────────────────────────────────────────────────────
+
+describe('inferThinking', () => {
+  it('advertises the full low/medium/high/max range for the v4 family', () => {
+    const t = inferThinking(v4Pro)
+    expect(t).toBeDefined()
+    expect(t!.efforts).toEqual(['low', 'medium', 'high', 'max'])
+    expect(inferThinking(v4Flash)).toBeDefined()
+  })
+
+  it('returns undefined for an unrecognised (non-v4) id', () => {
+    expect(inferThinking({ id: 'mystery-model' })).toBeUndefined()
   })
 })
 
 // ─── mapModel ────────────────────────────────────────────────────────────────
 
 describe('mapModel', () => {
-  it('classifies a model as a text-only llm with no vision and no thinking', () => {
+  it('classifies the v4 pro as a text-only, reasoning-capable llm', () => {
     const m = mapModel(v4Pro)!
     expect(m.id).toBe('deepseek-v4-pro')
     expect(m.name).toBe('deepseek-v4-pro')
-    expect(m.contextWindow).toBe(128_000)
+    expect(m.contextWindow).toBe(1_048_576)
     expect(m.supportsPromptCaching).toBe(true)
     expect(m.supportsParallelTools).toBe(true)
     // Vision is never advertised — no modality metadata in /models.
     expect(m.supportsImageInput).toBeUndefined()
-    // Reasoning is never advertised — reasoning_effort support is unconfirmed.
-    expect(m.thinking).toBeUndefined()
+    // V4 is a dual-mode reasoning family.
+    expect(m.thinking?.efforts).toEqual(['low', 'medium', 'high', 'max'])
   })
 
   it('maps the flash tier the same way', () => {
     const m = mapModel(v4Flash)!
     expect(m.id).toBe('deepseek-v4-flash')
-    expect(m.contextWindow).toBe(128_000)
-    expect(m.thinking).toBeUndefined()
+    expect(m.contextWindow).toBe(1_048_576)
+    expect(m.thinking?.efforts).toEqual(['low', 'medium', 'high', 'max'])
     expect(m.supportsImageInput).toBeUndefined()
   })
 
   it('returns null for entries without an id', () => {
     expect(mapModel({ id: '' })).toBeNull()
+  })
+})
+
+// ─── assistantMessage (reasoning_content replay) ─────────────────────────────
+
+describe('assistantMessage', () => {
+  // DeepSeek (thinking on by default) 400s on a tool-call message that lacks
+  // reasoning_content. The engine strips unsigned thinking, so it is usually
+  // empty here — the empty string is what prevents the 400.
+  it('sets reasoning_content (empty) on a tool-call message with no thinking', () => {
+    const msg = assistantMessage([
+      { type: 'tool-use', id: 'c1', name: 'get_weather', args: { city: 'Paris' } },
+    ]) as { tool_calls?: unknown[]; reasoning_content?: string }
+    expect(msg.tool_calls).toHaveLength(1)
+    expect(msg.reasoning_content).toBe('')
+  })
+
+  it('replays real reasoning text when a thinking block is present', () => {
+    const msg = assistantMessage([
+      { type: 'thinking', text: 'I should call the weather tool.' },
+      { type: 'tool-use', id: 'c1', name: 'get_weather', args: { city: 'Paris' } },
+    ]) as { reasoning_content?: string }
+    expect(msg.reasoning_content).toBe('I should call the weather tool.')
+  })
+
+  it('does NOT attach reasoning_content to a plain text message', () => {
+    const msg = assistantMessage([{ type: 'text', text: 'Hi.' }]) as {
+      content?: string
+      reasoning_content?: string
+    }
+    expect(msg.content).toBe('Hi.')
+    expect('reasoning_content' in msg).toBe(false)
   })
 })
 

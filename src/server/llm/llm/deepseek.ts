@@ -9,17 +9,24 @@
  * endpoint, which returns only model ids (`{object:'list', data:[{id,...}]}`)
  * — no modality, pricing, or context-window metadata. Context windows are
  * therefore inferred from family naming (small prefix table, never per-ID
- * hardcoding), mirroring `xai.ts` / `openai-key.ts`.
+ * hardcoding), mirroring `xai.ts` / `openai-key.ts`. The v4 family is 1M tokens.
  *
- * Reasoning: DeepSeek's support for the OpenAI-compatible `reasoning_effort`
- * parameter is unconfirmed, and we have already hit 400s on other providers
- * (gpt-5-chat-latest, grok *-non-reasoning) by sending `reasoning_effort` to
- * models that reject it. The safe default is therefore to NEVER advertise
- * reasoning efforts for any DeepSeek model (`thinking` left undefined), so the
- * effort gate in `chat()` never fires.
+ * Reasoning: DeepSeek V4 is a dual-mode (Thinking / Non-Thinking) family and
+ * thinking is ON by default. Verified live: v4-flash/pro reason without any
+ * params, accept `reasoning_effort` across low/medium/high/max, and stream the
+ * chain-of-thought as `reasoning_content`. So we advertise the full effort range
+ * for the v4 family and forward `reasoning_effort` when one is requested.
  *
- * Vision/image input: the `/models` payload exposes no modality metadata, so
- * every DeepSeek model defaults to text-only.
+ * CRITICAL — because thinking is on by default, DeepSeek REQUIRES that a
+ * replayed assistant *tool-call* message carries its `reasoning_content`
+ * (400 "the reasoning_content in the thinking mode must be passed back to the
+ * API"). The engine strips unsigned thinking before replay, so `assistantMessage`
+ * re-adds it (real text when present, else an empty string, which the API
+ * accepts). Without this, every multi-step tool-using turn breaks.
+ *
+ * Vision/image input: no DeepSeek model is multimodal, so every model is
+ * text-only. Image content blocks are degraded to a text placeholder in
+ * `userBlocksToContent` — sending an `image_url` part hard-400s on DeepSeek.
  */
 
 import OpenAI, { APIError } from 'openai'
@@ -100,11 +107,12 @@ const DEFAULT_CONTEXT_WINDOW = 128_000
 /**
  * Context windows by family. DeepSeek's `/models` endpoint omits the window,
  * so we map it from the model id. First match wins. The v4 family
- * (deepseek-v4-flash / deepseek-v4-pro) is published at 128k; the default
- * also lands at 128k for any future / unrecognised id.
+ * (deepseek-v4-flash / deepseek-v4-pro) ships a 1M-token window — 1M is now the
+ * default across DeepSeek's API (verified against the docs, 2026-06). The
+ * conservative 128k default only applies to an unrecognised future id.
  */
 const CONTEXT_BY_PREFIX: Array<[RegExp, number]> = [
-  [/deepseek-v4/, 128_000],
+  [/deepseek-v4/, 1_048_576],
 ]
 
 /**
@@ -118,17 +126,34 @@ export function inferContextWindow(model: DeepSeekModel): number {
 }
 
 /**
+ * Reasoning support. The DeepSeek V4 family is dual-mode with thinking on by
+ * default and accepts `reasoning_effort` across the full low/medium/high/max
+ * range (all verified live). We advertise it for the v4 family; the `chat()`
+ * gate then forwards `reasoning_effort` for those models. Unknown future ids get
+ * no `thinking` (so we never send the param to a model that might reject it).
+ *
+ * @internal exported for tests.
+ */
+export function inferThinking(model: DeepSeekModel): LLMModel['thinking'] | undefined {
+  if (!/deepseek-v4/.test(model.id)) return undefined
+  return {
+    efforts: ['low', 'medium', 'high', 'max'],
+    note: 'DeepSeek V4 reasons by default; the effort setting tunes reasoning depth.',
+  }
+}
+
+/**
  * Map a DeepSeek catalogue entry to a Hivekeep `LLMModel`, or null if it has no
- * id. Every model is classified as an `llm` capability: text-only (no vision),
- * with reasoning deliberately left undefined (see file header). Context windows
- * are inferred from family naming.
+ * id. Every model is classified as an `llm` capability: text-only (no modality
+ * metadata in /models), with reasoning advertised for the v4 family. Context
+ * windows are inferred from family naming.
  *
  * @internal exported for tests.
  */
 export function mapModel(model: DeepSeekModel): LLMModel | null {
   if (!model.id) return null
 
-  return {
+  const out: LLMModel = {
     id: model.id,
     name: model.id,
     contextWindow: inferContextWindow(model),
@@ -137,8 +162,10 @@ export function mapModel(model: DeepSeekModel): LLMModel | null {
     supportsPromptCaching: true,
     supportsParallelTools: true,
     // No vision: the /models payload exposes no modality metadata.
-    // No `thinking`: reasoning_effort support is unconfirmed — never send it.
   }
+  const thinking = inferThinking(model)
+  if (thinking) out.thinking = thinking
+  return out
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -226,12 +253,6 @@ function downgradeEffort(
   return supported[0]
 }
 
-function uint8ToBase64(bytes: Uint8Array): string {
-  let binary = ''
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!)
-  return globalThis.btoa(binary)
-}
-
 // ─── Message conversion (hivekeep → OpenAI-compatible) ─────────────────────────
 
 function systemPromptToMessage(
@@ -251,8 +272,10 @@ function userBlocksToContent(
     if (b.type === 'text' && b.text) {
       parts.push({ type: 'text', text: b.text })
     } else if (b.type === 'image') {
-      const dataUrl = `data:${b.mediaType};base64,${uint8ToBase64(b.data)}`
-      parts.push({ type: 'image_url', image_url: { url: dataUrl } })
+      // No DeepSeek model is multimodal — sending an `image_url` part hard-400s
+      // ("unknown variant `image_url`, expected `text`"). Degrade to a text
+      // placeholder so the turn proceeds text-only instead of crashing.
+      parts.push({ type: 'text', text: '[image omitted — this model has no vision support]' })
     }
   }
   if (parts.length === 0) return null
@@ -262,14 +285,31 @@ function userBlocksToContent(
   return parts
 }
 
-function assistantMessage(
+/**
+ * Build an OpenAI-compatible assistant message from hivekeep content blocks.
+ *
+ * DeepSeek V4 runs with thinking on by default and REJECTS a replayed assistant
+ * *tool-call* message that has no `reasoning_content` (400 "the reasoning_content
+ * in the thinking mode must be passed back to the API"). The engine strips
+ * unsigned thinking before replay and DeepSeek's reasoning_content is unsigned,
+ * so the real text is usually gone here — an empty string satisfies the
+ * requirement (verified) and is ignored when thinking is off. We therefore set
+ * `reasoning_content` on every tool-call message (real thinking text when a
+ * thinking block is present, else ""), but never on plain text messages.
+ *
+ * @internal exported for tests.
+ */
+export function assistantMessage(
   blocks: HivekeepMessage['content'],
-): ChatCompletionAssistantMessageParam {
+): ChatCompletionAssistantMessageParam & { reasoning_content?: string } {
   let text = ''
+  let reasoning = ''
   const toolCalls: ChatCompletionMessageToolCall[] = []
   for (const b of blocks) {
     if (b.type === 'text') {
       text += b.text
+    } else if (b.type === 'thinking') {
+      reasoning += b.text
     } else if (b.type === 'tool-use') {
       toolCalls.push({
         id: b.id,
@@ -281,9 +321,16 @@ function assistantMessage(
       })
     }
   }
-  const msg: ChatCompletionAssistantMessageParam = { role: 'assistant' }
+  // `reasoning_content` is a DeepSeek/OpenAI-compatible extension absent from the
+  // upstream assistant-message type.
+  const msg: ChatCompletionAssistantMessageParam & { reasoning_content?: string } = {
+    role: 'assistant',
+  }
   if (text) msg.content = text
-  if (toolCalls.length > 0) msg.tool_calls = toolCalls
+  if (toolCalls.length > 0) {
+    msg.tool_calls = toolCalls
+    msg.reasoning_content = reasoning
+  }
   return msg
 }
 
@@ -502,16 +549,13 @@ export const deepseekProvider: LLMProvider = {
       params.temperature = request.temperature
     }
 
-    // Reasoning: only send the OpenAI-compatible `reasoning_effort` string
-    // when the model advertises reasoning support. DeepSeek models never set
-    // `thinking` (see file header), so this gate never fires — but it mirrors
-    // the xAI/OpenRouter shape so the day DeepSeek confirms support it's a
-    // one-line metadata change in `mapModel`.
+    // Reasoning: forward `reasoning_effort` when the model advertises thinking
+    // (the v4 family). DeepSeek natively accepts low/medium/high/max (verified),
+    // so we send the chosen effort as-is rather than downgrading max→high.
     if (request.thinkingEffort && model.thinking?.efforts?.length) {
       const chosen = downgradeEffort(request.thinkingEffort, model.thinking.efforts)
       if (chosen) {
-        const effort = chosen === 'max' ? 'high' : chosen
-        params.reasoning_effort = effort as ReasoningEffort
+        params.reasoning_effort = chosen as ReasoningEffort
       }
     }
 
