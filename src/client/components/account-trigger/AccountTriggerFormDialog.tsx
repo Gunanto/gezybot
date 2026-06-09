@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Folder } from 'lucide-react'
+import { Folder, AlertTriangle } from 'lucide-react'
 import { FormDialog } from '@/client/components/common/FormDialog'
 import { FormField } from '@/client/components/common/FormField'
 import { Input } from '@/client/components/ui/input'
@@ -140,15 +140,7 @@ export function AccountTriggerFormDialog({ accountId, open, onOpenChange, onSave
         </FormField>
       </div>
 
-      <FormField label={t('settings.triggers.conditions')} hint={t('settings.triggers.conditionsHint')}>
-        <ConditionNodeEditor node={conditions} onChange={setConditions} />
-      </FormField>
-
-      <FormField label={t('settings.triggers.prompt')} hint={t('settings.triggers.promptHint')}>
-        <MarkdownEditor value={prompt} onChange={setPrompt} height="140px" />
-      </FormField>
-
-      <FormField label={t('settings.triggers.dispatchMode')} hint={t('settings.triggers.dispatchHint')}>
+      <FormField label={t('settings.triggers.dispatchMode')}>
         <Select value={dispatchMode} onValueChange={(v) => setDispatchMode(v as TriggerDispatchMode)}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -156,6 +148,22 @@ export function AccountTriggerFormDialog({ accountId, open, onOpenChange, onSave
             <SelectItem value="task">{t('settings.triggers.dispatchTask')}</SelectItem>
           </SelectContent>
         </Select>
+        {dispatchMode === 'task' ? (
+          <div className="mt-1.5 flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/10 px-2.5 py-1.5 text-[11px] text-warning">
+            <AlertTriangle className="mt-px size-3.5 shrink-0" />
+            <span>{t('settings.triggers.dispatchTaskWarning')}</span>
+          </div>
+        ) : (
+          <p className="mt-1.5 text-[11px] text-muted-foreground">{t('settings.triggers.dispatchConversationDesc')}</p>
+        )}
+      </FormField>
+
+      <FormField label={t('settings.triggers.conditions')} hint={t('settings.triggers.conditionsHint')}>
+        <ConditionNodeEditor node={conditions} onChange={setConditions} />
+      </FormField>
+
+      <FormField label={t('settings.triggers.prompt')} hint={dispatchMode === 'task' ? t('settings.triggers.promptHintTask') : t('settings.triggers.promptHint')}>
+        <MarkdownEditor value={prompt} onChange={setPrompt} height="140px" />
       </FormField>
     </FormDialog>
   )

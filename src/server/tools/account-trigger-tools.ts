@@ -154,10 +154,14 @@ export const createAccountTriggerTool: ToolRegistration = {
         account: accountField,
         name: z.string().describe('Short human label for the trigger.'),
         conditions: z.string().describe('The condition tree as a JSON string. See describe_trigger_conditions.'),
-        prompt: z.string().describe('Instruction given to the target Agent when the trigger fires.'),
+        prompt: z.string().describe(
+          "Instruction for the target Agent when the trigger fires. IMPORTANT: in 'task' dispatch_mode the task runs in an isolated session with NO conversation history, so make this prompt self-contained — include all the context the Agent needs to act (it only gets this prompt + the email).",
+        ),
         target_agent_id: z.string().optional().describe('Agent to notify. Omit to target yourself.'),
         folder: z.string().optional().describe('Folder/label to watch. Default INBOX. See list_email_folders.'),
-        dispatch_mode: z.enum(['conversation', 'task']).optional().describe('Inject into the conversation (default) or spawn a task.'),
+        dispatch_mode: z.enum(['conversation', 'task']).optional().describe(
+          "How the target Agent is invoked. 'conversation' (default): the email is injected into the Agent's MAIN conversation — it keeps full history and context. 'task': a SEPARATE, ISOLATED sub-task is spawned with NO conversation history; only the prompt (plus the email) is available, so the prompt MUST be fully self-contained.",
+        ),
         max_concurrent_tasks: z.number().int().min(0).optional().describe('Task mode only: cap concurrent tasks (0 = unlimited).'),
       }),
       execute: async (args) => {
@@ -217,10 +221,14 @@ export const updateAccountTriggerTool: ToolRegistration = {
         trigger_id: z.string().describe('Id of the trigger (from list_account_triggers).'),
         name: z.string().optional(),
         conditions: z.string().optional().describe('New condition tree as a JSON string.'),
-        prompt: z.string().optional(),
+        prompt: z.string().optional().describe(
+          "New instruction. In 'task' dispatch_mode the task is isolated (no conversation history), so keep the prompt self-contained.",
+        ),
         target_agent_id: z.string().optional(),
         folder: z.string().optional(),
-        dispatch_mode: z.enum(['conversation', 'task']).optional(),
+        dispatch_mode: z.enum(['conversation', 'task']).optional().describe(
+          "'conversation' = injected into the Agent's main conversation (full context). 'task' = a separate isolated sub-task with no conversation history (the prompt must be self-contained).",
+        ),
         max_concurrent_tasks: z.number().int().min(0).optional(),
         is_active: z.boolean().optional().describe('Enable/disable the trigger.'),
       }),
