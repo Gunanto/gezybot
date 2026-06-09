@@ -25,6 +25,23 @@
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:"Plus Jakarta Sans",system-ui,sans-serif;font-size:17px;line-height:1.62;-webkit-font-smoothing:antialiased;overflow-x:hidden;}
+
+/* ── honeycomb comb backdrop (scoped) ────────────────────────────────────────
+   A thin (1px) hexagon grid that fills a container behind its content. Two
+   layers from comb-thin.svg used as a MASK: a faint dim comb everywhere, plus an
+   aurora comb whose strokes luminesce only inside a couple of soft patches, so
+   parts of the grid light up and stand out from the dull rest. Used ONLY in the
+   hero and the "Run your team" container — not site-wide. No blur-glow. */
+.comb{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;}
+.comb>span,.comb-lit{position:absolute;inset:0;display:block;}
+.comb-dim{background:oklch(1 0 0/.05);-webkit-mask:url(/comb-thin.svg) 0 0/45px 78px repeat;mask:url(/comb-thin.svg) 0 0/45px 78px repeat;mask-mode:alpha;}
+.comb-lit-clip{position:absolute;inset:0;-webkit-mask-image:var(--comb-lit,radial-gradient(440px 300px at 22% 26%,#000 0%,transparent 62%),radial-gradient(420px 300px at 82% 74%,#000 0%,transparent 62%));mask-image:var(--comb-lit,radial-gradient(440px 300px at 22% 26%,#000 0%,transparent 62%),radial-gradient(420px 300px at 82% 74%,#000 0%,transparent 62%));-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;}
+.comb-lit{background:var(--grad);-webkit-mask:url(/comb-thin.svg) 0 0/45px 78px repeat;mask:url(/comb-thin.svg) 0 0/45px 78px repeat;mask-mode:alpha;opacity:.8;filter:drop-shadow(0 0 1px oklch(0.72 0.19 305/.5));}
+/* comb behind the "household" section (07): full-bleed (breaks out of the
+   centered .wrap) with the section content lifted above it. */
+#household{position:relative;}
+#household>.comb{inset:0 auto 0 50%;width:100vw;transform:translateX(-50%);}
+#household>.section{position:relative;z-index:1;}
 img{max-width:100%;display:block}
 a{color:inherit;text-decoration:none}
 .display{font-weight:800;letter-spacing:-.03em;}
@@ -32,7 +49,13 @@ a{color:inherit;text-decoration:none}
 .wrap{max-width:1120px;margin:0 auto;padding:0 30px;}
 .muted{color:var(--ink-soft);}
 [data-icon] svg, .ic-svg{width:1em;height:1em;stroke-width:2.1;}
-hr.rule{border:0;border-top:1px solid var(--line);margin:0;}
+hr.rule{border:0;height:1px;margin:0;background:linear-gradient(to right,transparent,var(--line-strong) 18%,var(--line-strong) 82%,transparent);}
+/* scroll-reveal: elements start hidden ONLY when JS is active (html.js), so
+   no-JS users and crawlers see everything. IntersectionObserver adds .in. */
+.reveal{opacity:1;}
+html.js .reveal{opacity:0;transform:translateY(16px);transition:opacity .6s ease,transform .6s cubic-bezier(.4,0,.2,1);}
+html.js .reveal.in{opacity:1;transform:none;}
+@media(prefers-reduced-motion:reduce){html.js .reveal{opacity:1;transform:none;transition:none;}}
 .kicker{font-family:"JetBrains Mono",monospace;font-size:.72rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-soft);display:inline-flex;align-items:center;gap:10px;}
 .kicker::before{content:"";width:16px;height:2px;border-radius:2px;background:var(--grad);}
 .glass{background:var(--glass);backdrop-filter:blur(14px) saturate(1.2);border:1px solid var(--line-strong);}
@@ -72,6 +95,8 @@ hr.rule{border:0;border-top:1px solid var(--line);margin:0;}
 .hexfield.fade-tr{-webkit-mask-image:radial-gradient(125% 100% at 80% 6%,#000 0%,oklch(0 0 0/.4) 40%,transparent 72%);mask-image:radial-gradient(125% 100% at 80% 6%,#000 0%,oklch(0 0 0/.4) 40%,transparent 72%);}
 .hexfield.fade-c{-webkit-mask-image:radial-gradient(72% 86% at 50% 32%,#000 0%,transparent 72%);mask-image:radial-gradient(72% 86% at 50% 32%,#000 0%,transparent 72%);}
 .hero .meta{font-family:"JetBrains Mono",monospace;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);}
+/* keep hero content above the comb backdrop (z-index:0) */
+.hero>.wrap,.hero>.strip{position:relative;z-index:1;}
 .hero-grid{position:relative;z-index:1;display:grid;grid-template-columns:1.12fr .88fr;gap:46px;align-items:center;margin-top:18px;}
 .hero h1{font-size:clamp(2.8rem,5.6vw,4.7rem);line-height:1.0;margin:14px 0 18px;}
 .hero h1 .warm{background:var(--grad-warm);-webkit-background-clip:text;background-clip:text;color:transparent;}
@@ -110,8 +135,28 @@ hr.rule{border:0;border-top:1px solid var(--line);margin:0;}
 
 /* numbered sections */
 .section{display:grid;grid-template-columns:108px 1fr;gap:32px;padding:72px 0;}
-.section .num{font-weight:800;font-size:2.9rem;line-height:1;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:-.02em;}
-.section .num small{display:block;font-family:"JetBrains Mono",monospace;font-size:.64rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);margin-top:9px;-webkit-text-fill-color:var(--ink-soft);}
+/* number column: a honeycomb cell (ties to the hive logomark) holding the
+   number, the section label below, and a faint vertical "spine" that chains
+   the sections into a 1→7 timeline down the page. */
+.section .num{display:flex;flex-direction:column;align-items:center;gap:11px;align-self:stretch;}
+/* Hex cell = a full gradient hexagon (::before) with an inner hexagon (::after)
+   filled with the section background, leaving a clean ~2.5px gradient rim on all
+   six edges. `--cellbg` tracks the section bg so the knockout is seamless on the
+   banded rows too. A faint tinted fill sits between rim and number. */
+.hexnum{--hex:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);--cellbg:var(--bg);position:relative;width:64px;height:72px;flex:0 0 auto;display:grid;place-items:center;}
+.hexnum::before{content:"";position:absolute;inset:0;clip-path:var(--hex);background:var(--grad);}
+.hexnum::after{content:"";position:absolute;inset:2.5px;clip-path:var(--hex);background:linear-gradient(150deg,oklch(0.72 0.19 305/.16),transparent 70%),var(--cellbg);}
+.hexnum .n{position:relative;z-index:1;font-weight:800;font-size:1.5rem;letter-spacing:-.02em;color:var(--ink);}
+.wrap.band .hexnum{--cellbg:var(--bg-alt);}
+.section .num small{font-family:"JetBrains Mono",monospace;font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);text-align:center;}
+.section .num .spine{flex:1 1 auto;width:2px;min-height:26px;border-radius:2px;background:linear-gradient(var(--line-strong),transparent);}
+
+/* full-bleed alternating band: gives the long feature run rhythm instead of one
+   flat sheet. The ::before breaks out of .wrap to span the viewport; content
+   stays inside. (.wrap is a block, so ::before is safe — never on the grid.) */
+.wrap.band{position:relative;}
+.wrap.band::before{content:"";position:absolute;top:0;bottom:0;left:50%;width:100vw;transform:translateX(-50%);background:var(--bg-alt);border-top:1px solid var(--line);border-bottom:1px solid var(--line);z-index:0;}
+.wrap.band>*{position:relative;z-index:1;}
 .section h2{font-size:clamp(1.9rem,3.4vw,2.7rem);line-height:1.04;letter-spacing:-.025em;margin:0 0 14px;max-width:20ch;}
 .section .body>p{font-size:1.06rem;color:var(--ink-soft);margin:0 0 16px;max-width:56ch;}
 .section .body>p b{color:var(--ink);font-weight:600;}
@@ -199,6 +244,8 @@ hr.rule{border:0;border-top:1px solid var(--line);margin:0;}
 
 /* get started */
 .getstarted{text-align:center;padding:96px 0;position:relative;overflow:hidden;}
+/* violet glow to match the hexagon pattern's purple (rather than the warm hero glow) */
+.getstarted .glow.a{background:oklch(0.6 0.22 305/.22);width:560px;height:560px;}
 .getstarted h2{font-size:clamp(2rem,4vw,3.1rem);margin:.7rem 0 10px;}
 .getstarted p{color:var(--ink-soft);margin:0 auto 26px;max-width:48ch;}
 .getstarted .cmd{display:inline-flex;align-items:center;gap:16px;font-family:"JetBrains Mono",monospace;font-size:.88rem;background:oklch(0.10 0.018 312);border:1px solid var(--line-strong);border-radius:10px;padding:14px 18px;color:var(--ink);max-width:100%;overflow-x:auto;}
@@ -306,7 +353,12 @@ hr.rule{border:0;border-top:1px solid var(--line);margin:0;}
 
 @media(max-width:860px){
   .hero-grid{grid-template-columns:1fr;gap:30px;}
-  .section{grid-template-columns:1fr;gap:14px;} .section .num{font-size:2.1rem;}
+  .section{grid-template-columns:1fr;gap:14px;}
+  /* number cell goes inline (hex + label side by side); spine is desktop-only */
+  .section .num{flex-direction:row;align-items:center;gap:12px;align-self:flex-start;}
+  .section .num .spine{display:none;}
+  .hexnum{width:52px;height:58px;}
+  .hexnum .n{font-size:1.22rem;}
   .split2{grid-template-columns:1fr;} .directory{grid-template-columns:repeat(2,1fr);}
   /* mobile nav: hamburger dropdown */
   .nav-toggle{display:grid;place-items:center;width:38px;height:38px;border-radius:9px;border:1px solid var(--line-strong);background:oklch(1 0 0/.04);color:var(--ink);cursor:pointer;flex:0 0 auto;}
@@ -426,7 +478,7 @@ hr.rule{border:0;border-top:1px solid var(--line);margin:0;}
 .cfg-field input[type=checkbox]{accent-color:var(--primary);width:15px;height:15px;}
 
 /* segmented control + tabs */
-.cfg-seg,.cfg-tabs{display:inline-flex;background:oklch(0.10 0.018 312);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px;}
+.cfg-seg,.cfg-tabs{display:inline-flex;align-self:flex-start;width:fit-content;background:oklch(0.10 0.018 312);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px;}
 .cfg-tabs{margin-bottom:14px;}
 .cfg-seg button,.cfg-tabs button{background:transparent;border:0;color:var(--ink-soft);font-family:"JetBrains Mono",monospace;font-size:.82rem;font-weight:600;padding:7px 14px;border-radius:7px;cursor:pointer;transition:background .15s,color .15s;}
 .cfg-seg button.sel,.cfg-tabs button.sel{background:var(--grad);color:#fff;}

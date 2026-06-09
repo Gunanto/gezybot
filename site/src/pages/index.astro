@@ -101,7 +101,7 @@ const cmpIcon = { yes: 'lucide:check', par: 'lucide:minus', no: 'lucide:x' };
   </div></header>
 
   <!-- ===== hero ===== -->
-  <section class="hero"><div class="hexfield fade-tr" style={`background-image:url(${base}/honeycomb.svg)`} aria-hidden="true"></div><div class="glow a"></div><div class="glow b"></div>
+  <section class="hero"><div class="comb" aria-hidden="true"><span class="comb-dim"></span><span class="comb-lit-clip"><span class="comb-lit"></span></span></div><div class="glow a"></div><div class="glow b"></div>
     <div class="wrap">
       <span class="meta">Hivekeep v{repoVersion} · self-hosted · MIT</span>
       <div class="hero-grid">
@@ -206,8 +206,8 @@ const cmpIcon = { yes: 'lucide:check', par: 'lucide:minus', no: 'lucide:x' };
   </div></section>
 
   <!-- ===== 01 memory ===== -->
-  <div class="wrap" id="memory"><section class="section">
-    <div class="num display">01<small>Persistent</small></div>
+  <div class="wrap" id="memory"><section class="section reveal">
+    <div class="num"><div class="hexnum"><span class="n">01</span></div><small>Persistent</small><span class="spine" aria-hidden="true"></span></div>
     <div class="body">
       <h2 class="display">They never forget you.</h2>
       <div class="split2">
@@ -247,11 +247,9 @@ const cmpIcon = { yes: 'lucide:check', par: 'lucide:minus', no: 'lucide:x' };
       </div>
     </div>
   </section></div>
-  <hr class="rule" />
-
   <!-- ===== 02 sovereign ===== -->
-  <div class="wrap" id="self-host"><section class="section">
-    <div class="num display">02<small>Sovereign</small></div>
+  <div class="wrap band" id="self-host"><section class="section reveal">
+    <div class="num"><div class="hexnum"><span class="n">02</span></div><small>Sovereign</small><span class="spine" aria-hidden="true"></span></div>
     <div class="body">
       <h2 class="display">One container. Nothing leaves your server.</h2>
       <div class="split2">
@@ -269,11 +267,9 @@ const cmpIcon = { yes: 'lucide:check', par: 'lucide:minus', no: 'lucide:x' };
       </div>
     </div>
   </section></div>
-  <hr class="rule" />
-
   <!-- ===== 03 self-improving ===== -->
-  <div class="wrap" id="extensible"><section class="section">
-    <div class="num display">03<small>Self-improving</small></div>
+  <div class="wrap" id="extensible"><section class="section reveal">
+    <div class="num"><div class="hexnum"><span class="n">03</span></div><small>Self-improving</small><span class="spine" aria-hidden="true"></span></div>
     <div class="body">
       <h2 class="display">Your agents extend the platform themselves.</h2>
       <div class="split2">
@@ -299,11 +295,9 @@ const cmpIcon = { yes: 'lucide:check', par: 'lucide:minus', no: 'lucide:x' };
       </div>
     </div>
   </section></div>
-  <hr class="rule" />
-
   <!-- ===== 04 everywhere ===== -->
-  <div class="wrap" id="channels"><section class="section">
-    <div class="num display">04<small>Everywhere</small></div>
+  <div class="wrap band" id="channels"><section class="section reveal">
+    <div class="num"><div class="hexnum"><span class="n">04</span></div><small>Everywhere</small><span class="spine" aria-hidden="true"></span></div>
     <div class="body">
       <h2 class="display">One inbox for your whole team.</h2>
       <div class="split2">
@@ -325,11 +319,9 @@ const cmpIcon = { yes: 'lucide:check', par: 'lucide:minus', no: 'lucide:x' };
       </div>
     </div>
   </section></div>
-  <hr class="rule" />
-
   <!-- ===== 05 transparent ===== -->
-  <div class="wrap" id="transparency"><section class="section">
-    <div class="num display">05<small>Transparent</small></div>
+  <div class="wrap" id="transparency"><section class="section reveal">
+    <div class="num"><div class="hexnum"><span class="n">05</span></div><small>Transparent</small><span class="spine" aria-hidden="true"></span></div>
     <div class="body">
       <h2 class="display">No black box. No cost surprises.</h2>
       <div class="split2">
@@ -364,11 +356,9 @@ const cmpIcon = { yes: 'lucide:check', par: 'lucide:minus', no: 'lucide:x' };
       </div>
     </div>
   </section></div>
-  <hr class="rule" />
-
   <!-- ===== 06 setup / queenie ===== -->
-  <div class="wrap" id="setup"><section class="section">
-    <div class="num display">06<small>Setup</small></div>
+  <div class="wrap band" id="setup"><section class="section reveal">
+    <div class="num"><div class="hexnum"><span class="n">06</span></div><small>Setup</small><span class="spine" aria-hidden="true"></span></div>
     <div class="body">
       <h2 class="display">Setup is a conversation, not a YAML file.</h2>
       <div class="split2">
@@ -386,11 +376,9 @@ const cmpIcon = { yes: 'lucide:check', par: 'lucide:minus', no: 'lucide:x' };
       </div>
     </div>
   </section></div>
-  <hr class="rule" />
-
   <!-- ===== 07 the household ===== -->
-  <div class="wrap" id="household"><section class="section">
-    <div class="num display">07<small>Examples</small></div>
+  <div class="wrap" id="household"><div class="comb" style="--comb-lit:radial-gradient(520px 360px at 16% 22%,#000 0%,transparent 62%),radial-gradient(600px 400px at 78% 82%,#000 0%,transparent 62%)" aria-hidden="true"><span class="comb-dim"></span><span class="comb-lit-clip"><span class="comb-lit"></span></span></div><section class="section reveal">
+    <div class="num"><div class="hexnum"><span class="n">07</span></div><small>Examples</small><span class="spine" aria-hidden="true"></span></div>
     <div class="body">
       <h2 class="display">Build a household for your life.</h2>
       <p>Hivekeep ships with one Agent: <b>Queenie</b>, your setup guide. You create the rest, or just ask Queenie to build them for you. Each one gets its own name, domain, memory, tools, and a generated avatar.</p>
@@ -442,7 +430,7 @@ const cmpIcon = { yes: 'lucide:check', par: 'lucide:minus', no: 'lucide:x' };
 
   <!-- ===== get started ===== -->
   <section class="getstarted" id="start">
-    <div class="hexfield fade-c" style={`background-image:url(${base}/honeycomb.svg)`} aria-hidden="true"></div>
+    <div class="comb" style="--comb-lit:radial-gradient(620px 380px at 50% 44%,#000 0%,transparent 66%)" aria-hidden="true"><span class="comb-dim"></span><span class="comb-lit-clip"><span class="comb-lit"></span></span></div>
     <div class="glow a" style="left:50%;transform:translateX(-50%);right:auto;top:-170px;"></div>
     <div class="wrap" style="position:relative;z-index:1">
       <span class="kicker" style="justify-content:center">Get started</span>
@@ -542,6 +530,26 @@ const cmpIcon = { yes: 'lucide:check', par: 'lucide:minus', no: 'lucide:x' };
       if (!tb.contains(e.target as Node)) close()
     })
     window.addEventListener('resize', () => { if (window.innerWidth > 860) close() })
+  }
+</script>
+
+<script>
+  // Scroll-reveal: fade feature sections up as they enter the viewport. Elements
+  // opt in with `.reveal`; `html.js` (set in <head>, before paint) is what makes
+  // them start hidden, so without JS everything stays visible. Reduced-motion is
+  // honored in CSS. We unobserve after the first reveal (one-shot).
+  const reveals = document.querySelectorAll<HTMLElement>('.reveal')
+  if (reveals.length) {
+    if (!('IntersectionObserver' in window)) {
+      reveals.forEach((el) => el.classList.add('in'))
+    } else {
+      const io = new IntersectionObserver((entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target) }
+        }
+      }, { rootMargin: '0px 0px -10% 0px', threshold: 0.08 })
+      reveals.forEach((el) => io.observe(el))
+    }
   }
 </script>
 </Base>
