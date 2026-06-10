@@ -181,12 +181,13 @@ export const config = {
     path: process.env.DB_PATH ?? `${dataDir}/hivekeep.db`,
   },
 
-  /** Model registry (models.dev-backed metadata source of truth). When OFF
-   *  (default), provider `listModels()` metadata is used as-is (legacy path).
-   *  When ON, the registry enriches/overrides model metadata. See
-   *  `model-metadata.md`. Phased rollout — flip on once a deployment is ready. */
+  /** Model registry (models.dev-backed metadata source of truth). ON by default;
+   *  set HIVEKEEP_MODEL_REGISTRY=false to fall back to the legacy path where
+   *  provider `listModels()` metadata is used as-is. The registry enriches model
+   *  metadata (context, modalities, reasoning, pricing) from the bundled
+   *  models.dev snapshot + admin overrides. See `model-metadata.md`. */
   modelRegistry: {
-    enabled: process.env.HIVEKEEP_MODEL_REGISTRY === 'true',
+    enabled: process.env.HIVEKEEP_MODEL_REGISTRY !== 'false',
   },
 
   compacting: {
