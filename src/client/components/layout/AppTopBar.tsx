@@ -1,6 +1,12 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Home, FolderKanban, ListTodo, CalendarClock, Blocks, Boxes } from 'lucide-react'
+import { Home, FolderKanban, ListTodo, CalendarClock, Blocks, Boxes, ChevronDown } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/client/components/ui/dropdown-menu'
 import { cn } from '@/client/lib/utils'
 import { useAuth } from '@/client/hooks/useAuth'
 import { useTasksContext } from '@/client/contexts/TasksContext'
@@ -73,11 +79,56 @@ export function AppTopBar({ onOpenSettings, onOpenAccount }: AppTopBarProps) {
         <HivekeepLogo size={28} withWordmark wordmarkClassName="hidden sm:inline" title={null} />
       </button>
 
-      {/* Mobile mode switch (Agents / Projects) — replaces the hidden ActivityBar
-          rail below md. Icon-only segmented control to stay compact. */}
+      {/* Phone (<sm): the section icons can't all fit next to the right cluster,
+          so they collapse into a single dropdown — current section icon + chevron. */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="relative flex h-8 shrink-0 items-center gap-1 rounded-lg bg-muted/60 px-2 text-primary sm:hidden"
+            aria-label={t('appTopBar.sections', 'Sections')}
+          >
+            {(() => {
+              const active = modeItems.find((item) => item.active) ?? modeItems[0]!
+              const ActiveIcon = active.icon
+              return <ActiveIcon className="size-4" strokeWidth={1.75} />
+            })()}
+            <ChevronDown className="size-3 text-muted-foreground" />
+            {activeTaskCount > 0 && (
+              <span
+                className={cn(
+                  'absolute -right-1 -top-1 inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-0.5 text-[8px] font-semibold leading-none',
+                  hasAwaitingTask ? 'animate-pulse bg-warning text-warning-foreground' : 'bg-primary text-primary-foreground',
+                )}
+              >
+                {activeTaskCount}
+              </span>
+            )}
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-48">
+          {modeItems.map((item) => {
+            const Icon = item.icon
+            return (
+              <DropdownMenuItem key={item.key} onClick={() => navigate(item.to)} className={item.active ? 'text-primary' : undefined}>
+                <Icon className="size-4" />
+                {item.label}
+                {item.badge && activeTaskCount > 0 && (
+                  <span className="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold leading-none text-primary-foreground">
+                    {activeTaskCount}
+                  </span>
+                )}
+              </DropdownMenuItem>
+            )
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* sm → md: the icon-only segmented control (the left ActivityBar rail
+          takes over at md+). */}
       <nav
-        className="flex shrink-0 items-center gap-0.5 rounded-lg bg-muted/60 p-0.5 md:hidden"
-        aria-label={t('activityBar.agents')}
+        className="hidden shrink-0 items-center gap-0.5 rounded-lg bg-muted/60 p-0.5 sm:flex md:hidden"
+        aria-label={t('appTopBar.sections', 'Sections')}
       >
         {modeItems.map((item) => {
           const Icon = item.icon

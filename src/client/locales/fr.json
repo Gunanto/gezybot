@@ -3116,6 +3116,9 @@
   "rightPanel": {
     "taskTab": "Tâche"
   },
+  "appTopBar": {
+    "sections": "Sections"
+  },
   "activityBar": {
     "agents": "Agents",
     "projects": "Projets",
