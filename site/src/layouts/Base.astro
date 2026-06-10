@@ -55,6 +55,10 @@ const ogImageURL = new URL(
   <title>{pageTitle}</title>
   <meta name="description" content={description} />
   <link rel="canonical" href={canonicalURL} />
+  {/* Same favicon set as the app (src/client/public) */}
+  <link rel="icon" href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/favicon.ico`} sizes="32x32" />
+  <link rel="icon" href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/hivekeep.svg`} type="image/svg+xml" />
+  <link rel="apple-touch-icon" href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/apple-touch-icon.png`} />
   <meta name="theme-color" content="#0a0710" />
   <meta name="generator" content={Astro.generator} />
 

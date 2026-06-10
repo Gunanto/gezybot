@@ -274,7 +274,6 @@ const cmpIcon = { yes: 'lucide:check', par: 'lucide:minus', no: 'lucide:x' };
       <h2 class="display">Your agents extend the platform themselves.</h2>
       <div class="split2">
         <div class="shot">
-          <span class="cap">Fig. 2 · a tool renders as UI</span>
           <div class="shot-inner">
             <img src={`${base}/screenshots/tool-rendered.png`} alt="Weather tool rendered as a themed card in the conversation" loading="lazy" />
           </div>
@@ -300,7 +299,7 @@ const cmpIcon = { yes: 'lucide:check', par: 'lucide:minus', no: 'lucide:x' };
       <h2 class="display">One inbox for your whole team.</h2>
       <div class="split2">
         <div>
-          <p>Talk to every Agent from the messaging apps you already use. Ask for a specialist by name and the Agent on the line <b>hands the channel over</b> in real time. No commands, no switching apps.</p>
+          <p>Talk to every Agent from the messaging apps you already use. Out of their lane? The Agent on the line <b>passes your request to the right specialist</b> and relays the answer, or, if you ask for them, <b>hands the channel over</b> in real time. No commands, no switching apps.</p>
           <div class="taglist">
             {channels.map(([slug, label]) => (
               <span class="t"><Icon name={`simple-icons:${slug}`} /> {label}</span>
@@ -308,10 +307,8 @@ const cmpIcon = { yes: 'lucide:check', par: 'lucide:minus', no: 'lucide:x' };
           </div>
         </div>
         <div class="shot">
-          <span class="cap">Fig. 3 · channel handoff (Telegram)</span>
           <div class="shot-inner">
-            <!-- Drop the real capture at public/screens/channel-transfer.png -->
-            <div class="ph"><div><Icon name="lucide:arrow-left-right" /><div class="lbl">"Pass me the crypto specialist" → live handoff</div><span class="pt">screenshot to add</span></div></div>
+            <img src={`${base}/screenshots/channel-multi-agent.png`} alt="A smart-home request sent to the wrong agent, forwarded to the responsible specialist who turns off the lights" loading="lazy" />
           </div>
         </div>
       </div>
@@ -380,7 +377,7 @@ const cmpIcon = { yes: 'lucide:check', par: 'lucide:minus', no: 'lucide:x' };
     <div class="body">
       <h2 class="display">Build a household for your life.</h2>
       <p>Hivekeep ships with one Agent: <b>Queenie</b>, your setup guide. You create the rest, or just ask Queenie to build them for you. Each one gets its own name, domain, memory, tools, and a generated avatar.</p>
-      <p>Avatars come in Hivekeep's <b>default art style</b>, so a fresh hive already looks like a set. Want your own look? Set a <b>custom avatar style</b> once — pixel art, watercolor, your own brand — and every Agent regenerates in it, so your whole team stays on theme.</p>
+      <p>Avatars come in Hivekeep's <b>default art style</b>, so a fresh hive already looks like a set. Want your own look? Set a <b>custom avatar style</b> once, pixel art, watercolor, your own brand, and every Agent regenerates in it, so your whole team stays on theme.</p>
       <p class="examples-note mono">A few examples of what people build →</p>
       <div class="directory">
         {agents.map((k, i) => {
@@ -548,6 +545,34 @@ const cmpIcon = { yes: 'lucide:check', par: 'lucide:minus', no: 'lucide:x' };
       }, { rootMargin: '0px 0px -10% 0px', threshold: 0.08 })
       reveals.forEach((el) => io.observe(el))
     }
+  }
+</script>
+
+<!-- Screenshot lightbox: click any .shot-inner img to view it full-size. -->
+<div class="lightbox" id="lightbox" aria-hidden="true" role="dialog" aria-modal="true">
+  <img alt="" />
+</div>
+<script>
+  const lb = document.getElementById('lightbox')
+  const lbImg = lb?.querySelector('img')
+  if (lb && lbImg) {
+    const open = (img: HTMLImageElement) => {
+      lbImg.src = img.src
+      lbImg.alt = img.alt
+      lb.classList.add('open')
+      lb.setAttribute('aria-hidden', 'false')
+      document.body.style.overflow = 'hidden'
+    }
+    const close = () => {
+      lb.classList.remove('open')
+      lb.setAttribute('aria-hidden', 'true')
+      document.body.style.overflow = ''
+    }
+    document.querySelectorAll<HTMLImageElement>('.shot-inner img').forEach((img) => {
+      img.addEventListener('click', () => open(img))
+    })
+    lb.addEventListener('click', close)
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close() })
   }
 </script>
 </Base>
