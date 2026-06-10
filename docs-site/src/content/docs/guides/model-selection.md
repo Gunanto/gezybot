@@ -178,6 +178,10 @@ A working Agent will call `web_search` and return real, current data. A text-mod
 
 ## Cost considerations
 
+:::tip
+Track actual token spend per model, provider or Agent — with an estimated USD cost — in [Settings → Token Usage](/docs/features/token-usage/).
+:::
+
 Autonomous Agents consume more tokens than conversational ones because:
 
 - **Cron jobs** run on schedule regardless of whether there's work to do

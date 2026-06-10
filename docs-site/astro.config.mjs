@@ -86,6 +86,7 @@ export default defineConfig({
 						{ label: 'Vault and Secrets', slug: 'features/vault' },
 						{ label: 'Multi-User and the Household', slug: 'features/multi-user' },
 						{ label: 'MCP (Model Context Protocol)', slug: 'features/mcp' },
+						{ label: 'Token Usage & Cost', slug: 'features/token-usage' },
 					],
 				},
 				{

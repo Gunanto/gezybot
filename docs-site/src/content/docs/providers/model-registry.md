@@ -118,5 +118,7 @@ text files, always) pass through. Capability *unknown* fails open (no block).
 | `POST` | `/api/models/resync` | Reconcile every provider against the snapshot. |
 | `POST` | `/api/models/refresh-snapshot` | Download the latest models.dev catalogue, then resync. |
 
-See also: [Supported Providers](/docs/providers/supported/) and
-[Model Selection](/docs/guides/model-selection/).
+See also: [Supported Providers](/docs/providers/supported/),
+[Model Selection](/docs/guides/model-selection/), and
+[Token Usage & Cost](/docs/features/token-usage/) (the registry's pricing feeds
+the cost estimates there).
