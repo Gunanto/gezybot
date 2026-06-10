@@ -14,6 +14,16 @@ import { CompactingCard } from '@/client/components/chat/CompactingCard'
 import { HumanPromptCard } from '@/client/components/chat/HumanPromptCard'
 import { SecretPromptModal } from '@/client/components/chat/SecretPromptModal'
 import { Sheet, SheetContent, SheetTitle } from '@/client/components/ui/sheet'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/client/components/ui/alert-dialog'
 import { SidebarTrigger } from '@/client/components/ui/sidebar'
 const QuickChatPanel = lazy(() => import('@/client/components/chat/QuickChatPanel').then(m => ({ default: m.QuickChatPanel })))
 const QuickSessionHistory = lazy(() => import('@/client/components/chat/QuickSessionHistory').then(m => ({ default: m.QuickSessionHistory })))
@@ -89,7 +99,7 @@ export function ChatPanel({ agent, llmModels, modelUnavailable = false, queueSta
   const { t } = useTranslation()
   const { user } = useAuth()
   const userInitials = user ? getUserInitials(user) : 'U'
-  const { messages, streamingMessage, streamingReasoning, streamingOutputTokens, liveTasks, liveCompacting, isLoading, isStreaming, hasMore, isLoadingMore, tokenStalled, sendMessage, stopStreaming, clearConversation, fetchOlderMessages } = useChat(agent.id)
+  const { messages, streamingMessage, streamingReasoning, streamingOutputTokens, liveTasks, liveCompacting, isLoading, isStreaming, hasMore, isLoadingMore, tokenStalled, sendMessage, stopStreaming, clearConversation, deleteMessage, rewindToMessage, fetchOlderMessages } = useChat(agent.id)
   const { toolCalls, toolCallCount, streamingToolCallCount, toolCallsByMessage } = useToolCalls(agent.id, messages)
   const { prompts: pendingPrompts, respond: respondToPrompt, isResponding } = useHumanPrompts(agent.id)
   const { content: draftContent, setContent: setDraftContent, clearDraft } = useDraftMessage(agent.id)
@@ -106,6 +116,8 @@ export function ChatPanel({ agent, llmModels, modelUnavailable = false, queueSta
   const { toggleReaction } = useReactions(agent.id)
   const [thinkingEnabled, setThinkingEnabled] = useState(agent.thinkingEnabled ?? false)
   const [isToolCallsOpen, setIsToolCallsOpen] = useState(false)
+  // Pending "rewind to here" target — the confirmation dialog owns the actual call.
+  const [rewindTarget, setRewindTarget] = useState<string | null>(null)
   const { openTask } = useSidePanel()
   const [detailTaskId, setDetailTaskId] = useState<string | null>(null)
   const [showScrollBottom, setShowScrollBottom] = useState(false)
@@ -627,6 +639,10 @@ export function ChatPanel({ agent, llmModels, modelUnavailable = false, queueSta
     return null
   }, [messages])
 
+  // Newest persisted message — "rewind to here" on it would be a no-op, so the
+  // action is hidden there.
+  const lastDisplayMsgId = messages.length > 0 ? messages[messages.length - 1]!.id : null
+
   // Merge streaming message into the display list so it renders in the same
   // React tree branch as persisted messages — prevents unmount/remount (and
   // entrance animation replay) when the stream completes.
@@ -1077,6 +1093,8 @@ export function ChatPanel({ agent, llmModels, modelUnavailable = false, queueSta
                       onQuoteReply={handleQuoteReply}
                       onEditResend={handleEditResend}
                       onRegenerate={msg.id === lastAssistantMsgId && !isStreaming && !isProcessing ? handleRegenerate : undefined}
+                      onDeleteMessage={!compact && !isStreaming && !isProcessing ? deleteMessage : undefined}
+                      onRewindHere={!compact && !isStreaming && !isProcessing && msg.id !== lastDisplayMsgId ? setRewindTarget : undefined}
                       tokenUsage={msg.tokenUsage}
                       reasoning={streamingMessage && msg.id === streamingMessage.id ? streamingReasoning : msg.reasoning ?? undefined}
                       channelContextLine={msg.channelContextLine}
@@ -1287,6 +1305,30 @@ export function ChatPanel({ agent, llmModels, modelUnavailable = false, queueSta
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Rewind confirmation — destructive bulk delete, irreversible */}
+      <AlertDialog open={rewindTarget !== null} onOpenChange={(o) => !o && setRewindTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('chat.rewind.title', 'Rewind conversation?')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('chat.rewind.description', {
+                count: rewindTarget ? Math.max(0, messages.length - 1 - messages.findIndex((m) => m.id === rewindTarget)) : 0,
+                defaultValue: 'This message becomes the most recent one — about {{count}} later message(s) will be permanently deleted from the conversation and its context. This cannot be undone.',
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (rewindTarget) void rewindToMessage(rewindTarget); setRewindTarget(null) }}
+            >
+              {t('chat.rewind.confirm', 'Rewind')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { api } from '@/client/lib/api'
+import { api, getErrorMessage } from '@/client/lib/api'
 import { mergeIncomingMessage } from '@/client/lib/reconcile-messages'
 import { useSSE, useSSEResync } from '@/client/hooks/useSSE'
 import { useChatStreaming } from '@/client/hooks/useChatStreaming'
@@ -613,6 +613,15 @@ export function useChat(agentId: string | null) {
       resetStreaming()
     },
 
+    'chat:messages-deleted': (data) => {
+      if (data.agentId !== agentId) return
+      const ids = new Set((data.messageIds as string[] | undefined) ?? [])
+      if (ids.size === 0) return
+      // Idempotent filter — the deleting device already removed them
+      // optimistically; other devices catch up here.
+      setMessages((prev) => prev.filter((m) => !ids.has(m.id)))
+    },
+
     'channel:transferred': (data) => {
       // A channel was re-bound. If the current Agent is either side of the
       // transfer (source or target), refetch the conversation so the new
@@ -761,6 +770,35 @@ export function useChat(agentId: string | null) {
     }
   }, [agentId, t])
 
+  /** Delete a single message. Optimistic local removal; the SSE broadcast
+   *  syncs other devices (the filter is idempotent on this one). */
+  const deleteMessage = useCallback(async (messageId: string) => {
+    if (!agentId) return
+    try {
+      await api.delete(`/agents/${agentId}/messages/${messageId}`)
+      setMessages((prev) => prev.filter((m) => m.id !== messageId))
+      toast.success(t('chat.deleteMessage.success', 'Message deleted'))
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+    }
+  }, [agentId, t])
+
+  /** Rewind: the target message becomes the newest — everything after it is
+   *  deleted server-side (incl. hidden context messages and stale summaries). */
+  const rewindToMessage = useCallback(async (messageId: string) => {
+    if (!agentId) return
+    try {
+      const res = await api.post<{ deletedCount: number }>(`/agents/${agentId}/messages/rewind`, { messageId })
+      setMessages((prev) => {
+        const idx = prev.findIndex((m) => m.id === messageId)
+        return idx === -1 ? prev : prev.slice(0, idx + 1)
+      })
+      toast.success(t('chat.rewind.success', { count: res.deletedCount, defaultValue: 'Rewound — {{count}} message(s) removed' }))
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+    }
+  }, [agentId, t])
+
   return {
     messages,
     streamingMessage,
@@ -776,6 +814,8 @@ export function useChat(agentId: string | null) {
     sendMessage,
     stopStreaming,
     clearConversation,
+    deleteMessage,
+    rewindToMessage,
     fetchOlderMessages,
     refetch: fetchMessages,
   }

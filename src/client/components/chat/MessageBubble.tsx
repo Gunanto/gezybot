@@ -20,7 +20,7 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
 } from '@/client/components/ui/context-menu'
-import { FileIcon, Download, Brain, ChevronDown, Copy, Check, RefreshCw, Quote, Pencil, Volume2, VolumeX, BookOpen, SmilePlus, EyeOff } from 'lucide-react'
+import { FileIcon, Download, Brain, ChevronDown, Copy, Check, RefreshCw, Quote, Pencil, Volume2, VolumeX, BookOpen, SmilePlus, EyeOff, History, Trash2 } from 'lucide-react'
 import type { ToolCallViewItem } from '@/client/hooks/useToolCalls'
 import { RelativeTimestamp } from '@/client/components/chat/RelativeTimestamp'
 import type { MessageFile, MessageTokenUsage } from '@/shared/types'
@@ -64,6 +64,11 @@ interface MessageBubbleProps {
   onQuoteReply?: (text: string) => void
   onEditResend?: (text: string) => void
   onToggleReaction?: (messageId: string, emoji: string) => void
+  /** Delete this single message (context savings). Hidden when undefined. */
+  onDeleteMessage?: (messageId: string) => void
+  /** Rewind: make this message the newest — everything after it is deleted.
+   *  The parent owns the confirmation dialog. Hidden when undefined. */
+  onRewindHere?: (messageId: string) => void
   /** Token usage data for this message (assistant messages only). */
   tokenUsage?: MessageTokenUsage | null
   /** Distraction-less variant (onboarding modal): hides the per-message footer
@@ -633,6 +638,9 @@ function MessageContextMenu({
   onRegenerate,
   onQuoteReply,
   onEditResend,
+  messageId,
+  onDeleteMessage,
+  onRewindHere,
 }: {
   children: React.ReactNode
   content: string
@@ -640,6 +648,9 @@ function MessageContextMenu({
   onRegenerate?: () => void
   onQuoteReply?: (text: string) => void
   onEditResend?: (text: string) => void
+  messageId?: string
+  onDeleteMessage?: (messageId: string) => void
+  onRewindHere?: (messageId: string) => void
 }) {
   const { t } = useTranslation()
   const { copy } = useCopyToClipboard()
@@ -712,6 +723,23 @@ function MessageContextMenu({
               <RefreshCw className="size-4" />
               {t('chat.regenerate')}
             </ContextMenuItem>
+          </>
+        )}
+        {messageId && (onRewindHere || onDeleteMessage) && (
+          <>
+            <ContextMenuSeparator />
+            {onRewindHere && (
+              <ContextMenuItem onClick={() => onRewindHere(messageId)}>
+                <History className="size-4" />
+                {t('chat.contextMenu.rewindHere', 'Rewind to here')}
+              </ContextMenuItem>
+            )}
+            {onDeleteMessage && (
+              <ContextMenuItem variant="destructive" onClick={() => onDeleteMessage(messageId)}>
+                <Trash2 className="size-4" />
+                {t('chat.contextMenu.deleteMessage', 'Delete message')}
+              </ContextMenuItem>
+            )}
           </>
         )}
       </ContextMenuContent>
@@ -906,6 +934,8 @@ export const MessageBubble = memo(function MessageBubble({
   onQuoteReply,
   onEditResend,
   onToggleReaction,
+  onDeleteMessage,
+  onRewindHere,
   tokenUsage,
   compact = false,
   hideThinking = false,
@@ -1031,7 +1061,7 @@ export const MessageBubble = memo(function MessageBubble({
   // Assistant messages with tool calls: interleaved layout
   if (!isUser && contentParts) {
     return (
-      <MessageContextMenu content={content} isUser={false} onRegenerate={onRegenerate} onQuoteReply={onQuoteReply} onEditResend={onEditResend}>
+      <MessageContextMenu content={content} isUser={false} onRegenerate={onRegenerate} onQuoteReply={onQuoteReply} onEditResend={onEditResend} messageId={messageId} onDeleteMessage={onDeleteMessage} onRewindHere={onRewindHere}>
       <div className={cn('flex gap-2 px-2.5 sm:gap-3 sm:px-4', isNew && 'animate-fade-in-up', isGrouped ? 'py-0.5' : 'py-2')}>
         {isGrouped ? (
           <div className="size-8 shrink-0 sm:size-10 lg:size-20" />
@@ -1114,7 +1144,7 @@ export const MessageBubble = memo(function MessageBubble({
 
   // Standard message (user or assistant without tool calls)
   return (
-    <MessageContextMenu content={content} isUser={isUser} onRegenerate={isUser ? undefined : onRegenerate} onQuoteReply={onQuoteReply} onEditResend={isUser ? onEditResend : undefined}>
+    <MessageContextMenu content={content} isUser={isUser} onRegenerate={isUser ? undefined : onRegenerate} onQuoteReply={onQuoteReply} onEditResend={isUser ? onEditResend : undefined} messageId={messageId} onDeleteMessage={onDeleteMessage} onRewindHere={onRewindHere}>
     <div
       className={cn(
         'flex gap-2 px-2.5 sm:gap-3 sm:px-4',

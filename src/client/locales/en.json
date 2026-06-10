@@ -921,7 +921,20 @@
       "copy": "Copy message",
       "quote": "Quote reply",
       "editResend": "Edit & resend",
-      "readAloud": "Read aloud"
+      "readAloud": "Read aloud",
+      "rewindHere": "Rewind to here",
+      "deleteMessage": "Delete message"
+    },
+    "deleteMessage": {
+      "success": "Message deleted"
+    },
+    "rewind": {
+      "title": "Rewind conversation?",
+      "description_one": "This message becomes the most recent one — about {{count}} later message will be permanently deleted from the conversation and its context. This cannot be undone.",
+      "description_other": "This message becomes the most recent one — about {{count}} later messages will be permanently deleted from the conversation and its context. This cannot be undone.",
+      "confirm": "Rewind",
+      "success_one": "Rewound — {{count}} message removed",
+      "success_other": "Rewound — {{count}} messages removed"
     },
     "regenerate": "Regenerate",
     "mobileInfo": {

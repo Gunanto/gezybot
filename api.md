@@ -421,6 +421,27 @@ Injecte un message dans la conversation en cours. Si le Agent est en train de st
 }
 ```
 
+### `DELETE /api/agents/:id/messages/:messageId`
+
+Supprime un seul message de la conversation principale (économie de contexte). La ligne porte son step complet (tool calls + résultats dans le JSON `toolCalls`), donc l'historique LLM reste bien formé. Refusé pendant qu'un tour est en cours (409 `AGENT_BUSY`). Nettoyage en cascade : fichiers joints supprimés, références `human_prompts`/`memories` nullifiées, bornes des résumés de compaction réparées (le cutoff temporel reste intact). Émet `chat:messages-deleted`.
+
+```typescript
+// Response 200
+{ ok: true, deletedCount: 1 }
+```
+
+### `POST /api/agents/:id/messages/rewind`
+
+Rewind : le message cible devient le plus récent — tout ce qui le suit (y compris les messages cachés de contexte) est supprimé, et les résumés de compaction couvrant la zone supprimée sont retirés. Refusé pendant un tour en cours (409). Émet `chat:messages-deleted` avec la liste des ids.
+
+```typescript
+// Request
+{ messageId: string }
+
+// Response 200
+{ ok: true, deletedCount: number }
+```
+
 ---
 
 ## Tâches
@@ -1329,6 +1350,10 @@ Connexion SSE **globale** (une seule par client). Le serveur multiplex les évé
 // POST : le client émetteur réconcilie sa bulle optimiste, les autres l'ajoutent.
 // (Le payload est aplati au niveau racine, pas imbriqué sous `message`.)
 { event: 'chat:message', data: { agentId: string, id: string, clientMessageId?: string | null, role: string, content: string, files: FileShape[], ... } }
+
+// Messages supprimés (suppression unitaire ou rewind) — les clients retirent
+// ces ids de leur liste (filtre idempotent, sync multi-appareils).
+{ event: 'chat:messages-deleted', data: { agentId: string, messageIds: string[] } }
 
 // Changement d'état d'une tâche
 { event: 'task:status', data: { taskId: string, agentId: string, status: string } }

@@ -921,7 +921,20 @@
       "copy": "Copier le message",
       "quote": "Citer en réponse",
       "editResend": "Modifier et renvoyer",
-      "readAloud": "Lire à voix haute"
+      "readAloud": "Lire à voix haute",
+      "rewindHere": "Revenir à ce message",
+      "deleteMessage": "Supprimer le message"
+    },
+    "deleteMessage": {
+      "success": "Message supprimé"
+    },
+    "rewind": {
+      "title": "Revenir en arrière ?",
+      "description_one": "Ce message devient le plus récent — environ {{count}} message ultérieur sera définitivement supprimé de la conversation et de son contexte. Irréversible.",
+      "description_other": "Ce message devient le plus récent — environ {{count}} messages ultérieurs seront définitivement supprimés de la conversation et de son contexte. Irréversible.",
+      "confirm": "Revenir en arrière",
+      "success_one": "Retour effectué — {{count}} message supprimé",
+      "success_other": "Retour effectué — {{count}} messages supprimés"
     },
     "regenerate": "Régénérer",
     "mobileInfo": {

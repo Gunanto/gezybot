@@ -9,6 +9,7 @@ export type SSEEventType =
   | 'chat:reasoning-done'
   | 'chat:token-usage'
   | 'chat:cleared'
+  | 'chat:messages-deleted'
   | 'task:status'
   | 'task:done'
   | 'task:deleted'

@@ -1,8 +1,9 @@
 import { Hono } from 'hono'
-import { eq, and, isNull, lt, desc, inArray } from 'drizzle-orm'
+import { eq, and, isNull, lt, gt, desc, inArray } from 'drizzle-orm'
 import { db } from '@/server/db/index'
 import { messages, agents, channels, channelMessageLinks, compactingSnapshots, compactingSummaries, memories as agentMemories, files, humanPrompts, messageReactions } from '@/server/db/schema'
-import { enqueueMessage, getPendingQueueItems, removeQueueItem } from '@/server/services/queue'
+import { enqueueMessage, getPendingQueueItems, removeQueueItem, isAgentProcessing } from '@/server/services/queue'
+import { deleteMessagesCascade } from '@/server/services/message-deletion'
 import { abortAgentStream, getActiveAgentStreamSnapshot } from '@/server/services/agent-engine'
 import { sseManager } from '@/server/sse/index'
 import { getFilesForMessages, serializeFile } from '@/server/services/files'
@@ -511,6 +512,113 @@ messageRoutes.delete('/', async (c) => {
       { error: { code: 'CLEAR_FAILED', message: err instanceof Error ? err.message : 'Unknown error' } },
       500,
     )
+  }
+})
+
+// DELETE /api/agents/:agentId/messages/:messageId — delete a single message.
+// The row carries its whole turn step (tool calls + results live in the
+// assistant row's toolCalls JSON), so removing a full row keeps the LLM
+// history well-formed.
+messageRoutes.delete('/:messageId', async (c) => {
+  const agentIdParam = c.req.param('agentId')
+  const agentId = agentIdParam ? resolveAgentId(agentIdParam) : null
+  if (!agentId) {
+    return c.json({ error: { code: 'KIN_NOT_FOUND', message: 'Agent not found' } }, 404)
+  }
+  const messageId = c.req.param('messageId')
+  if (messageId === 'queue') return c.json({ error: { code: 'NOT_FOUND', message: 'Not found' } }, 404)
+
+  if (await isAgentProcessing(agentId, 'main')) {
+    return c.json({ error: { code: 'AGENT_BUSY', message: 'The agent is processing — wait for the turn to finish before deleting messages' } }, 409)
+  }
+
+  const msg = await db
+    .select({ id: messages.id })
+    .from(messages)
+    .where(and(eq(messages.id, messageId), eq(messages.agentId, agentId), isNull(messages.taskId), isNull(messages.sessionId)))
+    .get()
+  if (!msg) {
+    return c.json({ error: { code: 'MESSAGE_NOT_FOUND', message: 'Message not found' } }, 404)
+  }
+
+  try {
+    await deleteMessagesCascade(agentId, [messageId])
+    log.info({ agentId, messageId }, 'Message deleted')
+    sseManager.sendToAgent(agentId, {
+      type: 'chat:messages-deleted',
+      agentId,
+      data: { agentId, messageIds: [messageId] },
+    })
+    return c.json({ ok: true, deletedCount: 1 })
+  } catch (err) {
+    log.error({ agentId, messageId, err }, 'Failed to delete message')
+    return c.json({ error: { code: 'DELETE_FAILED', message: err instanceof Error ? err.message : 'Unknown error' } }, 500)
+  }
+})
+
+// POST /api/agents/:agentId/messages/rewind — make a message the newest one:
+// delete every conversation message strictly after it (including hidden
+// context messages), so the LLM context rolls back to that point.
+messageRoutes.post('/rewind', async (c) => {
+  const agentIdParam = c.req.param('agentId')
+  const agentId = agentIdParam ? resolveAgentId(agentIdParam) : null
+  if (!agentId) {
+    return c.json({ error: { code: 'KIN_NOT_FOUND', message: 'Agent not found' } }, 404)
+  }
+  const { messageId } = (await c.req.json().catch(() => ({}))) as { messageId?: string }
+  if (!messageId) {
+    return c.json({ error: { code: 'VALIDATION_ERROR', message: 'messageId is required' } }, 400)
+  }
+
+  if (await isAgentProcessing(agentId, 'main')) {
+    return c.json({ error: { code: 'AGENT_BUSY', message: 'The agent is processing — wait for the turn to finish before rewinding' } }, 409)
+  }
+
+  const target = await db
+    .select({ id: messages.id, createdAt: messages.createdAt })
+    .from(messages)
+    .where(and(eq(messages.id, messageId), eq(messages.agentId, agentId), isNull(messages.taskId), isNull(messages.sessionId)))
+    .get()
+  if (!target) {
+    return c.json({ error: { code: 'MESSAGE_NOT_FOUND', message: 'Message not found' } }, 404)
+  }
+
+  try {
+    // Strictly after the target. Equal-timestamp siblings survive — with ms
+    // precision and sequential inserts that's the safe direction (delete less).
+    const after = await db
+      .select({ id: messages.id })
+      .from(messages)
+      .where(and(
+        eq(messages.agentId, agentId),
+        isNull(messages.taskId),
+        isNull(messages.sessionId),
+        gt(messages.createdAt, target.createdAt),
+      ))
+      .all()
+    const ids = after.map((m) => m.id)
+
+    // Summaries covering deleted territory reference content that no longer
+    // exists — drop them; the messages they covered up to the rewind point
+    // simply re-enter the visible (non-compacted) history.
+    await db
+      .delete(compactingSummaries)
+      .where(and(eq(compactingSummaries.agentId, agentId), gt(compactingSummaries.lastMessageAt, target.createdAt)))
+
+    await deleteMessagesCascade(agentId, ids)
+
+    log.info({ agentId, messageId, deletedCount: ids.length }, 'Conversation rewound')
+    if (ids.length > 0) {
+      sseManager.sendToAgent(agentId, {
+        type: 'chat:messages-deleted',
+        agentId,
+        data: { agentId, messageIds: ids },
+      })
+    }
+    return c.json({ ok: true, deletedCount: ids.length })
+  } catch (err) {
+    log.error({ agentId, messageId, err }, 'Failed to rewind conversation')
+    return c.json({ error: { code: 'REWIND_FAILED', message: err instanceof Error ? err.message : 'Unknown error' } }, 500)
   }
 })
 
