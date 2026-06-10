@@ -18,6 +18,8 @@ import {
 } from '@/server/services/provider-config'
 import { getLLMProvider } from '@/server/llm/llm/registry'
 import { enrichModel } from '@/server/llm/metadata/enrich'
+import { listRegistryByProvider } from '@/server/services/model-registry'
+import { config } from '@/server/config'
 import { getEmbeddingProvider } from '@/server/llm/embedding/registry'
 import { getImageProvider } from '@/server/llm/image/registry'
 import { getSearchProvider } from '@/server/llm/search/registry'
@@ -483,9 +485,16 @@ providerRoutes.get('/models', async (c) => {
         const familyResults = await Promise.all(
           families.map((family) => listModelsForProvider(p.type, providerConfig, family)),
         )
+        // Chat models the admin disabled in the registry are hidden from the
+        // picker (curation). Only applies when the registry is on; the chat
+        // path never blocks, so an Agent already on a disabled model still runs.
+        const disabledLlm = config.modelRegistry.enabled
+          ? new Set(listRegistryByProvider(p.id).filter((r) => !r.enabled).map((r) => r.modelId))
+          : null
         const entries: ModelEntry[] = []
         for (const providerModels of familyResults) {
           for (const model of providerModels) {
+            if (model.capability === 'llm' && disabledLlm?.has(model.id)) continue
             // Chat models go through the same registry enrichment as the chat
             // path, so the label (name), context and capabilities shown in the
             // picker match what the Agent actually runs with.

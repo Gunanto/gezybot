@@ -72,6 +72,7 @@ d('reconcileProviderModels', () => {
     expect(row.modelsDevKey).toBe('deepseek/deepseek-v4-flash')
     expect(row.matchConfidence).toBe('exact')
     expect(row.needsReview).toBe(false)
+    expect(row.enabled).toBe(true) // confident match → active immediately
     expect(row.stale).toBe(false)
     expect(JSON.parse(row.pricing!)).toEqual({ input: 0.14, output: 0.28, cacheRead: 0.0028 }) // models.dev
     expect(JSON.parse(row.reasoning!)).toEqual({ enabled: true, efforts: ['low', 'medium', 'high', 'max'] })
@@ -84,6 +85,7 @@ d('reconcileProviderModels', () => {
     expect(row.modelsDevKey).toBeNull()
     expect(row.matchConfidence).toBe('none')
     expect(row.needsReview).toBe(true)
+    expect(row.enabled).toBe(false) // review models land disabled until confirmed
   })
 
   it('marks a disappeared model as stale (not deleted)', () => {
@@ -164,14 +166,25 @@ d('admin edits (Models view)', () => {
     expect(getRegistryRow(PROVIDER, 'deepseek-v4-flash')!.contextWindow).toBe(7)
   })
 
-  it('clears needsReview on save and pins nothing for an empty patch', () => {
+  it('confirming a review clears the flag, enables the model, and pins nothing', () => {
     reconcileProviderModels(PROVIDER, 'deepseek', [{ id: 'weird-alias', name: 'Weird' }])
     const id = getRegistryRow(PROVIDER, 'weird-alias')!.id
     expect(getRegistryRow(PROVIDER, 'weird-alias')!.needsReview).toBe(true)
-    updateRegistryModel(id, {}) // no-op save = "I looked at it"
+    expect(getRegistryRow(PROVIDER, 'weird-alias')!.enabled).toBe(false) // review → disabled
+    updateRegistryModel(id, {}) // empty patch = the ✓ confirm
     const row = getRegistryRow(PROVIDER, 'weird-alias')!
     expect(row.needsReview).toBe(false)
+    expect(row.enabled).toBe(true) // confirming enables it
     expect(JSON.parse(row.overriddenFields!)).toEqual([])
+  })
+
+  it('lets an explicit enabled=false win over the auto-enable on review-clear', () => {
+    reconcileProviderModels(PROVIDER, 'deepseek', [{ id: 'weird-alias', name: 'Weird' }])
+    const id = getRegistryRow(PROVIDER, 'weird-alias')!.id
+    updateRegistryModel(id, { enabled: false }) // toggle stays off even though review clears
+    const row = getRegistryRow(PROVIDER, 'weird-alias')!
+    expect(row.needsReview).toBe(false)
+    expect(row.enabled).toBe(false)
   })
 
   it('resetModelToAuto drops every pin, returns to auto, and re-derives from models.dev', () => {

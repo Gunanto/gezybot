@@ -1396,7 +1396,12 @@
       "capNo": "Non pris en charge",
       "capUnknown": "Inconnu — ni le provider ni models.dev ne l'ont indiqué",
       "perPage": "Par page",
-      "range": "{{from}}–{{to}} sur {{total}}"
+      "range": "{{from}}–{{to}} sur {{total}}",
+      "colEnabled": "Activé",
+      "enabledTip": "Activé — visible dans les sélecteurs de modèles. Cliquez pour le masquer.",
+      "disabledTip": "Désactivé — masqué des sélecteurs de modèles. Cliquez pour l'activer.",
+      "enabledLabel": "Activé",
+      "enabledDialogHint": "Désactivé = masqué des sélecteurs (le chat continue de fonctionner si un Agent l'utilise déjà)."
     },
     "models": {
       "title": "Modèles & Services",

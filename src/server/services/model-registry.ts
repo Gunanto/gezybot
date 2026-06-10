@@ -195,7 +195,10 @@ export function reconcileProviderModels(
           matchConfidence: confidence,
           ...metadataToColumns(auto),
           overriddenFields: '[]',
-          enabled: true,
+          // Uncertain matches land disabled — the admin confirms (which enables)
+          // or remaps before the model shows up in pickers. Confident matches are
+          // active immediately.
+          enabled: !needsReview,
           needsReview,
           stale: false,
           createdAt: now,
@@ -297,6 +300,9 @@ export function updateRegistryModel(id: string, patch: RegistryEditPatch): void 
   const pinned = new Set<string>(safeParseArray(row.overriddenFields))
   // The admin has now looked at this row — clear the "verify the auto-match" flag.
   const set: Partial<Row> = { updatedAt: new Date(), needsReview: false }
+  // Confirming a review (it was disabled-by-default) enables the model, unless
+  // the patch sets `enabled` explicitly (handled below).
+  if (row.needsReview && patch.enabled === undefined) set.enabled = true
 
   if (patch.displayName !== undefined) {
     const dn = patch.displayName.trim()

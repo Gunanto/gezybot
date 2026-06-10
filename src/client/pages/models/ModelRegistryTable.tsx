@@ -116,10 +116,21 @@ export function ModelRegistryTable() {
   }
 
   // One-click "this auto-match is correct" — an empty patch clears needsReview
-  // server-side without pinning any field.
+  // server-side without pinning any field (and enables it if it was in review).
   const confirmReview = async (m: RegistryModel) => {
     try {
       const res = await api.patch<{ model: RegistryModel }>(`/models/${m.id}`, {})
+      setModels((ms) => ms.map((x) => (x.id === res.model.id ? res.model : x)))
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+    }
+  }
+
+  // Enable/disable a model straight from the table. Disabled models are hidden
+  // from every model picker; the row updates optimistically off the response.
+  const toggleEnabled = async (m: RegistryModel, value: boolean) => {
+    try {
+      const res = await api.patch<{ model: RegistryModel }>(`/models/${m.id}`, { enabled: value })
       setModels((ms) => ms.map((x) => (x.id === res.model.id ? res.model : x)))
     } catch (err) {
       toast.error(getErrorMessage(err))
@@ -201,6 +212,7 @@ export function ModelRegistryTable() {
         <table className="w-full text-sm">
           <thead className="bg-muted/40 text-muted-foreground">
             <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:text-left [&>th]:font-medium">
+              <th className="w-10"><span className="sr-only">{t('settings.modelRegistry.colEnabled', 'Enabled')}</span></th>
               <th>{t('settings.modelRegistry.colModel', 'Model')}</th>
               <th>{t('settings.modelRegistry.colProvider', 'Provider')}</th>
               <th className="text-right">{t('settings.modelRegistry.colContext', 'Context')}</th>
@@ -214,7 +226,21 @@ export function ModelRegistryTable() {
           </thead>
           <tbody>
             {paged.map((m) => (
-              <tr key={m.id} className="border-t border-border [&>td]:px-3 [&>td]:py-2 hover:bg-muted/30">
+              <tr key={m.id} className={`border-t border-border [&>td]:px-3 [&>td]:py-2 hover:bg-muted/30 ${m.enabled ? '' : 'opacity-45'}`}>
+                <td>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex">
+                        <Switch checked={m.enabled} onCheckedChange={(v) => toggleEnabled(m, v)} />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent className="text-xs">
+                      {m.enabled
+                        ? t('settings.modelRegistry.enabledTip', 'Enabled — shown in model pickers. Click to hide it.')
+                        : t('settings.modelRegistry.disabledTip', 'Disabled — hidden from model pickers. Click to enable.')}
+                    </TooltipContent>
+                  </Tooltip>
+                </td>
                 <td className="font-medium">
                   <span className={m.stale ? 'line-through opacity-60' : ''}>{m.displayName || m.modelId}</span>
                   <span className="ml-2 inline-flex gap-1 align-middle">
@@ -257,7 +283,7 @@ export function ModelRegistryTable() {
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">
+              <tr><td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">
                 {t('settings.modelRegistry.empty', 'No models. Connect a provider, then Resync.')}
               </td></tr>
             )}
@@ -306,6 +332,7 @@ function EditModelDialog({ model, onClose, onSaved }: {
   onSaved: (m: RegistryModel) => void
 }) {
   const { t } = useTranslation()
+  const [enabled, setEnabled] = useState(model.enabled)
   const [displayName, setDisplayName] = useState(model.displayName ?? '')
   const [ctx, setCtx] = useState(model.contextWindow?.toString() ?? '')
   const [maxOut, setMaxOut] = useState(model.maxOutput?.toString() ?? '')
@@ -343,6 +370,7 @@ function EditModelDialog({ model, onClose, onSaved }: {
       const initReasoning = model.reasoning?.enabled ?? false
       const initPriceIn = model.pricing?.input?.toString() ?? ''
       const initPriceOut = model.pricing?.output?.toString() ?? ''
+      if (enabled !== model.enabled) patch.enabled = enabled
       if (displayName !== (model.displayName ?? '')) patch.displayName = displayName
       if (ctxNum !== (model.contextWindow ?? null)) patch.contextWindow = ctxNum
       if (maxNum !== (model.maxOutput ?? null)) patch.maxOutput = maxNum
@@ -399,10 +427,18 @@ function EditModelDialog({ model, onClose, onSaved }: {
       submitLabel={t('common.save', 'Save')}
       cancelLabel={t('common.cancel', 'Cancel')}
     >
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
+        <div>
+          <p className="text-sm font-medium">{t('settings.modelRegistry.enabledLabel', 'Enabled')}</p>
+          <p className="text-[11px] text-muted-foreground">{t('settings.modelRegistry.enabledDialogHint', 'Off = hidden from model pickers (the chat path still works if an Agent already uses it).')}</p>
+        </div>
+        <Switch checked={enabled} onCheckedChange={setEnabled} />
+      </div>
+
       {model.needsReview && (
         <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
           <AlertTriangle className="size-4 shrink-0 text-amber-500" />
-          <span>{t('settings.modelRegistry.reviewHint', 'The models.dev match below was uncertain. Check the values look right (remap if not), then Save to confirm — that clears the review flag.')}</span>
+          <span>{t('settings.modelRegistry.reviewHint', 'The models.dev match below was uncertain. Check the values look right (remap if not), then Save to confirm — that clears the review flag and enables the model.')}</span>
         </div>
       )}
 
