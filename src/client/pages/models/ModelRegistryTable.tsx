@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { RefreshCw, Pencil, AlertTriangle, Pin, Wand2, Search, ChevronsUpDown, Check, RotateCcw, X, Minus, ChevronLeft, ChevronRight } from 'lucide-react'
+import { RefreshCw, Pencil, AlertTriangle, Pin, Wand2, Search, ChevronsUpDown, Check, RotateCcw, X, Minus, ChevronLeft, ChevronRight, DownloadCloud } from 'lucide-react'
 import { Button } from '@/client/components/ui/button'
 import { Input } from '@/client/components/ui/input'
 import { Label } from '@/client/components/ui/label'
@@ -82,6 +82,7 @@ export function ModelRegistryTable() {
   const [models, setModels] = useState<RegistryModel[]>([])
   const [loading, setLoading] = useState(true)
   const [resyncing, setResyncing] = useState(false)
+  const [snapshotBusy, setSnapshotBusy] = useState(false)
   const [providerFilter, setProviderFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [query, setQuery] = useState('')
@@ -114,6 +115,21 @@ export function ModelRegistryTable() {
       toast.error(getErrorMessage(err))
     } finally {
       setResyncing(false)
+    }
+  }
+
+  // Pull the latest models.dev catalogue (persisted to the data dir), then the
+  // server resyncs in the background so new matches/metadata take effect.
+  const refreshSnapshot = async () => {
+    setSnapshotBusy(true)
+    try {
+      const res = await api.post<{ modelCount: number; providerCount: number }>('/models/refresh-snapshot', {})
+      toast.success(t('settings.modelRegistry.snapshotRefreshed', { models: res.modelCount, providers: res.providerCount, defaultValue: 'models.dev updated — {{models}} models across {{providers}} providers. Re-matching…' }))
+      setTimeout(() => void load(), 2000)
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+    } finally {
+      setSnapshotBusy(false)
     }
   }
 
@@ -210,10 +226,16 @@ export function ModelRegistryTable() {
               'Every model exposed by your providers. Metadata (context, capabilities, pricing) is auto-filled from the community models.dev database — edit any value to pin it, or remap a wrong match.')}
           </p>
         </div>
-        <Button variant="outline" onClick={resync} disabled={resyncing}>
-          <RefreshCw className={`size-4 ${resyncing ? 'animate-spin' : ''}`} />
-          {t('settings.modelRegistry.resync', 'Resync')}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={refreshSnapshot} disabled={snapshotBusy} title={t('settings.modelRegistry.snapshotTip', 'Download the latest models.dev catalogue, then re-match')}>
+            <DownloadCloud className={`size-4 ${snapshotBusy ? 'animate-pulse' : ''}`} />
+            {t('settings.modelRegistry.snapshotRefresh', 'Update models.dev')}
+          </Button>
+          <Button variant="outline" onClick={resync} disabled={resyncing}>
+            <RefreshCw className={`size-4 ${resyncing ? 'animate-spin' : ''}`} />
+            {t('settings.modelRegistry.resync', 'Resync')}
+          </Button>
+        </div>
       </div>
 
       {reviewCount > 0 && (

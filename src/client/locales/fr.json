@@ -1411,7 +1411,10 @@
       "enabledTip": "Activé — visible dans les sélecteurs de modèles. Cliquez pour le masquer.",
       "disabledTip": "Désactivé — masqué des sélecteurs de modèles. Cliquez pour l'activer.",
       "enabledLabel": "Activé",
-      "enabledDialogHint": "Désactivé = masqué des sélecteurs (le chat continue de fonctionner si un Agent l'utilise déjà)."
+      "enabledDialogHint": "Désactivé = masqué des sélecteurs (le chat continue de fonctionner si un Agent l'utilise déjà).",
+      "snapshotRefresh": "Mettre à jour models.dev",
+      "snapshotTip": "Télécharge le dernier catalogue models.dev, puis re-mappe — récupère les modèles récents sans mise à jour de l'app.",
+      "snapshotRefreshed": "models.dev mis à jour — {{models}} modèles sur {{providers}} providers. Re-mapping…"
     },
     "models": {
       "title": "Modèles & Services",

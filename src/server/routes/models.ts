@@ -26,6 +26,7 @@ import {
 } from '@/server/services/model-registry'
 import { listModelsDevKeys, listAllModelsDevKeys } from '@/server/llm/metadata/models-dev'
 import { refreshAllProviderModels } from '@/server/services/model-info-cache'
+import { refreshModelsDevSnapshot } from '@/server/services/models-dev-snapshot'
 import type { AppVariables } from '@/server/app'
 import { createLogger } from '@/server/logger'
 
@@ -173,4 +174,18 @@ modelRoutes.post('/:id/reset', async (c) => {
 modelRoutes.post('/resync', async (c) => {
   refreshAllProviderModels().catch((err) => log.warn({ err }, 'Manual resync failed'))
   return c.json({ ok: true })
+})
+
+/** Pull the latest models.dev catalogue (persisted to the data dir), then resync
+ *  so the new metadata/matches take effect. Returns the catalogue size. */
+modelRoutes.post('/refresh-snapshot', async (c) => {
+  try {
+    const { providerCount, modelCount } = await refreshModelsDevSnapshot()
+    // Re-match every provider against the fresh snapshot (background).
+    refreshAllProviderModels().catch((err) => log.warn({ err }, 'Resync after snapshot refresh failed'))
+    return c.json({ ok: true, providerCount, modelCount })
+  } catch (err) {
+    log.warn({ err }, 'models.dev snapshot refresh failed')
+    return c.json({ error: { code: 'REFRESH_FAILED', message: 'Could not fetch models.dev' } }, 502)
+  }
 })

@@ -203,6 +203,11 @@ new Cron('0 3 * * *', async () => {
   if (count > 0) log.info({ count }, 'Notification cleanup completed')
 })
 
+// Install a previously-refreshed models.dev snapshot (data-dir override) over
+// the bundled one, before any reconcile reads it.
+import { loadPersistedSnapshot } from '@/server/services/models-dev-snapshot'
+loadPersistedSnapshot()
+
 // Model-info cache: pre-warm at startup, then refresh on a schedule. Catches
 // provider-side spec changes (e.g. Anthropic raising a model's context window)
 // and new models without needing a server restart.

@@ -45,6 +45,15 @@ export function __setSnapshotForTests(s: Snapshot | null): void {
 }
 
 /**
+ * Install a runtime snapshot override (e.g. a freshly-refreshed models.dev
+ * snapshot persisted in the data dir, loaded at startup or after a manual
+ * refresh). Replaces the bundled snapshot for all subsequent lookups.
+ */
+export function setSnapshot(s: Snapshot): void {
+  snapshotCache = s
+}
+
+/**
  * Hivekeep provider `type` → models.dev provider id. Most are identical; only a
  * few diverge. Plugin providers (`plugin:<name>:<type>`) are never in models.dev.
  */

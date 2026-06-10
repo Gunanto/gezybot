@@ -1411,7 +1411,10 @@
       "enabledTip": "Enabled — shown in model pickers. Click to hide it.",
       "disabledTip": "Disabled — hidden from model pickers. Click to enable.",
       "enabledLabel": "Enabled",
-      "enabledDialogHint": "Off = hidden from model pickers (the chat path still works if an Agent already uses it)."
+      "enabledDialogHint": "Off = hidden from model pickers (the chat path still works if an Agent already uses it).",
+      "snapshotRefresh": "Update models.dev",
+      "snapshotTip": "Download the latest models.dev catalogue, then re-match — picks up newly-released models without an app update.",
+      "snapshotRefreshed": "models.dev updated — {{models}} models across {{providers}} providers. Re-matching…"
     },
     "models": {
       "title": "Models & Services",
