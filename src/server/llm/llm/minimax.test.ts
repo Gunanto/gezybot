@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'bun:test'
 import {
-  inferContextWindow,
-  inferImageInput,
   mapModel,
   createThinkParser,
   type MiniMaxModel,
@@ -23,57 +21,19 @@ const m27hs: MiniMaxModel = {
 }
 const m2: MiniMaxModel = { id: 'MiniMax-M2', object: 'model', owned_by: 'minimax' }
 
-// ─── inferContextWindow ──────────────────────────────────────────────────────
-
-describe('inferContextWindow', () => {
-  it('maps the MiniMax-M family to 1M (long-context)', () => {
-    expect(inferContextWindow(m3)).toBe(1_048_576)
-    expect(inferContextWindow(m27)).toBe(1_048_576)
-    expect(inferContextWindow(m27hs)).toBe(1_048_576)
-    expect(inferContextWindow(m2)).toBe(1_048_576)
-  })
-
-  it('falls back to the 1M default when no family matches', () => {
-    expect(inferContextWindow({ id: 'mystery-model' })).toBe(1_048_576)
-  })
-})
-
-// ─── inferImageInput (vision classification) ─────────────────────────────────
-
-describe('inferImageInput', () => {
-  it('flags the multimodal MiniMax-M3 generation as image-capable', () => {
-    expect(inferImageInput(m3)).toBe(true)
-  })
-
-  it('treats the text-only M2.x family as non-vision', () => {
-    expect(inferImageInput(m2)).toBe(false)
-    expect(inferImageInput(m27)).toBe(false)
-    expect(inferImageInput(m27hs)).toBe(false)
-  })
-})
-
-// ─── mapModel ────────────────────────────────────────────────────────────────
+// ─── mapModel (metadata now comes from the registry, not heuristics) ─────────
 
 describe('mapModel', () => {
-  it('classifies M3 as a multimodal (image-capable) llm with inline reasoning', () => {
+  it('returns the bare model — no name-based context/vision guesses', () => {
     const m = mapModel(m3)!
     expect(m.id).toBe('MiniMax-M3')
     expect(m.name).toBe('MiniMax-M3')
-    expect(m.contextWindow).toBe(1_048_576)
     expect(m.supportsPromptCaching).toBe(true)
     expect(m.supportsParallelTools).toBe(true)
-    // M3 is the multimodal generation.
-    expect(m.supportsImageInput).toBe(true)
-    // Reasoning is never advertised — it's inline <think>, not reasoning_effort.
-    expect(m.thinking).toBeUndefined()
-  })
-
-  it('maps the text-only highspeed M2 tier without vision', () => {
-    const m = mapModel(m27hs)!
-    expect(m.id).toBe('MiniMax-M2.7-highspeed')
-    expect(m.contextWindow).toBe(1_048_576)
-    expect(m.thinking).toBeUndefined()
+    // Context window + vision (M3 multimodal) are filled by the registry.
+    expect(m.contextWindow).toBeUndefined()
     expect(m.supportsImageInput).toBeUndefined()
+    expect(m.thinking).toBeUndefined()
   })
 
   it('returns null for entries without an id', () => {

@@ -99,54 +99,14 @@ export interface DeepSeekModel {
   owned_by?: string
 }
 
-// ─── Metadata-driven model classification ────────────────────────────────────
-
-/** Default context window when no family prefix matches. */
-const DEFAULT_CONTEXT_WINDOW = 128_000
-
-/**
- * Context windows by family. DeepSeek's `/models` endpoint omits the window,
- * so we map it from the model id. First match wins. The v4 family
- * (deepseek-v4-flash / deepseek-v4-pro) ships a 1M-token window — 1M is now the
- * default across DeepSeek's API (verified against the docs, 2026-06). The
- * conservative 128k default only applies to an unrecognised future id.
- */
-const CONTEXT_BY_PREFIX: Array<[RegExp, number]> = [
-  [/deepseek-v4/, 1_048_576],
-]
-
-/**
- * @internal exported for tests.
- */
-export function inferContextWindow(model: DeepSeekModel): number {
-  for (const [pattern, value] of CONTEXT_BY_PREFIX) {
-    if (pattern.test(model.id)) return value
-  }
-  return DEFAULT_CONTEXT_WINDOW
-}
-
-/**
- * Reasoning support. The DeepSeek V4 family is dual-mode with thinking on by
- * default and accepts `reasoning_effort` across the full low/medium/high/max
- * range (all verified live). We advertise it for the v4 family; the `chat()`
- * gate then forwards `reasoning_effort` for those models. Unknown future ids get
- * no `thinking` (so we never send the param to a model that might reject it).
- *
- * @internal exported for tests.
- */
-export function inferThinking(model: DeepSeekModel): LLMModel['thinking'] | undefined {
-  if (!/deepseek-v4/.test(model.id)) return undefined
-  return {
-    efforts: ['low', 'medium', 'high', 'max'],
-    note: 'DeepSeek V4 reasons by default; the effort setting tunes reasoning depth.',
-  }
-}
+// ─── Model classification ────────────────────────────────────────────────────
 
 /**
  * Map a DeepSeek catalogue entry to a Hivekeep `LLMModel`, or null if it has no
- * id. Every model is classified as an `llm` capability: text-only (no modality
- * metadata in /models), with reasoning advertised for the v4 family. Context
- * windows are inferred from family naming.
+ * id. DeepSeek's `/models` exposes ONLY ids (no context/modality/reasoning), so
+ * we return the bare model — context window, reasoning (efforts), vision and
+ * pricing are filled by the model registry from models.dev (see
+ * `model-metadata.md`). No more name-based heuristics here.
  *
  * @internal exported for tests.
  */
@@ -156,15 +116,11 @@ export function mapModel(model: DeepSeekModel): LLMModel | null {
   const out: LLMModel = {
     id: model.id,
     name: model.id,
-    contextWindow: inferContextWindow(model),
     // OpenAI-compatible upstreams cache prompts transparently; DeepSeek
     // forwards cache hits in usage. No per-block cache control to send.
     supportsPromptCaching: true,
     supportsParallelTools: true,
-    // No vision: the /models payload exposes no modality metadata.
   }
-  const thinking = inferThinking(model)
-  if (thinking) out.thinking = thinking
   return out
 }
 

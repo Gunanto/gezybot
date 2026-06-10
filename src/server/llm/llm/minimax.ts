@@ -114,56 +114,15 @@ export interface MiniMaxModel {
   owned_by?: string
 }
 
-// ─── Metadata-driven model classification ────────────────────────────────────
-
-/**
- * Default context window when no family prefix matches. MiniMax M-series are
- * long-context models, so we default high (1M) rather than the OpenAI-style
- * 128k — the /models endpoint omits the window, and over-reporting a window we
- * never reach is harmless while under-reporting truncates real conversations.
- */
-const DEFAULT_CONTEXT_WINDOW = 1_048_576
-
-/**
- * Context windows by family. MiniMax's `/models` endpoint omits the window, so
- * we map it from the model id. First match wins. Every current M-series id
- * (MiniMax-M3, MiniMax-M2.x, *-highspeed, …) is long-context, so the single
- * `minimax-m` prefix and the default both land at 1M (1,048,576, matching the
- * repo convention for the 1M tier in deepseek.ts).
- */
-const CONTEXT_BY_PREFIX: Array<[RegExp, number]> = [
-  [/^minimax-m/i, 1_048_576],
-]
-
-/**
- * @internal exported for tests.
- */
-export function inferContextWindow(model: MiniMaxModel): number {
-  for (const [pattern, value] of CONTEXT_BY_PREFIX) {
-    if (pattern.test(model.id)) return value
-  }
-  return DEFAULT_CONTEXT_WINDOW
-}
-
-/**
- * Vision support. MiniMax-M3 is the multimodal generation (text + image + video
- * in); the M2.x family is text-only (verified live — M3 ingests an image and
- * answers about it; M2 ignores it). /models exposes no modality field, so we
- * infer from the id.
- *
- * @internal exported for tests.
- */
-const VISION_PATTERN = /^minimax-m3/i
-export function inferImageInput(model: MiniMaxModel): boolean {
-  return VISION_PATTERN.test(model.id)
-}
+// ─── Model classification ────────────────────────────────────────────────────
 
 /**
  * Map a MiniMax catalogue entry to a Hivekeep `LLMModel`, or null if it has no
- * id. Classified as an `llm` capability; image input is set for the multimodal
- * M3 family (text-only otherwise). Reasoning is deliberately left undefined (see
- * file header — it is emitted inline as `<think>`, not opted into via
- * `reasoning_effort`). Context windows are inferred from family naming.
+ * id. MiniMax's `/models` exposes ONLY ids (no context/modality), so we return
+ * the bare model — context window, vision (M3 is multimodal), reasoning and
+ * pricing are filled by the model registry from models.dev (see
+ * `model-metadata.md`). No more name-based heuristics here. The inline
+ * `<think>` reasoning is a TRANSPORT concern and stays in the stream handler.
  *
  * @internal exported for tests.
  */
@@ -173,14 +132,12 @@ export function mapModel(model: MiniMaxModel): LLMModel | null {
   const out: LLMModel = {
     id: model.id,
     name: model.id,
-    contextWindow: inferContextWindow(model),
     // OpenAI-compatible upstreams cache prompts transparently; MiniMax
     // forwards cache hits in usage. No per-block cache control to send.
     supportsPromptCaching: true,
     supportsParallelTools: true,
     // No `thinking`: reasoning is inline <think>, never reasoning_effort.
   }
-  if (inferImageInput(model)) out.supportsImageInput = true
   return out
 }
 

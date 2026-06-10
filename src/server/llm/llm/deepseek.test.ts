@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import {
-  assistantMessage,
-  inferContextWindow,
-  inferThinking,
-  mapModel,
-  type DeepSeekModel,
-} from './deepseek'
+import { assistantMessage, mapModel, type DeepSeekModel } from './deepseek'
 
 // Representative fixtures drawn from the live /models payload shape:
 // the bare OpenAI listing `{object:'list', data:[{id, object, owned_by}]}`.
@@ -16,61 +10,18 @@ const v4Pro: DeepSeekModel = {
   owned_by: 'deepseek',
 }
 
-const v4Flash: DeepSeekModel = {
-  id: 'deepseek-v4-flash',
-  object: 'model',
-  owned_by: 'deepseek',
-}
-
-// ─── inferContextWindow ──────────────────────────────────────────────────────
-
-describe('inferContextWindow', () => {
-  it('maps the deepseek-v4 family to 1M tokens', () => {
-    expect(inferContextWindow(v4Pro)).toBe(1_048_576)
-    expect(inferContextWindow(v4Flash)).toBe(1_048_576)
-  })
-
-  it('falls back to the conservative 128k default when no family matches', () => {
-    expect(inferContextWindow({ id: 'mystery-model' })).toBe(128_000)
-  })
-})
-
-// ─── inferThinking ───────────────────────────────────────────────────────────
-
-describe('inferThinking', () => {
-  it('advertises the full low/medium/high/max range for the v4 family', () => {
-    const t = inferThinking(v4Pro)
-    expect(t).toBeDefined()
-    expect(t!.efforts).toEqual(['low', 'medium', 'high', 'max'])
-    expect(inferThinking(v4Flash)).toBeDefined()
-  })
-
-  it('returns undefined for an unrecognised (non-v4) id', () => {
-    expect(inferThinking({ id: 'mystery-model' })).toBeUndefined()
-  })
-})
-
-// ─── mapModel ────────────────────────────────────────────────────────────────
+// ─── mapModel (metadata now comes from the registry, not heuristics) ─────────
 
 describe('mapModel', () => {
-  it('classifies the v4 pro as a text-only, reasoning-capable llm', () => {
+  it('returns the bare model — no name-based context/thinking/vision guesses', () => {
     const m = mapModel(v4Pro)!
     expect(m.id).toBe('deepseek-v4-pro')
     expect(m.name).toBe('deepseek-v4-pro')
-    expect(m.contextWindow).toBe(1_048_576)
     expect(m.supportsPromptCaching).toBe(true)
     expect(m.supportsParallelTools).toBe(true)
-    // Vision is never advertised — no modality metadata in /models.
-    expect(m.supportsImageInput).toBeUndefined()
-    // V4 is a dual-mode reasoning family.
-    expect(m.thinking?.efforts).toEqual(['low', 'medium', 'high', 'max'])
-  })
-
-  it('maps the flash tier the same way', () => {
-    const m = mapModel(v4Flash)!
-    expect(m.id).toBe('deepseek-v4-flash')
-    expect(m.contextWindow).toBe(1_048_576)
-    expect(m.thinking?.efforts).toEqual(['low', 'medium', 'high', 'max'])
+    // Metadata is filled by the model registry (models.dev), not here.
+    expect(m.contextWindow).toBeUndefined()
+    expect(m.thinking).toBeUndefined()
     expect(m.supportsImageInput).toBeUndefined()
   })
 
@@ -120,7 +71,7 @@ describe('listModels payload shape', () => {
   it('maps every model in a {data:[{id}]} listing, dropping id-less entries', () => {
     const payload: { object: string; data: DeepSeekModel[] } = {
       object: 'list',
-      data: [v4Flash, v4Pro, { id: '' }],
+      data: [{ id: 'deepseek-v4-flash' }, v4Pro, { id: '' }],
     }
     const mapped = payload.data.map(mapModel).filter((m): m is NonNullable<typeof m> => m !== null)
     expect(mapped.map((m) => m.id)).toEqual(['deepseek-v4-flash', 'deepseek-v4-pro'])
