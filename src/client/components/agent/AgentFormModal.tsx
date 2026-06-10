@@ -414,13 +414,15 @@ export function AgentFormModal({
     }
     setAvatarFile(null)
     setError('')
-    setActiveTab('general')
+    // Honour the caller-requested landing tab — this effect fires when `agent`
+    // lands (after the open-effect) and used to clobber it back to 'general'.
+    setActiveTab(initialTab ?? 'general')
     setRefineText('')
     setIsGenerating(false)
     setIsRefining(false)
     setIsAvatarGenerating(false)
     resetDirty()
-  }, [agent, defaultCharacter, defaultExpertise, resetDirty])
+  }, [agent, defaultCharacter, defaultExpertise, resetDirty, initialTab])
 
   // In edit mode the close-guard is driven by the combined per-tab dirtiness
   // (derived from snapshots), so a per-tab save clears it for that tab without
@@ -1119,6 +1121,7 @@ export function AgentFormModal({
                             agentId={isEdit ? agent.id : null}
                             toolboxIds={toolboxIds}
                             onToolboxIdsChange={(next) => { setToolboxIds(next); markDirty() }}
+                            onManageToolboxes={onOpenSettings ? () => onOpenSettings('toolboxes') : undefined}
                           />
                           {isEdit && (
                             <div className="flex items-center gap-2 pt-2">

@@ -422,6 +422,7 @@
         "embedding": "Needs an embedding provider — memory recall and storage will fail until one is configured."
       },
       "toolboxesTitle": "Toolboxes",
+      "manageToolboxes": "Manage toolboxes",
       "toolboxesHint": "Pick one or more toolboxes to grant this Agent its tools. A toolbox bundles tools across all sources (native, plugin, MCP, custom).",
       "defaultsToAll": "No toolbox selected — this Agent gets the built-in 'all' toolbox (every native and custom tool).",
       "noToolboxesTitle": "No toolboxes yet",

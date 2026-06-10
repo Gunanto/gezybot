@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Loader2, Wrench } from 'lucide-react'
+import { Loader2, Wrench, Settings2 } from 'lucide-react'
+import { Button } from '@/client/components/ui/button'
 import { ToolboxMultiSelect } from '@/client/components/toolbox/ToolboxMultiSelect'
 import { ToolSelector, type ToolSelectorTool } from '@/client/components/common/ToolSelector'
 import { useToolboxes } from '@/client/hooks/useToolboxes'
@@ -13,6 +14,9 @@ interface AgentToolsTabProps {
   /** Current toolbox selection. Null/empty → the 'all' built-in at resolution. */
   toolboxIds: string[] | null
   onToolboxIdsChange: (next: string[] | null) => void
+  /** Opens the Toolboxes management (Settings → Toolboxes). Renders a shortcut
+   *  next to the assignment picker when provided. */
+  onManageToolboxes?: () => void
 }
 
 /**
@@ -25,7 +29,7 @@ interface AgentToolsTabProps {
  * selection grants, sourced from the unified tool catalog (native + plugin +
  * MCP + custom). The preview reuses the shared ToolSelector in read-only mode.
  */
-export function AgentToolsTab({ agentId, toolboxIds, onToolboxIdsChange }: AgentToolsTabProps) {
+export function AgentToolsTab({ agentId, toolboxIds, onToolboxIdsChange, onManageToolboxes }: AgentToolsTabProps) {
   const { t } = useTranslation()
   const { toolboxes, isLoading: toolboxesLoading } = useToolboxes()
   // Custom tools are per-Agent, so thread agentId so the preview includes them.
@@ -94,12 +98,20 @@ export function AgentToolsTab({ agentId, toolboxIds, onToolboxIdsChange }: Agent
     <div className="space-y-6">
       {/* ── Toolbox selection ─────────────────────────────────────────── */}
       <div className="space-y-3">
-        <div className="space-y-1">
-          <h3 className="inline-flex items-center gap-1.5 text-sm font-semibold text-foreground">
-            <Wrench className="size-4" />
-            {t('agent.tools.toolboxesTitle')}
-          </h3>
-          <p className="text-xs text-muted-foreground">{t('agent.tools.toolboxesHint')}</p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <h3 className="inline-flex items-center gap-1.5 text-sm font-semibold text-foreground">
+              <Wrench className="size-4" />
+              {t('agent.tools.toolboxesTitle')}
+            </h3>
+            <p className="text-xs text-muted-foreground">{t('agent.tools.toolboxesHint')}</p>
+          </div>
+          {onManageToolboxes && (
+            <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={onManageToolboxes}>
+              <Settings2 className="size-3.5" />
+              {t('agent.tools.manageToolboxes', 'Manage toolboxes')}
+            </Button>
+          )}
         </div>
 
         {toolboxes.length === 0 ? (
@@ -141,6 +153,7 @@ export function AgentToolsTab({ agentId, toolboxIds, onToolboxIdsChange }: Agent
             selected={previewSelected}
             onChange={() => {}}
             readOnly
+            hideSwitches
           />
         )}
       </div>

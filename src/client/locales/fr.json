@@ -422,6 +422,7 @@
         "embedding": "Nécessite un fournisseur d'embedding — le rappel et l'enregistrement en mémoire échoueront tant qu'aucun n'est configuré."
       },
       "toolboxesTitle": "Boîtes à outils",
+      "manageToolboxes": "Gérer les boîtes à outils",
       "toolboxesHint": "Choisissez une ou plusieurs boîtes à outils pour accorder ses outils à cet Agent. Une boîte regroupe des outils de toutes les sources (natifs, plugin, MCP, personnalisés).",
       "defaultsToAll": "Aucune boîte sélectionnée — cet Agent utilise la boîte intégrée « all » (tous les outils natifs et custom).",
       "noToolboxesTitle": "Aucune boîte à outils",
