@@ -1786,7 +1786,7 @@ export async function processNextMessage(agentId: string): Promise<boolean> {
         { agentId, messageId: assistantMessageId, toolCalls: toolCallsLog.length, step },
         'LLM closed stream with no text after tool execution (silent stop)',
       )
-      fullContent = `*(J'ai exécuté ${toolCallsLog.length} tool call${toolCallsLog.length > 1 ? 's' : ''} mais le modèle n'a pas produit de réponse finale. Cela arrive parfois sur de très gros contextes. Demande-moi de continuer ou de résumer.)*`
+      fullContent = `*(Executed ${toolCallsLog.length} tool call${toolCallsLog.length > 1 ? 's' : ''} but the model produced no final text. This sometimes happens on very large contexts — ask me to continue or summarize.)*`
       sseManager.sendToAgent(agentId, {
         type: 'chat:token',
         agentId,
@@ -1877,6 +1877,7 @@ export async function processNextMessage(agentId: string): Promise<boolean> {
             meta.emptyTurn = true
             meta.finishReason = lastFinishReason
           }
+          if (silentStopAfterTools) meta.silentStop = true
           if (tokenUsage) meta.tokenUsage = tokenUsage
           return Object.keys(meta).length > 0 ? JSON.stringify(meta) : null
         })(),
@@ -1897,6 +1898,8 @@ export async function processNextMessage(agentId: string): Promise<boolean> {
         sourceName: agent.name,
         sourceAvatarUrl: agent.avatarPath ? `/api/uploads/agents/${agent.id}/avatar.${agent.avatarPath.split('.').pop()}` : null,
         ...(stepLimitReached ? { stepLimitReached: true } : {}),
+        ...(emptyTurn ? { emptyTurn: true, finishReason: lastFinishReason } : {}),
+        ...(silentStopAfterTools ? { silentStop: true } : {}),
         ...(tokenUsage ? { tokenUsage } : {}),
       },
     })
@@ -2494,7 +2497,7 @@ export async function processQuickMessage(agentId: string): Promise<boolean> {
         { agentId, sessionId, messageId: assistantMessageId, toolCalls: toolCallsLog.length, step },
         'Quick session: LLM closed stream with no text after tool execution (silent stop)',
       )
-      fullContent = `*(J'ai exécuté ${toolCallsLog.length} tool call${toolCallsLog.length > 1 ? 's' : ''} mais le modèle n'a pas produit de réponse finale. Cela arrive parfois sur de très gros contextes. Demande-moi de continuer ou de résumer.)*`
+      fullContent = `*(Executed ${toolCallsLog.length} tool call${toolCallsLog.length > 1 ? 's' : ''} but the model produced no final text. This sometimes happens on very large contexts — ask me to continue or summarize.)*`
       sseManager.sendToAgent(agentId, {
         type: 'chat:token',
         agentId,
@@ -2561,6 +2564,7 @@ export async function processQuickMessage(agentId: string): Promise<boolean> {
             meta.emptyTurn = true
             meta.finishReason = lastFinishReason
           }
+          if (silentStopAfterTools) meta.silentStop = true
           if (tokenUsage) meta.tokenUsage = tokenUsage
           return Object.keys(meta).length > 0 ? JSON.stringify(meta) : null
         })(),
@@ -2572,7 +2576,14 @@ export async function processQuickMessage(agentId: string): Promise<boolean> {
     sseManager.sendToAgent(agentId, {
       type: 'chat:done',
       agentId,
-      data: { messageId: assistantMessageId, content: fullContent, sessionId, ...(tokenUsage ? { tokenUsage } : {}) },
+      data: {
+        messageId: assistantMessageId,
+        content: fullContent,
+        sessionId,
+        ...(emptyTurn ? { emptyTurn: true, finishReason: lastFinishReason } : {}),
+        ...(silentStopAfterTools ? { silentStop: true } : {}),
+        ...(tokenUsage ? { tokenUsage } : {}),
+      },
     })
 
     // No compacting, no memory extraction for quick sessions

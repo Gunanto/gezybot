@@ -54,6 +54,12 @@ interface MessageBubbleProps {
   toolCalls?: ToolCallViewItem[]
   injectedMemories?: InjectedMemory[] | null
   stepLimitReached?: boolean
+  /** Turn ended with no content and no tool calls — show a localized notice instead of the sentinel text. */
+  emptyTurn?: boolean
+  /** Normalized finish reason carried with emptyTurn (content-filter, length, …). */
+  finishReason?: string | null
+  /** Stream closed with no text after tool execution — localized notice replaces the sentinel. */
+  silentStop?: boolean
   files?: MessageFile[]
   reactions?: MessageReaction[]
   currentUserId?: string
@@ -975,6 +981,9 @@ export const MessageBubble = memo(function MessageBubble({
   toolCalls,
   injectedMemories,
   stepLimitReached = false,
+  emptyTurn = false,
+  finishReason = null,
+  silentStop = false,
   files,
   reactions,
   currentUserId,
@@ -1133,6 +1142,10 @@ export const MessageBubble = memo(function MessageBubble({
           {/* Interleaved content parts */}
           {contentParts.map((part, i) =>
             part.type === 'text' ? (
+              // The server persists a short English sentinel for empty/silent
+              // turns (kept for channels + LLM replay); the web UI shows the
+              // localized notice below instead.
+              emptyTurn || silentStop ? null : (
               <div
                 key={`text-${i}`}
                 className={cn('rounded-2xl px-4 py-2.5', bubbleClass, i === 0 && 'rounded-tl-md')}
@@ -1140,6 +1153,7 @@ export const MessageBubble = memo(function MessageBubble({
               >
                 {isRedacted ? redactedContent : <MarkdownContent content={part.text} isUser={false} />}
               </div>
+              )
             ) : part.type === 'reasoning' ? (
               <ReasoningBlock key={`reasoning-${i}`} reasoning={part.text} />
             ) : (
@@ -1165,6 +1179,22 @@ export const MessageBubble = memo(function MessageBubble({
 
           {/* Injected memories indicator */}
           {hasMemories && <InjectedMemoriesIndicator memories={injectedMemories} />}
+
+          {/* Empty-turn / silent-stop notice (replaces the sentinel text) */}
+          {(emptyTurn || silentStop) && (
+            <div className="flex items-center gap-1.5 mt-1 text-[11px] text-warning">
+              <span>⚠️</span>
+              <span className="text-muted-foreground">
+                {emptyTurn
+                  ? finishReason === 'content-filter'
+                    ? t('chat.emptyTurn.contentFilter')
+                    : finishReason === 'length'
+                      ? t('chat.emptyTurn.length')
+                      : t('chat.emptyTurn.generic', { reason: finishReason ?? 'unknown' })
+                  : t('chat.silentStop')}
+              </span>
+            </div>
+          )}
 
           {/* Step limit indicator */}
           {stepLimitReached && (

@@ -652,6 +652,12 @@
     "contextUsage": "Contexte : ~{{tokens}} / {{max}} tokens ({{percent}} %), inclut prompt système, historique et outils",
     "contextNoData": "L'utilisation du contexte apparaîtra après le premier message traité",
     "stepLimitReached": "Réponse tronquée : limite d'étapes atteinte. Demandez-moi de continuer.",
+    "emptyTurn": {
+      "contentFilter": "Le fournisseur a interrompu cette réponse avant qu'un contenu soit produit (filtre de sécurité). Essayez de reformuler votre demande.",
+      "length": "Le modèle a atteint sa limite de tokens de sortie avant de produire un contenu visible. Réessayez, ou réduisez l'effort de réflexion.",
+      "generic": "Le modèle a terminé son tour sans produire de réponse (raison : {{reason}}). Réessayez d'envoyer votre message."
+    },
+    "silentStop": "Le modèle a exécuté ses outils mais n'a produit aucun texte final. Demandez-lui de continuer ou de résumer.",
     "tokenUsage": {
       "label": "{{total}} tokens",
       "input": "Entrée",
@@ -939,7 +945,6 @@
       "success_other": "Retour effectué — {{count}} messages supprimés"
     },
     "regenerate": "Régénérer",
-    "moreActions": "Plus d'actions",
     "toolsBadge": {
       "tooltip_one": "{{count}} outil disponible — cliquez pour le lister",
       "tooltip_other": "{{count}} outils disponibles — cliquez pour les lister"

@@ -1029,7 +1029,7 @@ describe('detectSilentStop', () => {
 // The fallback message is composed at the agent-engine and tasks call sites.
 // Re-implement the pluralization to lock the contract.
 function silentStopFallbackAgentEngine(toolCallsCount: number): string {
-  return `*(J'ai exécuté ${toolCallsCount} tool call${toolCallsCount > 1 ? 's' : ''} mais le modèle n'a pas produit de réponse finale. Cela arrive parfois sur de très gros contextes. Demande-moi de continuer ou de résumer.)*`
+  return `*(Executed ${toolCallsCount} tool call${toolCallsCount > 1 ? 's' : ''} but the model produced no final text. This sometimes happens on very large contexts — ask me to continue or summarize.)*`
 }
 
 describe('silent-stop fallback (agent-engine wording)', () => {
@@ -1042,8 +1042,8 @@ describe('silent-stop fallback (agent-engine wording)', () => {
     expect(silentStopFallbackAgentEngine(5)).toContain('5 tool calls')
   })
 
-  it("mentions that the model did not produce a final response", () => {
-    expect(silentStopFallbackAgentEngine(2)).toContain("n'a pas produit de réponse finale")
+  it('mentions that the model did not produce a final response', () => {
+    expect(silentStopFallbackAgentEngine(2)).toContain('produced no final text')
   })
 })
 

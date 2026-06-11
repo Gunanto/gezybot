@@ -24,6 +24,9 @@ export interface StreamingDoneData {
   sourceName?: string | null
   sourceAvatarUrl?: string | null
   stepLimitReached?: boolean
+  emptyTurn?: boolean
+  finishReason?: string | null
+  silentStop?: boolean
   tokenUsage?: ChatMessage['tokenUsage']
 }
 
@@ -237,6 +240,9 @@ export function useChatStreaming(options?: UseChatStreamingOptions) {
         files: [],
         reactions: [],
         stepLimitReached: (data?.stepLimitReached as boolean) ?? false,
+        emptyTurn: (data?.emptyTurn as boolean) ?? false,
+        finishReason: (data?.finishReason as string) ?? null,
+        silentStop: (data?.silentStop as boolean) ?? false,
         tokenUsage: data?.tokenUsage ?? null,
         reasoning: streamingReasoningRef.current ? [{ offset: 0, text: streamingReasoningRef.current }] : null,
         channelContextLine: null,

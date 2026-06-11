@@ -652,6 +652,12 @@
     "contextUsage": "Context: ~{{tokens}} / {{max}} tokens ({{percent}}%), includes system prompt, history & tools",
     "contextNoData": "Context usage will appear after the first message is processed",
     "stepLimitReached": "Response truncated: tool step limit reached. Ask me to continue.",
+    "emptyTurn": {
+      "contentFilter": "The provider stopped this response before any content was produced (safety filter). Try rephrasing your request.",
+      "length": "The model hit its output-token limit before producing any visible content. Try again, or lower the thinking effort.",
+      "generic": "The model ended its turn without producing a response (reason: {{reason}}). Try sending your message again."
+    },
+    "silentStop": "The model ran its tools but produced no final text. Ask it to continue or summarize.",
     "tokenUsage": {
       "label": "{{total}} tokens",
       "input": "Input",
@@ -939,7 +945,6 @@
       "success_other": "Rewound — {{count}} messages removed"
     },
     "regenerate": "Regenerate",
-    "moreActions": "More actions",
     "toolsBadge": {
       "tooltip_one": "{{count}} tool available — click to list it",
       "tooltip_other": "{{count}} tools available — click to list them"

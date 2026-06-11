@@ -70,6 +70,12 @@ export interface ChatMessage {
   memoriesExtracted: number | null
   compactingError: string | null
   stepLimitReached: boolean
+  /** Turn ended with no content and no tool calls (e.g. provider content filter). */
+  emptyTurn?: boolean
+  /** Normalized provider finish reason carried with emptyTurn. */
+  finishReason?: string | null
+  /** Stream closed with no text after tool execution. */
+  silentStop?: boolean
   tokenUsage: MessageTokenUsage | null
   reasoning: Array<{ offset: number; text: string }> | null
   files: MessageFile[]
@@ -433,6 +439,9 @@ export function useChat(agentId: string | null) {
         sourceName: (data.sourceName as string) ?? undefined,
         sourceAvatarUrl: (data.sourceAvatarUrl as string) ?? undefined,
         stepLimitReached: (data.stepLimitReached as boolean) ?? undefined,
+        emptyTurn: (data.emptyTurn as boolean) ?? undefined,
+        finishReason: (data.finishReason as string) ?? undefined,
+        silentStop: (data.silentStop as boolean) ?? undefined,
         tokenUsage: (data.tokenUsage as ChatMessage['tokenUsage']) ?? undefined,
       })
 
