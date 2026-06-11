@@ -36,24 +36,40 @@ export function NotificationBell({ onOpenSettings }: NotificationBellProps) {
   const handleClick = useCallback((notification: NotificationSummary) => {
     setOpen(false)
 
+    // Open the Agent's conversation (where the prompt / mention / alert lives).
+    const toAgent = () => {
+      if (notification.agentSlug) navigate(`/agent/${notification.agentSlug}`)
+    }
+
     switch (notification.type) {
+      // Everything that surfaces inside an Agent's conversation.
       case 'prompt:pending':
       case 'agent:error':
-        if (notification.agentSlug) {
-          navigate(`/agent/${notification.agentSlug}`)
-        }
+      case 'agent:alert':
+      case 'mention':
+        toAgent()
         break
+      // Cron approval lives on the Scheduled Tasks page (moved off the Agent
+      // chat in the page reshuffle — this is the regression the bell still had).
+      case 'cron:pending-approval':
+        navigate('/crons')
+        break
+      // Settings-section approvals / setup.
       case 'channel:user-pending':
         onOpenSettings?.('channels')
-        break
-      case 'cron:pending-approval':
-        if (notification.agentSlug) {
-          navigate(`/agent/${notification.agentSlug}`)
-        }
         break
       case 'mcp:pending-approval':
         onOpenSettings?.('mcp')
         break
+      case 'email:pending-send-approval':
+        onOpenSettings?.('emailAccounts')
+        break
+      default: {
+        // Exhaustiveness guard: adding a NotificationType without a target here
+        // is a compile error, so a new notification can never silently dead-end.
+        const _exhaustive: never = notification.type
+        void _exhaustive
+      }
     }
   }, [onOpenSettings, navigate])
 
