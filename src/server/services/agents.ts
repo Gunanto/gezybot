@@ -85,6 +85,7 @@ export interface UpdateAgentInput {
   /** JSON-serialized array of toolbox ids. Null/empty → 'all' built-in at
    *  resolution. The toolbox is the sole tool-grant primitive. */
   toolboxIds?: string[] | null
+  extraToolNames?: string[] | null
   compactingConfig?: AgentCompactingConfig | null
   thinkingConfig?: AgentThinkingConfig | null
   mcpServerIds?: string[]
@@ -105,6 +106,7 @@ export interface AgentRecord {
   scoutProviderId: string | null
   workspacePath: string
   toolboxIds: string | null
+  extraToolNames: string | null
   compactingConfig: string | null
   thinkingConfig: string | null
   createdBy: string | null
@@ -230,6 +232,10 @@ export async function updateAgent(
       updates.scoutModel = null
       updates.scoutProviderId = null
     }
+  }
+  if (input.extraToolNames !== undefined) {
+    updates.extraToolNames =
+      input.extraToolNames && input.extraToolNames.length > 0 ? JSON.stringify(input.extraToolNames) : null
   }
   if (input.toolboxIds !== undefined) {
     // Null/empty → store null so resolution falls back to the 'all' built-in.

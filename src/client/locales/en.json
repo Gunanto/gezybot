@@ -430,7 +430,17 @@
       "noToolboxesDescription": "Create toolboxes from Settings to grant tools to this Agent.",
       "resolvedPreviewTitle": "Granted tools",
       "resolvedPreviewHint": "Read-only preview of the tools the selected toolboxes grant. Listed tools that don't exist are skipped.",
-      "resolvedPreviewEmpty": "No tools granted by the current selection."
+      "resolvedPreviewEmpty": "No tools granted by the current selection.",
+      "extras": {
+        "title": "Individual grants",
+        "hint": "Tools granted on top of toolboxes — approved requests land here.",
+        "add": "Add tools",
+        "empty": "No individual grants.",
+        "remove": "Remove {{name}}",
+        "dialogTitle": "Add individual tool grants",
+        "dialogHint": "Pick the tools to grant this Agent on top of its toolboxes.",
+        "apply": "Apply"
+      }
     },
     "defaults": {
       "character": "You are a friendly, thoughtful, and versatile assistant. You communicate clearly and adapt your tone to the context - casual when appropriate, precise when needed.\n\nYou are patient, curious, and genuinely enjoy helping. When you don't know something, you say so honestly. You ask clarifying questions when the request is ambiguous.\n\nYou keep your responses concise unless the user explicitly asks for detail.",
@@ -2617,6 +2627,7 @@
       "list_memories": "List Memories",
       "search_history": "Search History",
       "get_secret": "Get Secret",
+      "request_tool_access": "Request Tool Access",
       "create_secret": "Create Secret",
       "update_secret": "Update Secret",
       "delete_secret": "Delete Secret",
@@ -2901,7 +2912,13 @@
     "no": "No",
     "selectOne": "Select one option",
     "selectMultiple": "Select one or more options",
-    "noneSelected": "Select at least one option"
+    "noneSelected": "Select at least one option",
+    "toolAccess": {
+      "reason": "Agent's reason",
+      "grant": "Grant selected ({{count}})",
+      "deny": "Deny",
+      "denyAll": "Deny all"
+    }
   },
   "commandPalette": {
     "title": "Command Palette",

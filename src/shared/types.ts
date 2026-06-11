@@ -510,7 +510,7 @@ export interface TriggerLogEntry {
 
 // ─── Human Prompt types ──────────────────────────────────────────────────────
 
-export type HumanPromptType = 'confirm' | 'select' | 'multi_select' | 'text'
+export type HumanPromptType = 'confirm' | 'select' | 'multi_select' | 'text' | 'tool_access'
 
 export type HumanPromptStatus = 'pending' | 'answered' | 'expired' | 'cancelled'
 

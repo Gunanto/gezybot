@@ -26,6 +26,7 @@ export type SSEEventType =
   | 'agent:deleted'
   | 'prompt:pending'
   | 'prompt:answered'
+  | 'agent:tools-granted'
   | 'prompt:expired'
   | 'prompt:secret-request'
   | 'prompt:secret-resolved'

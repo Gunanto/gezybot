@@ -38,9 +38,28 @@ import { resolveMCPTools } from '@/server/services/mcp'
 import { resolveCustomTools } from '@/server/services/custom-tools'
 import { CORE_TOOLS, getToolboxByName, resolveToolboxNames } from '@/server/services/toolboxes'
 import { HARD_EXCLUDED_FROM_SUBKIN } from '@/server/services/tasks'
+import { db } from '@/server/db'
+import { agents } from '@/server/db/schema'
+import { eq } from 'drizzle-orm'
 import { createLogger } from '@/server/logger'
 
 const log = createLogger('toolset-resolver')
+
+/** Parse `agents.extra_tool_names` for an Agent (empty array when unset/malformed). */
+export async function getAgentExtraToolNames(agentId: string): Promise<string[]> {
+  const row = await db
+    .select({ extraToolNames: agents.extraToolNames })
+    .from(agents)
+    .where(eq(agents.id, agentId))
+    .get()
+  if (!row?.extraToolNames) return []
+  try {
+    const parsed = JSON.parse(row.extraToolNames)
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
 
 /**
  * Resolve a raw `agents.toolbox_ids` / `tasks.toolbox_ids` selection into a clean
@@ -145,9 +164,14 @@ export async function resolveToolset(
   }
 
   // ── Allow-list ──────────────────────────────────────────────────────────────
-  // CORE_TOOLS ∪ (the toolboxes' listed names). "*" → all native + all enabled custom.
+  // CORE_TOOLS ∪ (the toolboxes' listed names) ∪ the Agent's individual grants
+  // (`agents.extra_tool_names`: manual additions + approved request_tool_access
+  // requests). "*" → all native + all enabled custom. Extras are fetched here
+  // (not threaded by callers) so every resolution path honours them; the
+  // sub-Agent hard floor below still subtracts as usual.
   const resolvedIds = resolveAgentToolboxIds(toolboxIds, { ticketId: ticketId ?? null })
   const allowed = new Set<string>([...CORE_TOOLS, ...resolveToolboxNames(resolvedIds)])
+  for (const name of await getAgentExtraToolNames(agentId)) allowed.add(name)
 
   // ── Filter universe → toolset ─────────────────────────────────────────────────
   const toolset: Record<string, Tool<any, any>> = {}

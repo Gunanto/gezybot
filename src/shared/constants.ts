@@ -462,6 +462,12 @@ export const CORE_TOOLS: readonly string[] = [
   // Human in the loop.
   'prompt_human',
   'notify',
+
+  // Tool self-service: every Agent can discover what exists and ask the user
+  // for access — the approval card is the gate (granted names land in
+  // agents.extra_tool_names).
+  'list_tools',
+  'request_tool_access',
   // Secure secret entry (popup → vault; the value never reaches the LLM). The
   // secure analog of prompt_human, so any Agent can acquire a credential it needs
   // instead of asking the user to paste it into the chat. Main-only in practice

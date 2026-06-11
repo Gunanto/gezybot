@@ -587,6 +587,12 @@ agentRoutes.get('/:id', async (c) => {
     scoutProviderId: details.scoutProviderId ?? null,
     workspacePath: details.workspacePath,
     toolboxIds: parseToolboxIds(details.toolboxIds),
+    extraToolNames: (() => {
+      try {
+        const parsed = JSON.parse(details.extraToolNames ?? 'null')
+        return Array.isArray(parsed) ? parsed : null
+      } catch { return null }
+    })(),
     compactingConfig: details.compactingConfig ? JSON.parse(details.compactingConfig) : null,
     thinkingConfig: details.thinkingConfig ? JSON.parse(details.thinkingConfig) : null,
     mcpServers: details.mcpServers,
@@ -708,6 +714,9 @@ agentRoutes.patch('/:id', async (c) => {
     scoutProviderId: body.scoutProviderId,
     slug: body.slug,
     toolboxIds: normalizeToolboxIdsInput(body.toolboxIds),
+    extraToolNames: Array.isArray(body.extraToolNames)
+      ? body.extraToolNames.filter((x: unknown): x is string => typeof x === 'string')
+      : body.extraToolNames === null ? null : undefined,
     compactingConfig: body.compactingConfig,
     thinkingConfig: body.thinkingConfig,
     mcpServerIds: body.mcpServerIds,
@@ -1428,6 +1437,12 @@ agentRoutes.get('/:id/export', async (c) => {
     expertise: details.expertise,
     model: details.model,
     toolboxIds: parseToolboxIds(details.toolboxIds),
+    extraToolNames: (() => {
+      try {
+        const parsed = JSON.parse(details.extraToolNames ?? 'null')
+        return Array.isArray(parsed) ? parsed : null
+      } catch { return null }
+    })(),
     compactingConfig: details.compactingConfig ? JSON.parse(details.compactingConfig) : null,
     thinkingConfig: details.thinkingConfig ? JSON.parse(details.thinkingConfig) : null,
     mcpServers: mcpServerDetails,

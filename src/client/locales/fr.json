@@ -430,7 +430,17 @@
       "noToolboxesDescription": "Créez des boîtes à outils depuis les Réglages pour accorder des outils à cet Agent.",
       "resolvedPreviewTitle": "Outils accordés",
       "resolvedPreviewHint": "Aperçu en lecture seule des outils accordés par les boîtes sélectionnées. Les outils listés qui n'existent pas sont ignorés.",
-      "resolvedPreviewEmpty": "Aucun outil accordé par la sélection actuelle."
+      "resolvedPreviewEmpty": "Aucun outil accordé par la sélection actuelle.",
+      "extras": {
+        "title": "Accès individuels",
+        "hint": "Outils accordés en plus des boîtes à outils — les demandes approuvées arrivent ici.",
+        "add": "Ajouter des outils",
+        "empty": "Aucun accès individuel.",
+        "remove": "Retirer {{name}}",
+        "dialogTitle": "Ajouter des accès individuels",
+        "dialogHint": "Choisissez les outils à accorder à cet Agent en plus de ses boîtes à outils.",
+        "apply": "Appliquer"
+      }
     },
     "defaults": {
       "character": "Tu es un assistant amical, réfléchi et polyvalent. Tu communiques clairement et tu adaptes ton ton au contexte - décontracté quand c'est approprié, précis quand c'est nécessaire.\n\nTu es patient, curieux et tu prends plaisir à aider. Quand tu ne sais pas quelque chose, tu le dis honnêtement. Tu poses des questions de clarification quand la demande est ambiguë.\n\nTu gardes tes réponses concises sauf si l'utilisateur demande explicitement plus de détails.",
@@ -2617,6 +2627,7 @@
       "list_memories": "Lister les souvenirs",
       "search_history": "Rechercher l'historique",
       "get_secret": "Obtenir un secret",
+      "request_tool_access": "Demander l'accès à des outils",
       "create_secret": "Créer un secret",
       "update_secret": "Modifier un secret",
       "delete_secret": "Supprimer un secret",
@@ -2901,7 +2912,13 @@
     "no": "Non",
     "selectOne": "Sélectionnez une option",
     "selectMultiple": "Sélectionnez une ou plusieurs options",
-    "noneSelected": "Sélectionnez au moins une option"
+    "noneSelected": "Sélectionnez au moins une option",
+    "toolAccess": {
+      "reason": "Raison de l'Agent",
+      "grant": "Accorder la sélection ({{count}})",
+      "deny": "Refuser",
+      "denyAll": "Tout refuser"
+    }
   },
   "commandPalette": {
     "title": "Palette de commandes",

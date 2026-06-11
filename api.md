@@ -265,6 +265,10 @@ Liste tous les modèles disponibles a travers tous les providers configurés.
   expertise?: string
   model?: string
   mcpServerIds?: string[]
+  toolboxIds?: string[] | null
+  // Grants individuels (en plus des toolboxes) : ajouts manuels + demandes
+  // request_tool_access approuvées. [] ou null efface tout.
+  extraToolNames?: string[] | null
 }
 
 // Response 200
@@ -1341,6 +1345,10 @@ Liste les dossiers/labels d'un compte connecté (pour le picker de dossier d'un 
 ## Secure input (secret prompts)
 
 Popup de saisie sécurisée : un Agent (configurateur ou via `prompt_secret` / `request_provider_setup`) demande un secret (clé d'API, token). La valeur va **directement au coffre** ; elle ne transite jamais par le LLM, n'est ni journalisée ni stockée dans `secret_prompts`. Voir `secret-prompts.ts`. Émet `prompt:secret-request` / `prompt:secret-resolved` en SSE.
+
+### Human prompts — type `tool_access`
+
+`request_tool_access` (outil du floor, dispo pour tout Agent) crée un human prompt `promptType: 'tool_access'` : `description` = raison de l'Agent, `options[]` = un item par outil demandé. Réponse via le endpoint standard `POST /api/prompts/:id/respond` avec `{ response: string[] }` — la liste des outils **accordés** (tableau vide = tout refuser, valide contrairement à `multi_select`). À l'approbation le serveur fusionne les noms accordés dans `agents.extra_tool_names` (permanent, révocable via `PATCH /api/agents/:id`) puis relance l'Agent ; SSE `agent:tools-granted` `{ agentId, granted, extraToolNames }`.
 
 ### `GET /api/secret-prompts/pending?agentId=`
 

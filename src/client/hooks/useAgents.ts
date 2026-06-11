@@ -30,6 +30,9 @@ interface AgentDetail extends AgentSummary {
   workspacePath: string
   /** Toolbox selection (sole tool-grant primitive). Null → 'all' built-in. */
   toolboxIds: string[] | null
+  /** Individual tool grants on top of toolboxes (incl. approved
+   *  request_tool_access requests). Null → none. */
+  extraToolNames: string[] | null
   compactingConfig: AgentCompactingConfig | null
   thinkingConfig: AgentThinkingConfig | null
   mcpServers: { id: string; name: string }[]
@@ -69,6 +72,7 @@ interface UpdateAgentData {
   scoutModel?: string | null
   scoutProviderId?: string | null
   toolboxIds?: string[] | null
+  extraToolNames?: string[] | null
   compactingConfig?: AgentCompactingConfig | null
   thinkingConfig?: AgentThinkingConfig | null
 }

@@ -36,6 +36,7 @@ import {
 import { AlertTriangle, Archive, ArrowLeft, Bot, Brain, Camera, Loader2, Network, Settings, ShieldCheck, Sparkles, Trash2, Upload, User, Wrench } from 'lucide-react'
 import { UnsavedChangesDialog } from '@/client/components/common/UnsavedChangesDialog'
 import { useUnsavedChanges } from '@/client/hooks/useUnsavedChanges'
+import { useSSE } from '@/client/hooks/useSSE'
 import { useHasCapability } from '@/client/hooks/useHasCapability'
 import { cn } from '@/client/lib/utils'
 import { api, getErrorMessage, toastError } from '@/client/lib/api'
@@ -64,6 +65,9 @@ interface AgentDetail {
   scoutModel?: string | null
   scoutProviderId?: string | null
   toolboxIds?: string[] | null
+  /** Individual tool grants on top of toolboxes (incl. approved
+   *  request_tool_access requests). Null/[] → none. */
+  extraToolNames?: string[] | null
   compactingConfig?: AgentCompactingConfig | null
   thinkingConfig?: AgentThinkingConfig | null
 }
@@ -271,6 +275,7 @@ export function AgentFormModal({
   const [scoutModel, setScoutModel] = useState<string | null>(null)
   const [scoutProviderId, setScoutProviderId] = useState<string | null>(null)
   const [toolboxIds, setToolboxIds] = useState<string[] | null>(null)
+  const [extraToolNames, setExtraToolNames] = useState<string[] | null>(null)
   const [compactingConfig, setCompactingConfig] = useState<AgentCompactingConfig | null>(null)
   const [thinkingConfig, setThinkingConfig] = useState<AgentThinkingConfig | null>(null)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
@@ -285,6 +290,7 @@ export function AgentFormModal({
   // save only marks THAT tab clean and the close-guard combines all tabs.
   const [initialGeneral, setInitialGeneral] = useState('')
   const [initialToolboxIds, setInitialToolboxIds] = useState('')
+  const [initialExtraTools, setInitialExtraTools] = useState('')
   const [initialCompacting, setInitialCompacting] = useState('')
   const [initialThinking, setInitialThinking] = useState('')
 
@@ -305,11 +311,12 @@ export function AgentFormModal({
     [name, slug, role, model, providerId, scoutModel, scoutProviderId, character, expertise],
   )
   const currentToolboxIds = useMemo(() => JSON.stringify(toolboxIds ?? null), [toolboxIds])
+  const currentExtraTools = useMemo(() => JSON.stringify(extraToolNames ?? null), [extraToolNames])
   const currentCompacting = useMemo(() => JSON.stringify(normalizeCompactingConfig(compactingConfig)), [compactingConfig])
   const currentThinking = useMemo(() => JSON.stringify(thinkingConfig ?? null), [thinkingConfig])
 
   const generalDirty = currentGeneral !== initialGeneral || avatarFile != null
-  const toolsDirty = currentToolboxIds !== initialToolboxIds
+  const toolsDirty = currentToolboxIds !== initialToolboxIds || currentExtraTools !== initialExtraTools
   const compactionDirty = currentCompacting !== initialCompacting
   const thinkingDirty = currentThinking !== initialThinking
   const anyDirty = generalDirty || toolsDirty || compactionDirty || thinkingDirty
@@ -355,6 +362,9 @@ export function AgentFormModal({
       setScoutModel(agent.scoutModel ?? null)
       setScoutProviderId(agent.scoutProviderId ?? null)
       setToolboxIds(agent.toolboxIds ?? null)
+      // Normalize []/null → null so dirty-tracking compares stably.
+      const loadedExtras = agent.extraToolNames && agent.extraToolNames.length > 0 ? agent.extraToolNames : null
+      setExtraToolNames(loadedExtras)
       setCompactingConfig(agent.compactingConfig ?? null)
       setThinkingConfig(agent.thinkingConfig ?? null)
       setAvatarPreview(agent.avatarUrl)
@@ -375,6 +385,7 @@ export function AgentFormModal({
         expertise: agent.expertise,
       }))
       setInitialToolboxIds(JSON.stringify(agent.toolboxIds ?? null))
+      setInitialExtraTools(JSON.stringify(loadedExtras))
       setInitialCompacting(JSON.stringify(normalizeCompactingConfig(agent.compactingConfig ?? null)))
       setInitialThinking(JSON.stringify(agent.thinkingConfig ?? null))
     } else {
@@ -388,6 +399,7 @@ export function AgentFormModal({
       setScoutModel(null)
       setScoutProviderId(null)
       setToolboxIds(null)
+      setExtraToolNames(null)
       setCompactingConfig(null)
       setThinkingConfig(null)
       setAvatarPreview(null)
@@ -399,6 +411,7 @@ export function AgentFormModal({
       // single-submit flow + markDirty, but kept consistent for cleanliness).
       setInitialGeneral('')
       setInitialToolboxIds('')
+      setInitialExtraTools('')
       setInitialCompacting('')
       setInitialThinking('')
 
@@ -432,6 +445,24 @@ export function AgentFormModal({
     if (anyDirty) markDirty()
     else resetDirty()
   }, [isEdit, anyDirty, markDirty, resetDirty])
+
+  // A request_tool_access grant approved while this modal is open lands in
+  // agents.extra_tool_names server-side — reflect it live in the Tools tab.
+  // Skipped when the user has unsaved local edits to the grants (their pending
+  // edit wins; saving PATCHes their full array). When the modal is closed this
+  // component is unmounted, and the fetch-on-open covers the catch-up.
+  useSSE({
+    'agent:tools-granted': (data) => {
+      if (!isEdit || !agent || data.agentId !== agent.id) return
+      if (currentExtraTools !== initialExtraTools) return
+      const next = Array.isArray(data.extraToolNames)
+        ? (data.extraToolNames as string[]).filter((n): n is string => typeof n === 'string')
+        : []
+      const normalized = next.length > 0 ? next : null
+      setExtraToolNames(normalized)
+      setInitialExtraTools(JSON.stringify(normalized))
+    },
+  })
 
   /** Apply a generated config to the form fields */
   const applyGeneratedConfig = (config: GeneratedAgentConfig) => {
@@ -605,8 +636,9 @@ export function AgentFormModal({
     setError('')
     setSavingTools(true)
     try {
-      await onUpdateAgent(agent.id, { toolboxIds })
+      await onUpdateAgent(agent.id, { toolboxIds, extraToolNames })
       setInitialToolboxIds(JSON.stringify(toolboxIds ?? null))
+      setInitialExtraTools(JSON.stringify(extraToolNames ?? null))
       toast.success(t('agent.settings.tabSaved'))
     } catch (err: unknown) {
       toastError(err)
@@ -1121,6 +1153,9 @@ export function AgentFormModal({
                             agentId={isEdit ? agent.id : null}
                             toolboxIds={toolboxIds}
                             onToolboxIdsChange={(next) => { setToolboxIds(next); markDirty() }}
+                            extraToolNames={extraToolNames}
+                            // Individual grants only exist on saved Agents (edit mode).
+                            onExtraToolNamesChange={isEdit ? (next) => { setExtraToolNames(next); markDirty() } : undefined}
                             onManageToolboxes={onOpenSettings ? () => onOpenSettings('toolboxes') : undefined}
                           />
                           {isEdit && (

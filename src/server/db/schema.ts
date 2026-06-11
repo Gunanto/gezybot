@@ -145,6 +145,9 @@ export const agents = sqliteTable('agents', {
   scoutProviderId: text('scout_provider_id').references(() => providers.id, { onDelete: 'set null' }),
   workspacePath: text('workspace_path').notNull(),
   toolboxIds: text('toolbox_ids'), // JSON string[] of toolbox ids; null/empty → 'all' built-in at resolution
+  /** JSON string[] of individual tool names granted on top of toolboxes
+   *  (manual grants + approved request_tool_access requests). */
+  extraToolNames: text('extra_tool_names'),
   compactingConfig: text('compacting_config'), // JSON: AgentCompactingConfig
   thinkingConfig: text('thinking_config'), // JSON: AgentThinkingConfig
   activeProjectId: text('active_project_id').references((): AnySQLiteColumn => projects.id, { onDelete: 'set null' }),

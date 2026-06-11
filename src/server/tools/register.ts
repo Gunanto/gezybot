@@ -115,6 +115,7 @@ import {
 } from '@/server/tools/subtask-tools'
 import { scoutTool } from '@/server/tools/scout-tool'
 import { promptHumanTool } from '@/server/tools/human-prompt-tools'
+import { requestToolAccessTool } from '@/server/tools/tool-access-tools'
 import { notifyTool } from '@/server/tools/notify-tool'
 import {
   sendMessageTool,
@@ -596,6 +597,7 @@ export function registerAllTools(): void {
   toolRegistry.register('get_agent_details', getAgentDetailsTool, 'agent-management')
   toolRegistry.register('list_toolboxes', listToolboxesTool, 'agent-management')
   toolRegistry.register('list_tools', listToolsTool, 'agent-management')
+  toolRegistry.register('request_tool_access', requestToolAccessTool, 'agent-management')
   toolRegistry.register('create_toolbox', createToolboxTool, 'agent-management')
   toolRegistry.register('update_toolbox', updateToolboxTool, 'agent-management')
   toolRegistry.register('delete_toolbox', deleteToolboxTool, 'agent-management')

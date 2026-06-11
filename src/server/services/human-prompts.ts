@@ -1,7 +1,7 @@
 import { eq, and } from 'drizzle-orm'
 import { v4 as uuid } from 'uuid'
 import { db, sqlite } from '@/server/db/index'
-import { humanPrompts, tasks, messages } from '@/server/db/schema'
+import { humanPrompts, tasks, messages, agents } from '@/server/db/schema'
 import { sseManager } from '@/server/sse/index'
 import { enqueueMessage } from '@/server/services/queue'
 import { config } from '@/server/config'
@@ -165,6 +165,35 @@ export async function respondToHumanPrompt(promptId: string, response: unknown, 
       respondedAt: new Date(),
     })
     .where(eq(humanPrompts.id, promptId))
+
+  // Side-effect for tool_access prompts: persist the granted names into the
+  // Agent's individual grants BEFORE resuming, so the very next turn already
+  // resolves with the new tools. The prompt is already marked answered above,
+  // so a failure here can never re-prompt in a loop (cf. secret-prompts fix);
+  // it degrades to a grant the user can redo from the Agent's Tools tab.
+  if (prompt.promptType === 'tool_access') {
+    try {
+      const granted = (response as string[]).filter((v) => options.some((o) => o.value === v))
+      if (granted.length > 0) {
+        const agentRow = await db.select({ extraToolNames: agents.extraToolNames }).from(agents).where(eq(agents.id, prompt.agentId)).get()
+        let current: string[] = []
+        try {
+          const parsed = JSON.parse(agentRow?.extraToolNames ?? '[]')
+          if (Array.isArray(parsed)) current = parsed.filter((x): x is string => typeof x === 'string')
+        } catch { /* malformed → start fresh */ }
+        const next = [...new Set([...current, ...granted])]
+        await db.update(agents).set({ extraToolNames: JSON.stringify(next) }).where(eq(agents.id, prompt.agentId))
+        sseManager.sendToAgent(prompt.agentId, {
+          type: 'agent:tools-granted',
+          agentId: prompt.agentId,
+          data: { agentId: prompt.agentId, granted, extraToolNames: next },
+        })
+        log.info({ promptId, agentId: prompt.agentId, granted }, 'Tool access granted')
+      }
+    } catch (err) {
+      log.error({ promptId, agentId: prompt.agentId, err }, 'Failed to apply tool access grant (prompt already finalized)')
+    }
+  }
 
   const formattedResponse = formatResponseForLLM(prompt.promptType, prompt.question, response, options)
 
@@ -344,6 +373,16 @@ function validateResponse(
       }
       return null
 
+    case 'tool_access':
+      // Like multi_select but an EMPTY array is valid: it means "deny all".
+      if (
+        !Array.isArray(response) ||
+        !response.every((v) => typeof v === 'string' && validValues.includes(v))
+      ) {
+        return 'Tool-access response must be an array of requested tool names (empty = deny)'
+      }
+      return null
+
     case 'text':
       if (typeof response !== 'string' || response.trim().length === 0) {
         return 'Text response must be a non-empty string'
@@ -377,6 +416,16 @@ function formatResponseForLLM(
     case 'multi_select': {
       const labels = (response as string[]).map((v) => optionLabelMap.get(v) ?? v)
       return labels.join(', ')
+    }
+    case 'tool_access': {
+      const granted = response as string[]
+      const denied = options.map((o) => o.value).filter((v) => !granted.includes(v))
+      if (granted.length === 0) return `The user DENIED the tool access request (${denied.join(', ')}).`
+      return (
+        `The user GRANTED access to: ${granted.join(', ')}. ` +
+        (denied.length > 0 ? `Denied: ${denied.join(', ')}. ` : '') +
+        'The granted tools are now available to you.'
+      )
     }
     case 'text':
       return (response as string).trim()
