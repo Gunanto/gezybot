@@ -1818,6 +1818,36 @@ export async function processNextMessage(agentId: string): Promise<boolean> {
       })
     }
 
+    // Surface empty turns: the provider closed the stream with no text and no
+    // tool calls (typically a `content-filter` stop, e.g. Anthropic `refusal`).
+    // Without this the row is dropped by the persistence guard below and the
+    // typing indicator just vanishes — the user gets no clue the request died.
+    // Producing a visible note also makes the row non-empty, so it persists
+    // and the failure stays diagnosable from the conversation itself.
+    const lastFinishReason = stepFinishReasons[stepFinishReasons.length - 1] ?? 'unknown'
+    const emptyTurn = !wasAborted && !fullContent && toolCallsLog.length === 0
+    if (emptyTurn) {
+      log.warn(
+        { agentId, messageId: assistantMessageId, finishReason: lastFinishReason },
+        'LLM turn finished with no content and no tool calls (surfacing fallback)',
+      )
+      fullContent =
+        lastFinishReason === 'content-filter'
+          ? '*(The provider stopped this response before any content was produced (finish reason: `content-filter`). This usually means a safety filter was triggered — try rephrasing your request.)*'
+          : lastFinishReason === 'length'
+            ? '*(The model hit its output-token limit before producing any visible content (finish reason: `length`). Try again, or lower the thinking effort / raise the output budget.)*'
+            : `*(The model ended its turn without producing a response (finish reason: \`${lastFinishReason}\`). Try sending your message again.)*`
+      sseManager.sendToAgent(agentId, {
+        type: 'chat:token',
+        agentId,
+        data: {
+          messageId: assistantMessageId,
+          token: fullContent,
+          isFirst: true,
+        },
+      })
+    }
+
     // Save assistant message (partial if aborted) with tool call metadata.
     // Do NOT persist when the row would carry no text AND no tool calls:
     // Anthropic rejects empty text content blocks ("text content blocks
@@ -1842,6 +1872,10 @@ export async function processNextMessage(agentId: string): Promise<boolean> {
             meta.stepLimitReached = true
             meta.maxSteps = config.tools.maxSteps
             meta.toolCallCount = toolCallsLog.length
+          }
+          if (emptyTurn) {
+            meta.emptyTurn = true
+            meta.finishReason = lastFinishReason
           }
           if (tokenUsage) meta.tokenUsage = tokenUsage
           return Object.keys(meta).length > 0 ? JSON.stringify(meta) : null
@@ -2478,6 +2512,29 @@ export async function processQuickMessage(agentId: string): Promise<boolean> {
       fullContent = `*(Completed ${toolCallsLog.length} tool call${toolCallsLog.length > 1 ? 's' : ''} but the response was truncated due to the tool step limit of ${config.tools.maxSteps}. You can ask me to continue or summarize.)*`
     }
 
+    // Surface empty turns (same rationale as main path): no text, no tool
+    // calls, not aborted — typically a `content-filter` provider stop. Show
+    // the finish reason instead of silently dropping the row.
+    const lastFinishReason = stepFinishReasons[stepFinishReasons.length - 1] ?? 'unknown'
+    const emptyTurn = !wasAborted && !fullContent && toolCallsLog.length === 0
+    if (emptyTurn) {
+      log.warn(
+        { agentId, sessionId, messageId: assistantMessageId, finishReason: lastFinishReason },
+        'Quick session: LLM turn finished with no content and no tool calls (surfacing fallback)',
+      )
+      fullContent =
+        lastFinishReason === 'content-filter'
+          ? '*(The provider stopped this response before any content was produced (finish reason: `content-filter`). This usually means a safety filter was triggered — try rephrasing your request.)*'
+          : lastFinishReason === 'length'
+            ? '*(The model hit its output-token limit before producing any visible content (finish reason: `length`). Try again, or lower the thinking effort / raise the output budget.)*'
+            : `*(The model ended its turn without producing a response (finish reason: \`${lastFinishReason}\`). Try sending your message again.)*`
+      sseManager.sendToAgent(agentId, {
+        type: 'chat:token',
+        agentId,
+        data: { messageId: assistantMessageId, token: fullContent, sessionId },
+      })
+    }
+
     // Save assistant message (with sessionId). Skip when there's no text
     // and no tool calls (typically: user aborted before the model produced
     // anything). See the main-session insert above for the rationale.
@@ -2499,6 +2556,10 @@ export async function processQuickMessage(agentId: string): Promise<boolean> {
             meta.stepLimitReached = true
             meta.maxSteps = config.tools.maxSteps
             meta.toolCallCount = toolCallsLog.length
+          }
+          if (emptyTurn) {
+            meta.emptyTurn = true
+            meta.finishReason = lastFinishReason
           }
           if (tokenUsage) meta.tokenUsage = tokenUsage
           return Object.keys(meta).length > 0 ? JSON.stringify(meta) : null

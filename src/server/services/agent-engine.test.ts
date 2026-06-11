@@ -1046,3 +1046,35 @@ describe('silent-stop fallback (agent-engine wording)', () => {
     expect(silentStopFallbackAgentEngine(2)).toContain("n'a pas produit de réponse finale")
   })
 })
+
+// ─── empty-turn fallback shape ───────────────────────────────────────────────
+
+// Mirrors the wording composed in agent-engine.ts when a turn finishes with no
+// content and no tool calls (e.g. an Anthropic `refusal` normalized to
+// `content-filter`). Locks the contract: the finish reason must be visible.
+function emptyTurnFallback(finishReason: string): string {
+  return finishReason === 'content-filter'
+    ? '*(The provider stopped this response before any content was produced (finish reason: `content-filter`). This usually means a safety filter was triggered — try rephrasing your request.)*'
+    : finishReason === 'length'
+      ? '*(The model hit its output-token limit before producing any visible content (finish reason: `length`). Try again, or lower the thinking effort / raise the output budget.)*'
+      : `*(The model ended its turn without producing a response (finish reason: \`${finishReason}\`). Try sending your message again.)*`
+}
+
+describe('empty-turn fallback (agent-engine wording)', () => {
+  it('content-filter explains the safety filter and names the reason', () => {
+    const msg = emptyTurnFallback('content-filter')
+    expect(msg).toContain('content-filter')
+    expect(msg).toContain('safety filter')
+  })
+
+  it('length names the reason and suggests adjusting budgets', () => {
+    const msg = emptyTurnFallback('length')
+    expect(msg).toContain('length')
+    expect(msg).toContain('output-token limit')
+  })
+
+  it('any other reason falls back to a generic note that names it', () => {
+    const msg = emptyTurnFallback('unknown')
+    expect(msg).toContain('finish reason: `unknown`')
+  })
+})
