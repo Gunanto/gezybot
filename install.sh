@@ -22,7 +22,14 @@ fi
 HIVEKEEP_PORT="${HIVEKEEP_PORT:-3000}"
 HIVEKEEP_PUBLIC_URL="${HIVEKEEP_PUBLIC_URL:-}"
 HIVEKEEP_REPO="MarlBurroW/hivekeep"
+# Explicitly requesting a branch implies the edge channel (tracking a branch
+# head instead of release tags).
+HIVEKEEP_BRANCH_EXPLICIT=false
+[ -n "${HIVEKEEP_BRANCH:-}" ] && HIVEKEEP_BRANCH_EXPLICIT=true
 HIVEKEEP_BRANCH="${HIVEKEEP_BRANCH:-main}"
+# Update channel: stable (release tags, default) | edge (HEAD of main).
+# Empty = auto-detect (existing checkout state, HIVEKEEP_BRANCH, else stable).
+HIVEKEEP_CHANNEL="${HIVEKEEP_CHANNEL:-}"
 HIVEKEEP_DRY_RUN=false
 HIVEKEEP_QUIET="${HIVEKEEP_QUIET:-false}"
 HIVEKEEP_START_TIME=""
@@ -908,6 +915,106 @@ backup_database() {
   fi
 }
 
+# ─── Update channels ─────────────────────────────────────────────────────────
+# stable: follows release tags (vX.Y.Z), uses prebuilt client assets from the
+#         GitHub release when available.
+# edge:   follows the HEAD of $HIVEKEEP_BRANCH (main), builds locally.
+HIVEKEEP_TARGET_TAG=""
+
+resolve_channel() {
+  # 1. Explicit --channel flag / HIVEKEEP_CHANNEL env wins
+  if [ -n "$HIVEKEEP_CHANNEL" ]; then
+    echo "$HIVEKEEP_CHANNEL"
+    return
+  fi
+  # 2. Explicitly requested branch = edge semantics
+  if [ "$HIVEKEEP_BRANCH_EXPLICIT" = true ]; then
+    echo "edge"
+    return
+  fi
+  # 3. Existing install: a branch checkout tracks that branch (edge), a
+  #    detached HEAD (left by a tag checkout) tracks releases (stable).
+  if [ -d "$HIVEKEEP_DIR/.git" ]; then
+    local cur_branch
+    cur_branch="$(git -C "$HIVEKEEP_DIR" branch --show-current 2>/dev/null || echo "")"
+    if [ -n "$cur_branch" ]; then
+      echo "edge"
+    else
+      echo "stable"
+    fi
+    return
+  fi
+  # 4. Fresh install: stable
+  echo "stable"
+}
+
+# Newest non-prerelease vX.Y.Z tag. Prefers the local repo (after a fetch);
+# falls back to the remote so it also works before cloning.
+get_latest_stable_tag() {
+  local tags=""
+  if [ -d "${HIVEKEEP_DIR:-/nonexistent}/.git" ]; then
+    tags="$(git -C "$HIVEKEEP_DIR" tag -l 'v*' 2>/dev/null)"
+  fi
+  if [ -z "$tags" ]; then
+    tags="$(git ls-remote --tags --refs "https://github.com/$HIVEKEEP_REPO.git" 'v*' 2>/dev/null | awk -F/ '{print $NF}')"
+  fi
+  echo "$tags" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1
+}
+
+# Download the prebuilt client assets attached to a release by CI
+# (hivekeep-client-vX.Y.Z.tar.gz + .sha256) and extract them into
+# $HIVEKEEP_DIR/dist/client. Returns non-zero when unavailable or invalid so
+# the caller can fall back to a local build.
+download_prebuilt_client() {
+  local tag="$1"
+  [ -z "$tag" ] && return 1
+
+  local asset="hivekeep-client-${tag}.tar.gz"
+  local base="https://github.com/$HIVEKEEP_REPO/releases/download/${tag}"
+  local tmp
+  tmp="$(mktemp -d)" || return 1
+
+  if ! curl -fsSL --connect-timeout 10 --max-time 300 -o "$tmp/$asset" "$base/$asset" 2>/dev/null; then
+    rm -rf "$tmp"
+    return 1
+  fi
+  if ! curl -fsSL --connect-timeout 10 --max-time 60 -o "$tmp/$asset.sha256" "$base/$asset.sha256" 2>/dev/null; then
+    rm -rf "$tmp"
+    return 1
+  fi
+
+  # Verify the checksum (sha256sum on Linux, shasum on macOS)
+  local expected actual
+  expected="$(awk '{print $1}' "$tmp/$asset.sha256")"
+  if command -v sha256sum &>/dev/null; then
+    actual="$(sha256sum "$tmp/$asset" | awk '{print $1}')"
+  elif command -v shasum &>/dev/null; then
+    actual="$(shasum -a 256 "$tmp/$asset" | awk '{print $1}')"
+  else
+    warn "No sha256 tool available — skipping prebuilt assets"
+    rm -rf "$tmp"
+    return 1
+  fi
+  if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+    warn "Prebuilt client checksum mismatch — falling back to local build"
+    rm -rf "$tmp"
+    return 1
+  fi
+
+  # Extract to a staging dir, sanity-check, then swap into place
+  if ! tar -xzf "$tmp/$asset" -C "$tmp" 2>/dev/null || [ ! -f "$tmp/dist/client/index.html" ]; then
+    warn "Prebuilt client archive is malformed — falling back to local build"
+    rm -rf "$tmp"
+    return 1
+  fi
+
+  rm -rf "${HIVEKEEP_DIR:?}/dist/client"
+  mkdir -p "$HIVEKEEP_DIR/dist"
+  mv "$tmp/dist/client" "$HIVEKEEP_DIR/dist/client"
+  rm -rf "$tmp"
+  return 0
+}
+
 # ─── Clone or update ─────────────────────────────────────────────────────────
 ROLLBACK_COMMIT=""
 HIVEKEEP_NO_CHANGES=false
@@ -915,8 +1022,11 @@ HIVEKEEP_NO_CHANGES=false
 install_or_update() {
   step "Installing Hivekeep"
 
+  local channel
+  channel="$(resolve_channel)"
+
   if [ -d "$HIVEKEEP_DIR/.git" ]; then
-    info "Existing installation found at $HIVEKEEP_DIR — updating..."
+    info "Existing installation found at $HIVEKEEP_DIR — updating (${BOLD}${channel}${NC} channel)..."
 
     # Backup database before update
     backup_database
@@ -929,37 +1039,59 @@ install_or_update() {
       info "Current version: $old_version (rollback point: ${ROLLBACK_COMMIT:0:8})"
     fi
 
-    retry 3 "git fetch" git -C "$HIVEKEEP_DIR" fetch origin
+    retry 3 "git fetch" git -C "$HIVEKEEP_DIR" fetch --tags origin
 
-    # Detect a dirty working tree before pulling. A plain `git pull` aborts with a
-    # cryptic "local changes would be overwritten" error if any tracked file was
-    # edited (or a build artifact got committed locally), so handle it explicitly.
+    # Detect a dirty working tree before switching versions. A plain checkout/
+    # pull aborts with a cryptic "local changes would be overwritten" error if
+    # any tracked file was edited, so handle it explicitly.
     local working_tree_dirty=false
-    if [ -n "$(git -C "$HIVEKEEP_DIR" status --porcelain 2>/dev/null)" ]; then
+    if [ -n "$(git -C "$HIVEKEEP_DIR" status --porcelain 2>/dev/null | grep -v '^??' || true)" ]; then
       working_tree_dirty=true
     fi
 
-    git -C "$HIVEKEEP_DIR" checkout "$HIVEKEEP_BRANCH"
+    if [ "$channel" = "stable" ]; then
+      # Stable: check out the newest release tag (detached HEAD — the repo
+      # state IS the release, which is also how install state is detected).
+      HIVEKEEP_TARGET_TAG="$(get_latest_stable_tag)"
+      if [ -z "$HIVEKEEP_TARGET_TAG" ]; then
+        error "Could not resolve the latest release tag. Check your internet connection, or use --channel edge to track main."
+      fi
 
-    if [ "$working_tree_dirty" = true ]; then
-      warn "Local changes detected in $HIVEKEEP_DIR. Stashing them before updating."
-      # Run as a SINGLE attempt: a merge conflict is not transient, so retrying
-      # would only re-fail with "a rebase is in progress" after each backoff and
-      # could leave a half-finished rebase tree littered with conflict markers.
-      if git -C "$HIVEKEEP_DIR" -c rebase.autoStash=true pull --rebase origin "$HIVEKEEP_BRANCH"; then
-        info "Your local changes were stashed and re-applied on top of the update."
-        info "If anything looks off, run: git -C \"$HIVEKEEP_DIR\" stash list"
-      else
-        # Abort any in-progress rebase so the tree is left clean (guarded: this is
-        # a no-op if no rebase is actually in progress).
-        git -C "$HIVEKEEP_DIR" rebase --abort &>/dev/null || true
-        error "Update could not merge your local changes automatically.
+      if [ "$working_tree_dirty" = true ]; then
+        warn "Local changes detected in $HIVEKEEP_DIR. Stashing them before updating."
+        git -C "$HIVEKEEP_DIR" stash push -m "pre-update $(date +%Y%m%d-%H%M%S)" &>/dev/null || true
+        info "Recover them later with: git -C \"$HIVEKEEP_DIR\" stash list"
+      fi
+
+      git -C "$HIVEKEEP_DIR" checkout --detach "$HIVEKEEP_TARGET_TAG" &>/dev/null || \
+        error "Could not check out $HIVEKEEP_TARGET_TAG.
+  ${BOLD}Fix:${NC} reset to a clean copy (your data and config are preserved):
+    ${DIM}bash install.sh --reset${NC}"
+    else
+      # Edge: fast-forward the tracked branch.
+      git -C "$HIVEKEEP_DIR" checkout "$HIVEKEEP_BRANCH" &>/dev/null || \
+        git -C "$HIVEKEEP_DIR" checkout -B "$HIVEKEEP_BRANCH" "origin/$HIVEKEEP_BRANCH"
+
+      if [ "$working_tree_dirty" = true ]; then
+        warn "Local changes detected in $HIVEKEEP_DIR. Stashing them before updating."
+        # Run as a SINGLE attempt: a merge conflict is not transient, so retrying
+        # would only re-fail with "a rebase is in progress" after each backoff and
+        # could leave a half-finished rebase tree littered with conflict markers.
+        if git -C "$HIVEKEEP_DIR" -c rebase.autoStash=true pull --rebase origin "$HIVEKEEP_BRANCH"; then
+          info "Your local changes were stashed and re-applied on top of the update."
+          info "If anything looks off, run: git -C \"$HIVEKEEP_DIR\" stash list"
+        else
+          # Abort any in-progress rebase so the tree is left clean (guarded: this is
+          # a no-op if no rebase is actually in progress).
+          git -C "$HIVEKEEP_DIR" rebase --abort &>/dev/null || true
+          error "Update could not merge your local changes automatically.
   Your installation has uncommitted edits that conflict with the new version.
   ${BOLD}Fix:${NC} reset to a clean copy (your data and config are preserved):
     ${DIM}bash install.sh --reset${NC}"
+        fi
+      else
+        retry 3 "git pull" git -C "$HIVEKEEP_DIR" pull origin "$HIVEKEEP_BRANCH"
       fi
-    else
-      retry 3 "git pull" git -C "$HIVEKEEP_DIR" pull origin "$HIVEKEEP_BRANCH"
     fi
 
     local new_version
@@ -980,7 +1112,19 @@ install_or_update() {
     IS_UPDATE=true
   else
     mkdir -p "$(dirname "$HIVEKEEP_DIR")"
-    run_with_spinner "Cloning Hivekeep to $HIVEKEEP_DIR..." retry 3 "git clone" git clone "https://github.com/$HIVEKEEP_REPO.git" "$HIVEKEEP_DIR" --branch "$HIVEKEEP_BRANCH" --depth 1
+    if [ "$channel" = "stable" ]; then
+      HIVEKEEP_TARGET_TAG="$(get_latest_stable_tag)"
+      if [ -n "$HIVEKEEP_TARGET_TAG" ]; then
+        info "Installing latest release: ${BOLD}${HIVEKEEP_TARGET_TAG}${NC}"
+        run_with_spinner "Cloning Hivekeep to $HIVEKEEP_DIR..." retry 3 "git clone" git clone "https://github.com/$HIVEKEEP_REPO.git" "$HIVEKEEP_DIR" --branch "$HIVEKEEP_TARGET_TAG" --depth 1
+      else
+        warn "Could not resolve the latest release tag — falling back to the $HIVEKEEP_BRANCH branch"
+        run_with_spinner "Cloning Hivekeep to $HIVEKEEP_DIR..." retry 3 "git clone" git clone "https://github.com/$HIVEKEEP_REPO.git" "$HIVEKEEP_DIR" --branch "$HIVEKEEP_BRANCH" --depth 1
+      fi
+    else
+      info "Installing the ${BOLD}edge${NC} channel (branch: $HIVEKEEP_BRANCH)"
+      run_with_spinner "Cloning Hivekeep to $HIVEKEEP_DIR..." retry 3 "git clone" git clone "https://github.com/$HIVEKEEP_REPO.git" "$HIVEKEEP_DIR" --branch "$HIVEKEEP_BRANCH" --depth 1
+    fi
     IS_UPDATE=false
   fi
 }
@@ -1101,13 +1245,27 @@ build_hivekeep() {
     run_with_spinner "Installing dependencies (clean retry)..." retry 3 "bun install" bun install --frozen-lockfile
   fi
 
+  # Stable channel: prefer the prebuilt client attached to the GitHub release
+  # by CI (sha256-verified) — skips the expensive local Vite build entirely.
+  local built=false
+  if [ -n "$HIVEKEEP_TARGET_TAG" ]; then
+    if run_with_spinner "Downloading prebuilt client assets ($HIVEKEEP_TARGET_TAG)..." download_prebuilt_client "$HIVEKEEP_TARGET_TAG"; then
+      success "Prebuilt client assets installed (no local build needed)"
+      built=true
+    else
+      info "Prebuilt assets unavailable for $HIVEKEEP_TARGET_TAG — building locally"
+    fi
+  fi
+
   # Build with retry. If the build fails (OOM, stale cache), clean build
   # artifacts and retry once. This handles cases where a previous interrupted
   # build left partial output that confuses the bundler.
-  if ! run_with_spinner "Building Hivekeep..." bun run build; then
-    warn "Build failed — cleaning build artifacts and retrying..."
-    rm -rf "$HIVEKEEP_DIR/.output" "$HIVEKEEP_DIR/dist" "$HIVEKEEP_DIR/.nuxt" 2>/dev/null || true
-    run_with_spinner "Building Hivekeep (clean retry)..." bun run build
+  if [ "$built" != true ]; then
+    if ! run_with_spinner "Building Hivekeep..." bun run build; then
+      warn "Build failed — cleaning build artifacts and retrying..."
+      rm -rf "$HIVEKEEP_DIR/.output" "$HIVEKEEP_DIR/dist" "$HIVEKEEP_DIR/.nuxt" 2>/dev/null || true
+      run_with_spinner "Building Hivekeep (clean retry)..." bun run build
+    fi
   fi
 
   # Install the headless browser the browse_url / screenshot_url / browser_*
@@ -2474,32 +2632,52 @@ show_version() {
     exit 1
   fi
 
-  local branch date_str commit_count
+  local branch date_str commit_count channel
   branch="$(get_installed_branch)"
   date_str="$(get_installed_date)"
   commit_count="$(git -C "$HIVEKEEP_DIR" rev-list HEAD --count 2>/dev/null || echo "?")"
+  channel="$(resolve_channel)"
 
   echo -e "${BOLD}Hivekeep${NC} $version"
-  echo -e "  Branch: $branch"
+  echo -e "  Channel: $channel"
+  if [ -n "$branch" ] && [ "$branch" != "unknown" ]; then
+    echo -e "  Branch: $branch"
+  fi
   echo -e "  Last update: $date_str"
   echo -e "  Commits: $commit_count"
   echo -e "  Install: $HIVEKEEP_DIR"
 
   # Check if updates are available
-  if git -C "$HIVEKEEP_DIR" fetch --dry-run origin "$branch" 2>&1 | grep -q "$branch"; then
-    local remote_version
-    remote_version="$(git -C "$HIVEKEEP_DIR" describe --tags "origin/$branch" 2>/dev/null || \
-      git -C "$HIVEKEEP_DIR" rev-parse --short "origin/$branch" 2>/dev/null || echo "unknown")"
-    local behind
-    behind="$(git -C "$HIVEKEEP_DIR" rev-list HEAD.."origin/$branch" --count 2>/dev/null || echo "0")"
-    if [ "$behind" -gt 0 ] 2>/dev/null; then
-      echo ""
-      echo -e "  ${YELLOW}⚠ $behind commit(s) behind${NC} → $remote_version"
-      echo -e "  ${DIM}Run install.sh to update${NC}"
-    else
-      echo ""
-      echo -e "  ${GREEN}✓ Up to date${NC}"
+  local remote_version="" behind="0"
+  if [ "$channel" = "stable" ]; then
+    if git -C "$HIVEKEEP_DIR" fetch --tags origin --quiet 2>/dev/null; then
+      remote_version="$(get_latest_stable_tag)"
+      if [ -n "$remote_version" ]; then
+        local remote_head local_head
+        remote_head="$(git -C "$HIVEKEEP_DIR" rev-parse "${remote_version}^{commit}" 2>/dev/null || echo "")"
+        local_head="$(git -C "$HIVEKEEP_DIR" rev-parse HEAD 2>/dev/null || echo "")"
+        if [ -n "$remote_head" ] && [ "$remote_head" != "$local_head" ]; then
+          behind="$(git -C "$HIVEKEEP_DIR" rev-list "HEAD..$remote_head" --count 2>/dev/null || echo "1")"
+          [ "$behind" = "0" ] && behind="1"
+        fi
+      fi
     fi
+  else
+    [ -z "$branch" ] || [ "$branch" = "unknown" ] && branch="main"
+    if git -C "$HIVEKEEP_DIR" fetch origin "$branch" --quiet 2>/dev/null; then
+      remote_version="$(git -C "$HIVEKEEP_DIR" describe --tags "origin/$branch" 2>/dev/null || \
+        git -C "$HIVEKEEP_DIR" rev-parse --short "origin/$branch" 2>/dev/null || echo "unknown")"
+      behind="$(git -C "$HIVEKEEP_DIR" rev-list HEAD.."origin/$branch" --count 2>/dev/null || echo "0")"
+    fi
+  fi
+
+  if [ "$behind" -gt 0 ] 2>/dev/null; then
+    echo ""
+    echo -e "  ${YELLOW}⚠ $behind commit(s) behind${NC} → $remote_version"
+    echo -e "  ${DIM}Run: bash install.sh --update${NC}"
+  elif [ -n "$remote_version" ]; then
+    echo ""
+    echo -e "  ${GREEN}✓ Up to date${NC}"
   fi
 }
 
@@ -2520,45 +2698,57 @@ show_changelog() {
     exit 1
   fi
 
-  local branch
-  branch="$(git -C "$HIVEKEEP_DIR" branch --show-current 2>/dev/null || echo "main")"
+  local channel target_ref target_label
+  channel="$(resolve_channel)"
 
   # Fetch latest from remote
-  info "Fetching latest changes..."
-  if ! git -C "$HIVEKEEP_DIR" fetch origin "$branch" --quiet 2>/dev/null; then
-    error "Could not fetch from remote. Check your internet connection."
+  info "Fetching latest changes (${channel} channel)..."
+  if [ "$channel" = "stable" ]; then
+    if ! git -C "$HIVEKEEP_DIR" fetch --tags origin --quiet 2>/dev/null; then
+      error "Could not fetch from remote. Check your internet connection."
+    fi
+    target_ref="$(get_latest_stable_tag)"
+    [ -z "$target_ref" ] && error "Could not resolve the latest release tag."
+    target_label="$target_ref"
+  else
+    local branch
+    branch="$(git -C "$HIVEKEEP_DIR" branch --show-current 2>/dev/null || echo "main")"
+    if ! git -C "$HIVEKEEP_DIR" fetch origin "$branch" --quiet 2>/dev/null; then
+      error "Could not fetch from remote. Check your internet connection."
+    fi
+    target_ref="origin/$branch"
+    target_label="$(git -C "$HIVEKEEP_DIR" describe --tags "$target_ref" 2>/dev/null || git -C "$HIVEKEEP_DIR" rev-parse --short "$target_ref")"
   fi
 
   local local_ref remote_ref
   local_ref="$(git -C "$HIVEKEEP_DIR" rev-parse HEAD 2>/dev/null)"
-  remote_ref="$(git -C "$HIVEKEEP_DIR" rev-parse "origin/$branch" 2>/dev/null)"
+  remote_ref="$(git -C "$HIVEKEEP_DIR" rev-parse "${target_ref}^{commit}" 2>/dev/null)"
 
   if [ "$local_ref" = "$remote_ref" ]; then
     local version
     version="$(get_installed_version)"
     echo ""
-    echo -e "  ${GREEN}✓ Up to date${NC} ($version)"
-    echo -e "  ${DIM}No new changes on ${branch}.${NC}"
+    echo -e "  ${GREEN}✓ Up to date${NC} ($version, $channel channel)"
     echo ""
     exit 0
   fi
 
   local behind
-  behind="$(git -C "$HIVEKEEP_DIR" rev-list HEAD.."origin/$branch" --count 2>/dev/null || echo "0")"
-  local current_version new_version
+  behind="$(git -C "$HIVEKEEP_DIR" rev-list "HEAD..$remote_ref" --count 2>/dev/null || echo "0")"
+  local current_version
   current_version="$(get_installed_version)"
-  new_version="$(git -C "$HIVEKEEP_DIR" describe --tags "origin/$branch" 2>/dev/null || git -C "$HIVEKEEP_DIR" rev-parse --short "origin/$branch")"
 
   echo ""
   echo -e "${BOLD}Hivekeep Changelog${NC}"
   echo ""
+  echo -e "  ${CYAN}Channel:${NC}    $channel"
   echo -e "  ${CYAN}Installed:${NC}  $current_version"
-  echo -e "  ${CYAN}Latest:${NC}     $new_version"
-  echo -e "  ${CYAN}Changes:${NC}    $behind commit(s) on ${branch}"
+  echo -e "  ${CYAN}Latest:${NC}     $target_label"
+  echo -e "  ${CYAN}Changes:${NC}    $behind commit(s)"
   echo ""
 
   # Show categorized changelog
-  if ! show_categorized_commits "HEAD..origin/$branch"; then
+  if ! show_categorized_commits "HEAD..$remote_ref"; then
     echo -e "  ${DIM}No commits to show.${NC}"
     echo ""
     exit 0
@@ -2566,9 +2756,7 @@ show_changelog() {
 
   # Show tags in the range (version milestones)
   local tags_in_range
-  tags_in_range="$(git -C "$HIVEKEEP_DIR" tag --sort=-version:refname --contains HEAD --no-contains "origin/$branch" 2>/dev/null || true)"
-  # Actually we want tags between HEAD and origin/branch
-  tags_in_range="$(git -C "$HIVEKEEP_DIR" log --simplify-by-decoration --decorate=short --pretty=format:'%D' "HEAD..origin/$branch" 2>/dev/null | grep -oE 'tag: [^,)]+' | sed 's/tag: //' || true)"
+  tags_in_range="$(git -C "$HIVEKEEP_DIR" log --simplify-by-decoration --decorate=short --pretty=format:'%D' "HEAD..$remote_ref" 2>/dev/null | grep -oE 'tag: [^,)]+' | sed 's/tag: //' || true)"
   if [ -n "$tags_in_range" ]; then
     echo -e "  ${CYAN}${BOLD}Version tags in this range:${NC}"
     echo "$tags_in_range" | while IFS= read -r tag; do
@@ -2597,6 +2785,7 @@ show_help() {
   echo -e "${BOLD}INSTALL & UPDATE${NC}"
   echo "  ${DIM}(no command)${NC}      Install Hivekeep (or update if already installed)"
   echo "  --update        Check for updates and apply if available"
+  echo "  --channel CHAN  Update channel: stable (release tags, default) or edge (main branch)"
   echo "  --docker        Docker Compose setup (no Bun/build needed)"
   echo "  --dry-run       Preview what would happen without making changes"
   echo "  --reset         Fix broken install: re-clone & rebuild, keep data"
@@ -2655,7 +2844,8 @@ show_help() {
   echo "  HIVEKEEP_DIR          Installation directory"
   echo "  HIVEKEEP_DATA_DIR     Data directory (database, config)"
   echo "  HIVEKEEP_PUBLIC_URL   Public URL for webhooks & invite links"
-  echo "  HIVEKEEP_BRANCH       Git branch to install (default: main)"
+  echo "  HIVEKEEP_CHANNEL      Update channel: stable (default) or edge (same as --channel)"
+  echo "  HIVEKEEP_BRANCH       Git branch for the edge channel (default: main; implies edge)"
   echo "  HIVEKEEP_NO_PROMPT    Skip interactive prompts (default: false)"
   echo "  HIVEKEEP_YES          Auto-confirm all prompts (same as --yes)"
   echo "  HIVEKEEP_QUIET        Suppress non-essential output (same as --quiet)"
@@ -3038,35 +3228,45 @@ check_status() {
   # Check for available updates
   header "Updates"
   if [ -d "$HIVEKEEP_DIR/.git" ]; then
-    local local_ref remote_ref
+    local local_ref remote_ref channel
     local_ref="$(git -C "$HIVEKEEP_DIR" rev-parse HEAD 2>/dev/null || echo "")"
-    local branch
-    branch="$(git -C "$HIVEKEEP_DIR" branch --show-current 2>/dev/null || echo "main")"
+    channel="$(resolve_channel)"
 
-    if [ -n "$local_ref" ] && git -C "$HIVEKEEP_DIR" fetch origin "$branch" --quiet 2>/dev/null; then
-      remote_ref="$(git -C "$HIVEKEEP_DIR" rev-parse "origin/$branch" 2>/dev/null || echo "")"
-
-      if [ -n "$remote_ref" ] && [ "$local_ref" != "$remote_ref" ]; then
-        local behind_count
-        behind_count="$(git -C "$HIVEKEEP_DIR" rev-list HEAD.."origin/$branch" --count 2>/dev/null || echo "0")"
-        if [ "$behind_count" -gt 0 ] 2>/dev/null; then
-          # Check if there's a newer tag on remote
-          local local_tag remote_tag
-          local_tag="$(git -C "$HIVEKEEP_DIR" describe --tags --abbrev=0 HEAD 2>/dev/null || echo "")"
-          remote_tag="$(git -C "$HIVEKEEP_DIR" describe --tags --abbrev=0 "origin/$branch" 2>/dev/null || echo "")"
-
-          if [ -n "$remote_tag" ] && [ "$remote_tag" != "$local_tag" ]; then
-            echo -e "  ${CYAN}⬆${NC}  ${BOLD}Update available:${NC} ${local_tag:-$(echo "$local_ref" | cut -c1-8)} → ${BOLD}${remote_tag}${NC} (${behind_count} commit(s) behind)"
-          else
-            echo -e "  ${CYAN}⬆${NC}  ${BOLD}Update available:${NC} ${behind_count} new commit(s) on ${branch}"
-          fi
+    if [ "$channel" = "stable" ]; then
+      if [ -n "$local_ref" ] && git -C "$HIVEKEEP_DIR" fetch --tags origin --quiet 2>/dev/null; then
+        local latest_tag
+        latest_tag="$(get_latest_stable_tag)"
+        remote_ref="$(git -C "$HIVEKEEP_DIR" rev-parse "${latest_tag}^{commit}" 2>/dev/null || echo "")"
+        if [ -n "$remote_ref" ] && [ "$local_ref" != "$remote_ref" ]; then
+          local local_tag
+          local_tag="$(git -C "$HIVEKEEP_DIR" describe --tags --exact-match HEAD 2>/dev/null || echo "$(echo "$local_ref" | cut -c1-8)")"
+          echo -e "  ${CYAN}⬆${NC}  ${BOLD}Update available:${NC} ${local_tag} → ${BOLD}${latest_tag}${NC} (stable channel)"
           echo -e "  ${DIM}   Run: bash install.sh --update${NC}"
+        else
+          success "Up to date (stable channel)"
         fi
       else
-        success "Up to date"
+        info "Could not check for updates (network unavailable)"
       fi
     else
-      info "Could not check for updates (network unavailable)"
+      local branch
+      branch="$(git -C "$HIVEKEEP_DIR" branch --show-current 2>/dev/null || echo "main")"
+      if [ -n "$local_ref" ] && git -C "$HIVEKEEP_DIR" fetch origin "$branch" --quiet 2>/dev/null; then
+        remote_ref="$(git -C "$HIVEKEEP_DIR" rev-parse "origin/$branch" 2>/dev/null || echo "")"
+
+        if [ -n "$remote_ref" ] && [ "$local_ref" != "$remote_ref" ]; then
+          local behind_count
+          behind_count="$(git -C "$HIVEKEEP_DIR" rev-list HEAD.."origin/$branch" --count 2>/dev/null || echo "0")"
+          if [ "$behind_count" -gt 0 ] 2>/dev/null; then
+            echo -e "  ${CYAN}⬆${NC}  ${BOLD}Update available:${NC} ${behind_count} new commit(s) on ${branch} (edge channel)"
+            echo -e "  ${DIM}   Run: bash install.sh --update${NC}"
+          fi
+        else
+          success "Up to date (edge channel)"
+        fi
+      else
+        info "Could not check for updates (network unavailable)"
+      fi
     fi
   else
     info "Cannot check updates (not a git install)"
@@ -3577,6 +3777,7 @@ dry_run() {
     info "Will clone to: $HIVEKEEP_DIR"
   fi
   info "Data directory: $HIVEKEEP_DATA_DIR"
+  info "Channel: $(resolve_channel)"
   info "Branch: $HIVEKEEP_BRANCH"
 
   # Prerequisites
@@ -4761,46 +4962,63 @@ do_update() {
     error "Hivekeep is not installed at $HIVEKEEP_DIR. Run the installer first: bash install.sh"
   fi
 
-  local branch
-  branch="$(git -C "$HIVEKEEP_DIR" branch --show-current 2>/dev/null || echo "main")"
+  local channel target_ref
+  channel="$(resolve_channel)"
 
-  # Fetch latest from remote
-  info "Checking for updates on branch ${BOLD}${branch}${NC}..."
-  git -C "$HIVEKEEP_DIR" fetch origin "$branch" --quiet 2>/dev/null || \
-    error "Could not reach GitHub. Check your internet connection."
+  if [ "$channel" = "stable" ]; then
+    info "Checking for updates on the ${BOLD}stable${NC} channel (release tags)..."
+    git -C "$HIVEKEEP_DIR" fetch --tags origin --quiet 2>/dev/null || \
+      error "Could not reach GitHub. Check your internet connection."
+    local latest_tag
+    latest_tag="$(get_latest_stable_tag)"
+    [ -z "$latest_tag" ] && error "Could not resolve the latest release tag."
+    target_ref="$latest_tag"
+  else
+    local branch
+    branch="$(git -C "$HIVEKEEP_DIR" branch --show-current 2>/dev/null || echo "main")"
+    info "Checking for updates on the ${BOLD}edge${NC} channel (branch ${branch})..."
+    git -C "$HIVEKEEP_DIR" fetch origin "$branch" --quiet 2>/dev/null || \
+      error "Could not reach GitHub. Check your internet connection."
+    target_ref="origin/$branch"
+  fi
 
   local local_head remote_head
   local_head="$(git -C "$HIVEKEEP_DIR" rev-parse HEAD)"
-  remote_head="$(git -C "$HIVEKEEP_DIR" rev-parse "origin/$branch" 2>/dev/null || echo "")"
+  remote_head="$(git -C "$HIVEKEEP_DIR" rev-parse "${target_ref}^{commit}" 2>/dev/null || echo "")"
 
   if [ -z "$remote_head" ]; then
-    error "Could not resolve remote branch origin/$branch"
+    error "Could not resolve update target $target_ref"
   fi
 
   if [ "$local_head" = "$remote_head" ]; then
     local version
     version="$(git -C "$HIVEKEEP_DIR" describe --tags 2>/dev/null || git -C "$HIVEKEEP_DIR" rev-parse --short HEAD)"
     echo ""
-    echo -e "  ${GREEN}✓ Already up to date${NC} ($version)"
+    echo -e "  ${GREEN}✓ Already up to date${NC} ($version, $channel channel)"
     echo ""
     exit 0
   fi
 
   # Show what's new
   local behind
-  behind="$(git -C "$HIVEKEEP_DIR" rev-list HEAD.."origin/$branch" --count 2>/dev/null || echo "?")"
+  behind="$(git -C "$HIVEKEEP_DIR" rev-list "HEAD..$remote_head" --count 2>/dev/null || echo "?")"
   local current_version new_version
   current_version="$(git -C "$HIVEKEEP_DIR" describe --tags 2>/dev/null || git -C "$HIVEKEEP_DIR" rev-parse --short HEAD)"
-  new_version="$(git -C "$HIVEKEEP_DIR" describe --tags "origin/$branch" 2>/dev/null || git -C "$HIVEKEEP_DIR" rev-parse --short "origin/$branch")"
+  if [ "$channel" = "stable" ]; then
+    new_version="$target_ref"
+  else
+    new_version="$(git -C "$HIVEKEEP_DIR" describe --tags "$target_ref" 2>/dev/null || git -C "$HIVEKEEP_DIR" rev-parse --short "$target_ref")"
+  fi
 
   echo ""
+  echo -e "  ${CYAN}Channel:${NC}  $channel"
   echo -e "  ${CYAN}Current:${NC}  $current_version"
   echo -e "  ${CYAN}Latest:${NC}   $new_version"
   echo -e "  ${CYAN}Changes:${NC}  $behind commit(s)"
   echo ""
 
   # Show categorized changelog
-  show_categorized_commits "HEAD..origin/$branch" 5 || true
+  show_categorized_commits "HEAD..$remote_head" 5 || true
 
   # Confirm
   if [ "$HIVEKEEP_YES" != true ] && [ "${HIVEKEEP_NO_PROMPT:-}" != "true" ] && [ "${CI:-}" != "true" ]; then
@@ -4880,7 +5098,13 @@ do_reset() {
     fi
     info "Will remove: $HIVEKEEP_DIR (currently $current_version)"
   fi
-  info "Will re-clone from: https://github.com/$HIVEKEEP_REPO ($HIVEKEEP_BRANCH)"
+  # Resolve the channel BEFORE removing the checkout (detection reads it)
+  RESET_CHANNEL="$(resolve_channel)"
+  if [ "$RESET_CHANNEL" = "stable" ]; then
+    info "Will re-clone from: https://github.com/$HIVEKEEP_REPO (latest release)"
+  else
+    info "Will re-clone from: https://github.com/$HIVEKEEP_REPO ($HIVEKEEP_BRANCH branch)"
+  fi
   info "Will rebuild: dependencies + build + migrations"
   if [ -d "$HIVEKEEP_DATA_DIR" ]; then
     success "Will keep: $HIVEKEEP_DATA_DIR (database, config, backups)"
@@ -5000,7 +5224,14 @@ do_reset() {
   # 4. Fresh clone
   step "Cloning Hivekeep"
   mkdir -p "$(dirname "$HIVEKEEP_DIR")"
-  run_with_spinner "Cloning from GitHub..." retry 3 "git clone" git clone "https://github.com/$HIVEKEEP_REPO.git" "$HIVEKEEP_DIR" --branch "$HIVEKEEP_BRANCH" --depth 1
+  if [ "${RESET_CHANNEL:-stable}" = "stable" ]; then
+    HIVEKEEP_TARGET_TAG="$(get_latest_stable_tag)"
+  fi
+  if [ -n "$HIVEKEEP_TARGET_TAG" ]; then
+    run_with_spinner "Cloning from GitHub ($HIVEKEEP_TARGET_TAG)..." retry 3 "git clone" git clone "https://github.com/$HIVEKEEP_REPO.git" "$HIVEKEEP_DIR" --branch "$HIVEKEEP_TARGET_TAG" --depth 1
+  else
+    run_with_spinner "Cloning from GitHub..." retry 3 "git clone" git clone "https://github.com/$HIVEKEEP_REPO.git" "$HIVEKEEP_DIR" --branch "$HIVEKEEP_BRANCH" --depth 1
+  fi
   local new_version
   new_version="$(git -C "$HIVEKEEP_DIR" describe --tags 2>/dev/null || git -C "$HIVEKEEP_DIR" rev-parse --short HEAD 2>/dev/null || echo "unknown")"
   success "Cloned $new_version"
@@ -5822,7 +6053,7 @@ _hivekeep_completions() {
   local cur="${COMP_WORDS[COMP_CWORD]}"
   local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-  local commands="--help --update --docker --dry-run --reset --uninstall
+  local commands="--help --update --channel --docker --dry-run --reset --uninstall
     --start --stop --restart --logs --status --health --test --doctor
     --config --env --backup --restore --version --changelog
     --cron --completions --yes --quiet --no-color"
@@ -5873,6 +6104,7 @@ _hivekeep() {
   local -a commands=(
     '--help:Show help message'
     '--update:Check for updates and apply'
+    '--channel:Update channel (stable or edge)'
     '--docker:Docker Compose setup'
     '--dry-run:Preview without making changes'
     '--reset:Fix broken install, keep data'
@@ -5952,6 +6184,39 @@ FISH_COMP
 
 # ─── Main ────────────────────────────────────────────────────────────────────
 main() {
+  # Pre-pass: modifier flags must apply regardless of their position on the
+  # command line (commands like --update exit from inside the main loop, so
+  # `install.sh --update -y` would otherwise never see -y).
+  local _prev_arg=""
+  for arg in "$@"; do
+    case "$arg" in
+      --quiet|-q)
+        HIVEKEEP_QUIET=true
+        HIVEKEEP_NO_PROMPT=true
+        ;;
+      --yes|-y)
+        HIVEKEEP_YES=true
+        HIVEKEEP_NO_PROMPT=true
+        ;;
+      --no-color)
+        NO_COLOR=1
+        setup_colors
+        ;;
+      --channel=*)
+        HIVEKEEP_CHANNEL="${arg#--channel=}"
+        ;;
+      *)
+        if [ "$_prev_arg" = "--channel" ]; then
+          HIVEKEEP_CHANNEL="$arg"
+        fi
+        ;;
+    esac
+    _prev_arg="$arg"
+  done
+  if [ -n "$HIVEKEEP_CHANNEL" ] && [ "$HIVEKEEP_CHANNEL" != "stable" ] && [ "$HIVEKEEP_CHANNEL" != "edge" ]; then
+    error "Invalid --channel '$HIVEKEEP_CHANNEL' (expected: stable or edge)"
+  fi
+
   # Handle flags
   for arg in "$@"; do
     case "$arg" in

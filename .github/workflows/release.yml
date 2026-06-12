@@ -49,6 +49,16 @@ jobs:
       - name: Build
         run: bun run build
 
+      # Reused by the release job: the prebuilt client is attached to the
+      # GitHub release so self-updating installs can skip the local build.
+      - name: Upload client build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-build
+          path: dist/client
+          if-no-files-found: error
+          retention-days: 1
+
   # Build each architecture on its NATIVE runner (no QEMU emulation) and push
   # by digest. The multi-arch manifest is assembled in the merge job.
   build:
@@ -99,6 +109,8 @@ jobs:
           file: docker/Dockerfile
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_SHA=${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
           outputs: type=image,name=${{ env.REGISTRY }}/${{ steps.image.outputs.name }},push-by-digest=true,name-canonical=true,push=true
@@ -180,6 +192,25 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+
+      - name: Download client build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: client-build
+          path: dist/client
+
+      # Package the prebuilt frontend exactly as the self-updater expects it:
+      # hivekeep-client-vX.Y.Z.tar.gz containing dist/client/, plus a sha256
+      # checksum file ("<hex>  <filename>") used to verify the download.
+      - name: Package prebuilt client assets
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF#refs/tags/}"
+          ASSET="hivekeep-client-${TAG}.tar.gz"
+          test -f dist/client/index.html
+          tar -czf "$ASSET" dist/client
+          sha256sum "$ASSET" > "$ASSET.sha256"
+          ls -lh "$ASSET"*
 
       - name: Generate changelog
         id: changelog
@@ -277,3 +308,5 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
             install.sh
+            hivekeep-client-*.tar.gz
+            hivekeep-client-*.tar.gz.sha256

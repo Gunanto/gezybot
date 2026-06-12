@@ -90,6 +90,11 @@ ENV PORT=3000
 ENV HOST=0.0.0.0
 ENV HIVEKEEP_DATA_DIR=/app/data
 
+# Git sha baked by CI — images have no .git, the edge update channel uses
+# this to compare the running code against origin/main.
+ARG GIT_SHA=""
+ENV HIVEKEEP_GIT_SHA=$GIT_SHA
+
 EXPOSE 3000
 
 VOLUME ["/app/data"]
