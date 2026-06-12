@@ -2416,7 +2416,9 @@
       "mcp-pending-approval": "MCP pending approval",
       "agent-error": "Agent error",
       "agent-alert": "Agent alert",
-      "mention": "Mention"
+      "mention": "Mention",
+      "miniapp-notify": "Mini-app notification",
+      "email-pending-send-approval": "Email pending approval"
     },
     "descriptions": {
       "prompt-pending": "An Agent is waiting for your response to continue",
@@ -2425,7 +2427,9 @@
       "mcp-pending-approval": "An MCP server added by an Agent needs your approval",
       "agent-error": "An Agent encountered an error that may need investigation",
       "agent-alert": "An Agent sent you a notification",
-      "mention": "Someone mentioned you in a conversation"
+      "mention": "Someone mentioned you in a conversation",
+      "miniapp-notify": "A mini-app sent a notification from its background service",
+      "email-pending-send-approval": "An Agent wants to send an email that needs your approval"
     }
   },
   "modelPicker": {

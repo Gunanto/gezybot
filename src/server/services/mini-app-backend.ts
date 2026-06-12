@@ -22,9 +22,12 @@
  */
 
 import { Hono } from 'hono'
+import { Cron } from 'croner'
 import { join, resolve } from 'path'
 import { existsSync } from 'fs'
 import { createLogger } from '@/server/logger'
+import { config } from '@/server/config'
+import { createNotification } from '@/server/services/notifications'
 import {
   getMiniAppRow,
   getAppDir,
@@ -43,6 +46,13 @@ const log = createLogger('mini-app-backend')
 const ON_STOP_TIMEOUT_MS = 5_000
 const MAX_TIMERS_PER_APP = 100
 const MIN_INTERVAL_MS = 1_000
+const MAX_JOBS_PER_APP = 10
+/** Runtime guard: a scheduled job never runs more often than this */
+const MIN_JOB_SPACING_MS = 15_000
+const NOTIFY_MAX_PER_HOUR = 10
+
+/** Per-app notification timestamps for rate limiting (survives backend reloads) */
+const notifyTimestamps = new Map<string, number[]>()
 
 // ─── Event Emitter for SSE ──────────────────────────────────────────────────
 
@@ -125,6 +135,17 @@ export interface MiniAppBackendContext {
     /** Number of currently connected SSE clients */
     readonly subscriberCount: number
   }
+  /**
+   * Register a named cron job (croner pattern, e.g. "*\/15 * * * *").
+   * Jobs are stopped automatically when the instance stops. Re-registering an
+   * existing name replaces the previous job. Runs are spaced at least 15s apart.
+   */
+  schedule: (name: string, cronExpr: string, handler: () => void | Promise<void>) => { stop: () => void }
+  /**
+   * Send a platform notification to users (notification center + SSE +
+   * configured external channels). Rate-limited per app.
+   */
+  notify: (title: string, body?: string) => Promise<void>
   /** Logger — entries also land in the app console (get_mini_app_console) */
   log: {
     info: (...args: unknown[]) => void
@@ -147,6 +168,7 @@ interface BackendInstance {
   background: boolean
   controller: AbortController
   timers: Set<TimerId>
+  jobs: Map<string, Cron>
   module: BackendModule
   ctx: MiniAppBackendContext
 }
@@ -157,8 +179,13 @@ const instances = new Map<string, BackendInstance>()
 /** Dedupe concurrent loads of the same app */
 const loading = new Map<string, Promise<BackendInstance | null>>()
 
-/** Stop a backend instance: clear timers, abort signal, run onStop (bounded). */
+/** Stop a backend instance: stop jobs, clear timers, abort signal, run onStop (bounded). */
 async function stopInstance(appId: string, inst: BackendInstance): Promise<void> {
+  for (const job of inst.jobs.values()) {
+    try { job.stop() } catch { /* already stopped */ }
+  }
+  inst.jobs.clear()
+
   for (const id of inst.timers) {
     clearTimeout(id)
     clearInterval(id)
@@ -228,8 +255,9 @@ function buildContext(params: {
   background: boolean
   controller: AbortController
   timers: Set<TimerId>
+  jobs: Map<string, Cron>
 }): MiniAppBackendContext {
-  const { appId, agentId, appName, version, background, controller, timers } = params
+  const { appId, agentId, appName, version, background, controller, timers, jobs } = params
   const appLog = createLogger(`mini-app:${appId.slice(0, 8)}`)
   const emitter = getAppEmitter(appId)
 
@@ -283,6 +311,68 @@ function buildContext(params: {
     events: {
       emit: (event: string, data?: unknown) => emitter.emit(event, data),
       get subscriberCount() { return emitter.subscriberCount },
+    },
+    schedule: (name: string, cronExpr: string, handler: () => void | Promise<void>) => {
+      if (controller.signal.aborted) throw new Error('Backend instance is stopped')
+      if (!name || typeof name !== 'string') throw new Error('schedule: name is required')
+      if (typeof handler !== 'function') throw new Error('schedule: handler must be a function')
+
+      const existing = jobs.get(name)
+      if (existing) {
+        try { existing.stop() } catch { /* already stopped */ }
+        jobs.delete(name)
+      } else if (jobs.size >= MAX_JOBS_PER_APP) {
+        throw new Error(`Too many scheduled jobs (max ${MAX_JOBS_PER_APP})`)
+      }
+
+      let lastStartedAt = 0
+      let job: Cron
+      try {
+        job = new Cron(cronExpr, { timezone: config.timezone, protect: true }, async () => {
+          const now = Date.now()
+          if (now - lastStartedAt < MIN_JOB_SPACING_MS) {
+            pushBackendConsole(appId, 'warn', [`Job "${name}" skipped: runs must be at least ${MIN_JOB_SPACING_MS / 1000}s apart`])
+            return
+          }
+          lastStartedAt = now
+          try {
+            await handler()
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err)
+            appLog.error({ appId, job: name }, `Job failed: ${message}`)
+            pushBackendConsole(appId, 'error', [`Job "${name}" failed: ${message}`])
+          }
+        })
+      } catch (err) {
+        throw new Error(`schedule: invalid cron pattern "${cronExpr}" — ${err instanceof Error ? err.message : String(err)}`)
+      }
+
+      jobs.set(name, job)
+      return {
+        stop: () => {
+          try { job.stop() } catch { /* already stopped */ }
+          jobs.delete(name)
+        },
+      }
+    },
+    notify: async (title: string, body?: string) => {
+      if (typeof title !== 'string' || !title.trim()) throw new Error('notify: title is required')
+      const now = Date.now()
+      const recent = (notifyTimestamps.get(appId) ?? []).filter((t) => now - t < 3_600_000)
+      if (recent.length >= NOTIFY_MAX_PER_HOUR) {
+        throw new Error(`notify: rate limit reached (max ${NOTIFY_MAX_PER_HOUR} notifications per hour)`)
+      }
+      recent.push(now)
+      notifyTimestamps.set(appId, recent)
+
+      await createNotification({
+        type: 'miniapp:notify',
+        title: `${appName}: ${title}`.slice(0, 200),
+        body: body ? String(body).slice(0, 1000) : undefined,
+        agentId,
+        relatedId: appId,
+        relatedType: 'miniapp',
+      })
     },
     log: {
       info: (...args: unknown[]) => {
@@ -353,7 +443,8 @@ async function loadBackend(appId: string): Promise<BackendInstance | null> {
 
       const controller = new AbortController()
       const timers = new Set<TimerId>()
-      const ctx = buildContext({ appId, agentId: app.agentId, appName: app.name, version: app.version, background, controller, timers })
+      const jobs = new Map<string, Cron>()
+      const ctx = buildContext({ appId, agentId: app.agentId, appName: app.name, version: app.version, background, controller, timers, jobs })
 
       let handler: Hono | null = null
       if (typeof factory === 'function') {
@@ -373,6 +464,7 @@ async function loadBackend(appId: string): Promise<BackendInstance | null> {
         background,
         controller,
         timers,
+        jobs,
         module: mod,
         ctx,
       }
@@ -474,6 +566,7 @@ export function getBackendStatus(appId: string): {
   loadedAt: number | null
   activeTimers: number
   sseSubscribers: number
+  jobs: { name: string; pattern: string; nextRunAt: number | null }[]
 } {
   const inst = instances.get(appId)
   return {
@@ -483,6 +576,13 @@ export function getBackendStatus(appId: string): {
     loadedAt: inst?.loadedAt ?? null,
     activeTimers: inst?.timers.size ?? 0,
     sseSubscribers: appEmitters.get(appId)?.subscriberCount ?? 0,
+    jobs: inst
+      ? [...inst.jobs.entries()].map(([name, job]) => ({
+          name,
+          pattern: job.getPattern() ?? '',
+          nextRunAt: job.nextRun()?.getTime() ?? null,
+        }))
+      : [],
   }
 }
 

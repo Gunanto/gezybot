@@ -2416,7 +2416,9 @@
       "mcp-pending-approval": "MCP wartet auf Freigabe",
       "agent-error": "Agent-Fehler",
       "agent-alert": "Agent-Hinweis",
-      "mention": "Erwähnung"
+      "mention": "Erwähnung",
+      "miniapp-notify": "Mini-App-Benachrichtigung",
+      "email-pending-send-approval": "E-Mail wartet auf Freigabe"
     },
     "descriptions": {
       "prompt-pending": "Ein Agent wartet auf deine Antwort, um fortzufahren",
@@ -2425,7 +2427,9 @@
       "mcp-pending-approval": "Ein von einem Agenten hinzugefügter MCP-Server braucht deine Freigabe",
       "agent-error": "Ein Agent ist auf einen Fehler gestoßen, der untersucht werden sollte",
       "agent-alert": "Ein Agent hat dir eine Benachrichtigung gesendet",
-      "mention": "Jemand hat dich in einer Unterhaltung erwähnt"
+      "mention": "Jemand hat dich in einer Unterhaltung erwähnt",
+      "miniapp-notify": "Eine Mini-App hat eine Benachrichtigung aus ihrem Hintergrunddienst gesendet",
+      "email-pending-send-approval": "Ein Agent möchte eine E-Mail senden, die deine Freigabe benötigt"
     }
   },
   "modelPicker": {

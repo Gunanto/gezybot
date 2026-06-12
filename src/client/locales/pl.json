@@ -2434,7 +2434,9 @@
       "mcp-pending-approval": "MCP czeka na zatwierdzenie",
       "agent-error": "Błąd Agenta",
       "agent-alert": "Alert Agenta",
-      "mention": "Wzmianka"
+      "mention": "Wzmianka",
+      "miniapp-notify": "Powiadomienie mini-aplikacji",
+      "email-pending-send-approval": "E-mail oczekuje na zatwierdzenie"
     },
     "descriptions": {
       "prompt-pending": "Agent czeka na twoją odpowiedź, aby kontynuować",
@@ -2443,7 +2445,9 @@
       "mcp-pending-approval": "Serwer MCP dodany przez Agenta wymaga twojego zatwierdzenia",
       "agent-error": "Agent napotkał błąd, który może wymagać sprawdzenia",
       "agent-alert": "Agent wysłał ci powiadomienie",
-      "mention": "Ktoś wspomniał o tobie w rozmowie"
+      "mention": "Ktoś wspomniał o tobie w rozmowie",
+      "miniapp-notify": "Mini-aplikacja wysłała powiadomienie ze swojej usługi w tle",
+      "email-pending-send-approval": "Agent chce wysłać e-mail, który wymaga Twojego zatwierdzenia"
     }
   },
   "modelPicker": {

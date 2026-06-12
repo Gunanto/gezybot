@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, mock } from 'bun:test'
+import { Cron } from 'croner'
 
 // ─── AppEventEmitter (re-implemented for isolated testing) ──────────────────
 
@@ -447,6 +448,151 @@ describe('Emitter survives backend reloads', () => {
     afterReload.emit('after-reload')
 
     expect(received).toEqual(['before-reload', 'after-reload'])
+  })
+})
+
+// ─── ctx.schedule: cron pattern validation + job registry ───────────────────
+
+describe('ctx.schedule cron patterns (croner)', () => {
+  it('accepts standard cron expressions', () => {
+    for (const pattern of ['*/15 * * * *', '0 9 * * 1', '@hourly', '0 0 1 * *']) {
+      const job = new Cron(pattern, { paused: true })
+      expect(job.getPattern()).toBeTruthy()
+      job.stop()
+    }
+  })
+
+  it('rejects invalid patterns with a throw', () => {
+    expect(() => new Cron('not a cron', { paused: true })).toThrow()
+    expect(() => new Cron('99 99 * * *', { paused: true })).toThrow()
+  })
+
+  it('exposes nextRun for status introspection', () => {
+    const job = new Cron('0 0 * * *', { paused: true })
+    const next = job.nextRun()
+    expect(next).toBeInstanceOf(Date)
+    expect(next!.getTime()).toBeGreaterThan(Date.now())
+    job.stop()
+  })
+})
+
+describe('ctx.schedule job registry semantics', () => {
+  const MAX_JOBS = 10
+
+  function makeRegistry() {
+    const jobs = new Map<string, { stopped: boolean }>()
+    return {
+      jobs,
+      register(name: string) {
+        const existing = jobs.get(name)
+        if (existing) {
+          existing.stopped = true
+          jobs.delete(name)
+        } else if (jobs.size >= MAX_JOBS) {
+          throw new Error(`Too many scheduled jobs (max ${MAX_JOBS})`)
+        }
+        const job = { stopped: false }
+        jobs.set(name, job)
+        return job
+      },
+      stopAll() {
+        for (const job of jobs.values()) job.stopped = true
+        jobs.clear()
+      },
+    }
+  }
+
+  it('re-registering a name replaces the previous job', () => {
+    const r = makeRegistry()
+    const first = r.register('sync')
+    const second = r.register('sync')
+    expect(first.stopped).toBe(true)
+    expect(second.stopped).toBe(false)
+    expect(r.jobs.size).toBe(1)
+  })
+
+  it('caps the number of jobs per app', () => {
+    const r = makeRegistry()
+    for (let i = 0; i < MAX_JOBS; i++) r.register(`job-${i}`)
+    expect(() => r.register('one-too-many')).toThrow('Too many scheduled jobs')
+  })
+
+  it('replacing an existing name works even at the cap', () => {
+    const r = makeRegistry()
+    for (let i = 0; i < MAX_JOBS; i++) r.register(`job-${i}`)
+    expect(() => r.register('job-0')).not.toThrow()
+    expect(r.jobs.size).toBe(MAX_JOBS)
+  })
+
+  it('instance stop stops every job', () => {
+    const r = makeRegistry()
+    const a = r.register('a')
+    const b = r.register('b')
+    r.stopAll()
+    expect(a.stopped).toBe(true)
+    expect(b.stopped).toBe(true)
+    expect(r.jobs.size).toBe(0)
+  })
+})
+
+describe('ctx.schedule run-spacing guard', () => {
+  const MIN_SPACING = 15_000
+
+  it('skips runs that fire too close together', () => {
+    let lastStartedAt = 0
+    let runs = 0
+    const tryRun = (now: number) => {
+      if (now - lastStartedAt < MIN_SPACING) return false
+      lastStartedAt = now
+      runs++
+      return true
+    }
+
+    expect(tryRun(100_000)).toBe(true)
+    expect(tryRun(105_000)).toBe(false) // 5s later — skipped
+    expect(tryRun(114_999)).toBe(false) // still within window
+    expect(tryRun(115_000)).toBe(true)  // exactly 15s after last run
+    expect(runs).toBe(2)
+  })
+})
+
+// ─── ctx.notify rate limiting ────────────────────────────────────────────────
+
+describe('ctx.notify rate limiting', () => {
+  const MAX_PER_HOUR = 10
+  const HOUR = 3_600_000
+
+  function makeLimiter() {
+    const stamps = new Map<string, number[]>()
+    return (appId: string, now: number): boolean => {
+      const recent = (stamps.get(appId) ?? []).filter((t) => now - t < HOUR)
+      if (recent.length >= MAX_PER_HOUR) return false
+      recent.push(now)
+      stamps.set(appId, recent)
+      return true
+    }
+  }
+
+  it('allows up to the hourly cap, then rejects', () => {
+    const allow = makeLimiter()
+    for (let i = 0; i < MAX_PER_HOUR; i++) {
+      expect(allow('app-1', 1_000_000 + i)).toBe(true)
+    }
+    expect(allow('app-1', 1_000_500)).toBe(false)
+  })
+
+  it('window slides: old notifications free up budget', () => {
+    const allow = makeLimiter()
+    for (let i = 0; i < MAX_PER_HOUR; i++) allow('app-1', 1_000_000 + i)
+    expect(allow('app-1', 1_000_000 + HOUR - 1)).toBe(false)
+    expect(allow('app-1', 1_000_000 + HOUR + 10)).toBe(true)
+  })
+
+  it('limits are per app', () => {
+    const allow = makeLimiter()
+    for (let i = 0; i < MAX_PER_HOUR; i++) allow('app-1', 1_000_000)
+    expect(allow('app-1', 1_000_001)).toBe(false)
+    expect(allow('app-2', 1_000_001)).toBe(true)
   })
 })
 

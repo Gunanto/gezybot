@@ -2416,7 +2416,9 @@
       "mcp-pending-approval": "MCP 待批准",
       "agent-error": "智能体错误",
       "agent-alert": "智能体提醒",
-      "mention": "提及"
+      "mention": "提及",
+      "miniapp-notify": "迷你应用通知",
+      "email-pending-send-approval": "邮件待审批"
     },
     "descriptions": {
       "prompt-pending": "有智能体正在等待你的回复才能继续",
@@ -2425,7 +2427,9 @@
       "mcp-pending-approval": "智能体添加的 MCP 服务器需要你的批准",
       "agent-error": "有智能体遇到了可能需要排查的错误",
       "agent-alert": "有智能体给你发送了通知",
-      "mention": "有人在对话中提到了你"
+      "mention": "有人在对话中提到了你",
+      "miniapp-notify": "一个迷你应用从其后台服务发送了通知",
+      "email-pending-send-approval": "智能体想要发送一封需要你审批的邮件"
     }
   },
   "modelPicker": {
