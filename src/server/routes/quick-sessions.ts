@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { THINKING_EFFORTS } from '@/shared/constants'
 import { eq, and, asc, desc, inArray, sql } from 'drizzle-orm'
 import { v4 as uuid } from 'uuid'
 import { db } from '@/server/db/index'
@@ -285,8 +286,8 @@ sessionRoutes.patch('/:id', async (c) => {
     set.thinkingEnabled = body.thinkingEnabled
   }
   if ('thinkingEffort' in body) {
-    if (body.thinkingEffort !== null && !['low', 'medium', 'high', 'max'].includes(body.thinkingEffort as string)) {
-      return c.json({ error: { code: 'VALIDATION_ERROR', message: "thinkingEffort must be 'low' | 'medium' | 'high' | 'max' | null" } }, 400)
+    if (body.thinkingEffort !== null && !(THINKING_EFFORTS as readonly string[]).includes(body.thinkingEffort as string)) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: `thinkingEffort must be one of ${THINKING_EFFORTS.join(' | ')} or null` } }, 400)
     }
     set.thinkingEffort = body.thinkingEffort
   }

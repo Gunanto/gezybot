@@ -68,6 +68,7 @@ import type {
   HivekeepMessage,
   ThinkingEffort,
 } from '@/server/llm/llm/types'
+import { downgradeEffort } from '@/server/llm/llm/types'
 
 const BASE_URL = 'https://api.deepseek.com'
 
@@ -197,17 +198,6 @@ function parseRetryAfter(header: string | string[] | undefined): number | undefi
   return undefined
 }
 
-function downgradeEffort(
-  requested: ThinkingEffort,
-  supported: readonly ThinkingEffort[],
-): ThinkingEffort | undefined {
-  const order: ThinkingEffort[] = ['low', 'medium', 'high', 'max']
-  const idx = order.indexOf(requested)
-  for (let i = idx; i >= 0; i--) {
-    if (supported.includes(order[i]!)) return order[i]
-  }
-  return supported[0]
-}
 
 // ─── Message conversion (hivekeep → OpenAI-compatible) ─────────────────────────
 

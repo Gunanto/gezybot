@@ -86,17 +86,14 @@ interface AnthropicOAuthModel {
   max_tokens?: number
   capabilities?: {
     thinking?: { supported: boolean }
-    effort?: {
-      low: { supported: boolean }
-      medium: { supported: boolean }
-      high: { supported: boolean }
-      max: { supported: boolean }
-    }
+    effort?: Partial<Record<string, { supported: boolean }>>
     image_input?: { supported: boolean }
   }
 }
 
-const ALL_EFFORTS: readonly ThinkingEffort[] = ['low', 'medium', 'high', 'max']
+// Effort levels the Anthropic API can advertise (capabilities.effort).
+// 'minimal' is not an Anthropic level; 'xhigh' exists from Opus 4.7 onward.
+const ALL_EFFORTS: readonly ThinkingEffort[] = ['low', 'medium', 'high', 'xhigh', 'max']
 
 const MODEL_NOTES: Record<string, string> = {
   'claude-opus-4-7': 'Opus 4.7 reasons internally — this setting may have no visible effect.',
@@ -128,7 +125,7 @@ function mapModel(raw: AnthropicOAuthModel): LLMModel {
   const caps = raw.capabilities
   const thinkingSupported = caps?.thinking?.supported ?? false
   const efforts: ThinkingEffort[] = thinkingSupported && caps?.effort
-    ? ALL_EFFORTS.filter((e) => caps.effort![e].supported)
+    ? ALL_EFFORTS.filter((e) => caps.effort![e]?.supported ?? false)
     : []
   const note = MODEL_NOTES[raw.id]
   const thinking: LLMModel['thinking'] | undefined = efforts.length > 0

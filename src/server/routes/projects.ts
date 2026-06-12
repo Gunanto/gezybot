@@ -35,7 +35,7 @@ import { startClone } from '@/server/services/repo-clone'
 import { config } from '@/server/config'
 import type { AppVariables } from '@/server/app'
 import { createLogger } from '@/server/logger'
-import { TICKET_STATUSES, GITHUB_REPO_REGEX, isValidGitBranch } from '@/shared/constants'
+import { TICKET_STATUSES, GITHUB_REPO_REGEX, isValidGitBranch, THINKING_EFFORTS } from '@/shared/constants'
 import type { TicketStatus, AgentThinkingConfig, AgentThinkingEffort } from '@/shared/types'
 
 const log = createLogger('routes:projects')
@@ -202,7 +202,7 @@ projectRoutes.post('/', async (c) => {
   }
 })
 
-const VALID_EFFORTS: readonly AgentThinkingEffort[] = ['low', 'medium', 'high', 'max']
+const VALID_EFFORTS: readonly AgentThinkingEffort[] = THINKING_EFFORTS
 
 projectRoutes.patch('/:id', async (c) => {
   const id = c.req.param('id')

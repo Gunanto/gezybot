@@ -16,7 +16,8 @@ import type { AgentThinkingConfig, AgentThinkingEffort } from '@/shared/types'
 
 const log = createLogger('tools:cron')
 
-const THINKING_EFFORT_VALUES = ['off', 'low', 'medium', 'high', 'max'] as const
+// Literal tuple (zod enum needs literals) — must stay in sync with THINKING_EFFORTS (shared/constants.ts)
+const THINKING_EFFORT_VALUES = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
 type ThinkingEffortInput = typeof THINKING_EFFORT_VALUES[number]
 
 /** Map the LLM-facing effort string to a stored thinking config. */

@@ -5,7 +5,7 @@ import { api } from '@/client/lib/api'
 import { useSSE } from '@/client/hooks/useSSE'
 import { useChatStreaming } from '@/client/hooks/useChatStreaming'
 import type { ChatMessage } from '@/client/hooks/useChat'
-import type { MessageFile, QuickSessionSummary } from '@/shared/types'
+import type { AgentThinkingEffort, MessageFile, QuickSessionSummary } from '@/shared/types'
 
 export function useQuickChat(sessionId: string | null, agentId: string | null) {
   const { t } = useTranslation()
@@ -180,7 +180,7 @@ export function useQuickChat(sessionId: string | null, agentId: string | null) {
     model?: string | null
     providerId?: string | null
     thinkingEnabled?: boolean | null
-    thinkingEffort?: 'low' | 'medium' | 'high' | 'max' | null
+    thinkingEffort?: AgentThinkingEffort | null
   }) => {
     if (!sessionId) return
     try {

@@ -1,3 +1,4 @@
+import type { AgentThinkingEffort } from '@/shared/types'
 import { Hono } from 'hono'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { db } from '@/server/db/index'
@@ -135,7 +136,7 @@ cronRoutes.post('/', async (c) => {
     runOnce?: boolean
     triggerParentTurn?: boolean
     thinkingEnabled?: boolean
-    thinkingEffort?: 'low' | 'medium' | 'high' | 'max' | null
+    thinkingEffort?: AgentThinkingEffort | null
     toolboxIds?: string[]
   }>()
 
@@ -147,7 +148,7 @@ cronRoutes.post('/', async (c) => {
   }
 
   try {
-    let thinkingConfig: { enabled: boolean; effort: 'low' | 'medium' | 'high' | 'max' | null } | undefined
+    let thinkingConfig: { enabled: boolean; effort: AgentThinkingEffort | null } | undefined
     if (body.thinkingEffort !== undefined) {
       thinkingConfig = body.thinkingEffort === null
         ? { enabled: false, effort: null }
@@ -205,7 +206,7 @@ cronRoutes.patch('/:id', async (c) => {
     runOnce?: boolean
     triggerParentTurn?: boolean
     thinkingEnabled?: boolean
-    thinkingEffort?: 'low' | 'medium' | 'high' | 'max' | null
+    thinkingEffort?: AgentThinkingEffort | null
     toolboxIds?: string[] | null
   }>()
 

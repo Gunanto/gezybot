@@ -30,10 +30,10 @@ import { projects } from '@/server/db/schema'
 import { eq } from 'drizzle-orm'
 import type { AppVariables } from '@/server/app'
 import { createLogger } from '@/server/logger'
-import { TICKET_STATUSES } from '@/shared/constants'
+import { TICKET_STATUSES, THINKING_EFFORTS } from '@/shared/constants'
 import type { TicketStatus, AgentThinkingConfig, AgentThinkingEffort } from '@/shared/types'
 
-const TICKET_TASK_VALID_EFFORTS: readonly AgentThinkingEffort[] = ['low', 'medium', 'high', 'max']
+const TICKET_TASK_VALID_EFFORTS: readonly AgentThinkingEffort[] = THINKING_EFFORTS
 
 const log = createLogger('routes:tickets')
 

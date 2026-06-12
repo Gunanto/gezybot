@@ -256,10 +256,36 @@ export const PALETTE_IDS = [
 ] as const
 
 // ---------------------------------------------------------------------------
-// Tool domains — centralized metadata for consistent UI across the app
+// Thinking / reasoning efforts
 // ---------------------------------------------------------------------------
 
-import type { BuiltinToolDomain } from '@/shared/types'
+import type { AgentThinkingEffort, BuiltinToolDomain } from '@/shared/types'
+
+/** Canonical effort ladder, lowest → highest. Single source of truth for the
+ *  UI selectors and route validation. Mirrors the SDK's
+ *  `THINKING_EFFORT_ORDER` (kept inline so the client bundle never imports
+ *  SDK values). */
+export const THINKING_EFFORTS: readonly AgentThinkingEffort[] = [
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+]
+
+/** The pre-models.dev default ladder — what selectors offer when the selected
+ *  model's supported efforts are unknown (no registry data, plugin providers). */
+export const DEFAULT_THINKING_EFFORTS: readonly AgentThinkingEffort[] = [
+  'low',
+  'medium',
+  'high',
+  'max',
+]
+
+// ---------------------------------------------------------------------------
+// Tool domains — centralized metadata for consistent UI across the app
+// ---------------------------------------------------------------------------
 
 /** Metadata for a tool domain: icon name (Lucide), CSS classes, i18n key */
 export interface ToolDomainMeta {

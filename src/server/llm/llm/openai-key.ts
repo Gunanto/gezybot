@@ -46,6 +46,7 @@ import type {
   HivekeepMessage,
   ThinkingEffort,
 } from '@/server/llm/llm/types'
+import { downgradeEffort } from '@/server/llm/llm/types'
 
 // ─── Config schema ───────────────────────────────────────────────────────────
 
@@ -188,17 +189,6 @@ function parseRetryAfter(header: string | string[] | undefined): number | undefi
   return undefined
 }
 
-function downgradeEffort(
-  requested: ThinkingEffort,
-  supported: readonly ThinkingEffort[],
-): ThinkingEffort | undefined {
-  const order: ThinkingEffort[] = ['low', 'medium', 'high', 'max']
-  const idx = order.indexOf(requested)
-  for (let i = idx; i >= 0; i--) {
-    if (supported.includes(order[i]!)) return order[i]
-  }
-  return supported[0]
-}
 
 function uint8ToBase64(bytes: Uint8Array): string {
   let binary = ''

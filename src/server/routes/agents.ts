@@ -15,7 +15,7 @@ import {
   getBaseAvatarBytes,
   hasCustomBaseAvatar,
 } from '@/server/services/image-generation'
-import { DEFAULT_AVATAR_STYLE, DEFAULT_AVATAR_SUBJECT, AGENT_LANGUAGE_NAMES } from '@/shared/constants'
+import { DEFAULT_AVATAR_STYLE, DEFAULT_AVATAR_SUBJECT, AGENT_LANGUAGE_NAMES, THINKING_EFFORTS } from '@/shared/constants'
 import { loadProviderConfig } from '@/server/services/provider-config'
 import { deleteMemory, createMemory, updateMemory } from '@/server/services/memory'
 import type { AgentThinkingConfig, AgentThinkingEffort, MemoryCategory, MemoryScope } from '@/shared/types'
@@ -795,7 +795,7 @@ agentRoutes.patch('/:id/active-project', async (c) => {
   }
 })
 
-const ORPHAN_TASK_VALID_EFFORTS: readonly AgentThinkingEffort[] = ['low', 'medium', 'high', 'max']
+const ORPHAN_TASK_VALID_EFFORTS: readonly AgentThinkingEffort[] = THINKING_EFFORTS
 
 // POST /api/agents/:id/tasks — start a standalone (orphan) task on this Agent with
 // NO project/ticket binding. Body: { prompt, title?, model?, providerId?,

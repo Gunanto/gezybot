@@ -47,6 +47,7 @@ import type {
   HivekeepMessage,
   ThinkingEffort,
 } from '@/server/llm/llm/types'
+import { downgradeEffort } from '@/server/llm/llm/types'
 
 // ─── Config schema ───────────────────────────────────────────────────────────
 
@@ -137,17 +138,6 @@ function mapCodexModel(entry: CodexModelCacheEntry): LLMModel {
 
 // ─── Effort downgrade ────────────────────────────────────────────────────────
 
-function downgradeEffort(
-  requested: ThinkingEffort,
-  supported: readonly ThinkingEffort[],
-): ThinkingEffort | undefined {
-  const order: ThinkingEffort[] = ['low', 'medium', 'high', 'max']
-  const idx = order.indexOf(requested)
-  for (let i = idx; i >= 0; i--) {
-    if (supported.includes(order[i]!)) return order[i]
-  }
-  return supported[0]
-}
 
 // ─── Error mapping ───────────────────────────────────────────────────────────
 

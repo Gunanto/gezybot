@@ -456,9 +456,11 @@ function toolsToGemini(tools: HivekeepTool[] | undefined): GeminiToolDeclaration
 function thinkingBudgetFor(effort: ThinkingEffort | undefined): number | undefined {
   if (!effort) return undefined
   switch (effort) {
+    case 'minimal': return 512
     case 'low': return 1024
     case 'medium': return 4096
     case 'high': return 16384
+    case 'xhigh': return 24576
     case 'max': return -1   // auto / unlimited
   }
 }

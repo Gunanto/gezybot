@@ -47,13 +47,16 @@ import type {
   LLMModel,
   ThinkingEffort,
 } from '@/server/llm/llm/types'
+import { downgradeEffort } from '@/server/llm/llm/types'
 
 // ─── Effort → budget mapping ─────────────────────────────────────────────────
 
 const EFFORT_TO_BUDGET: Record<ThinkingEffort, number> = {
+  minimal: 1024, // Anthropic's minimum thinking budget
   low: 2048,
   medium: 8192,
   high: 24576,
+  xhigh: 28672,
   max: 32000,
 }
 
@@ -230,14 +233,7 @@ function resolveEffort(
   effort: ThinkingEffort | undefined,
 ): ThinkingEffort | undefined {
   if (!effort) return undefined
-  const supported = model.thinking?.efforts ?? []
-  if (supported.length === 0) return undefined
-  const order: ThinkingEffort[] = ['low', 'medium', 'high', 'max']
-  const requestedIdx = order.indexOf(effort)
-  for (let i = requestedIdx; i >= 0; i--) {
-    if (supported.includes(order[i]!)) return order[i]
-  }
-  return supported[0]
+  return downgradeEffort(effort, model.thinking?.efforts ?? [])
 }
 
 /**
@@ -277,7 +273,10 @@ export function buildThinkingParams(
   const chosen = resolveEffort(model, effort)
   if (!chosen) return {}
   if (config.llm.adaptiveThinking) {
-    return { thinking: { type: 'adaptive' }, outputConfig: { effort: chosen } }
+    // 'minimal' is not an Anthropic effort level — clamp to 'low'. 'xhigh' is
+    // accepted from Opus 4.7 onward (cast: the installed SDK types lag the API).
+    const apiEffort = chosen === 'minimal' ? 'low' : chosen
+    return { thinking: { type: 'adaptive' }, outputConfig: { effort: apiEffort } as OutputConfig }
   }
   return { thinking: { type: 'enabled', budget_tokens: EFFORT_TO_BUDGET[chosen] } }
 }

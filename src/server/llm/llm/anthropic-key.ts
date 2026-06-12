@@ -49,7 +49,9 @@ const CONFIG_SCHEMA: readonly ConfigField[] = [
 
 // ─── Model metadata ──────────────────────────────────────────────────────────
 
-const ALL_EFFORTS: readonly ThinkingEffort[] = ['low', 'medium', 'high', 'max']
+// Effort levels the Anthropic API can advertise (capabilities.effort).
+// 'minimal' is not an Anthropic level; 'xhigh' exists from Opus 4.7 onward.
+const ALL_EFFORTS: readonly ThinkingEffort[] = ['low', 'medium', 'high', 'xhigh', 'max']
 
 /**
  * UI-only annotations for models with documented quirks. The API does not
@@ -107,7 +109,7 @@ export const anthropicKeyProvider: LLMProvider = {
         const caps = m.capabilities
         const thinkingSupported = caps?.thinking?.supported ?? false
         const efforts: ThinkingEffort[] = thinkingSupported && caps?.effort
-          ? ALL_EFFORTS.filter((e) => caps.effort[e].supported)
+          ? ALL_EFFORTS.filter((e) => (caps.effort as unknown as Record<string, { supported?: boolean } | undefined>)[e]?.supported ?? false)
           : []
         const note = MODEL_NOTES[m.id]
         const thinking: LLMModel['thinking'] | undefined = efforts.length > 0

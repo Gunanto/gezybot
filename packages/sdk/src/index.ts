@@ -782,7 +782,38 @@ export interface ProviderUIHints {
 
 // ─── LLM ────────────────────────────────────────────────────────────────────
 
-export type ThinkingEffort = 'low' | 'medium' | 'high' | 'max'
+export type ThinkingEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+
+/** Canonical effort ladder, lowest → highest. Used for clamping/downgrading a
+ *  requested effort to what a model actually supports. */
+export const THINKING_EFFORT_ORDER: readonly ThinkingEffort[] = [
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+]
+
+/**
+ * Clamp a requested effort to the closest level the model supports, scanning
+ * downward from the request (a request above the model's ceiling lands on its
+ * highest supported level; below its floor lands on its lowest). Returns
+ * undefined when the model supports no effort levels — providers should then
+ * omit the effort/reasoning parameter entirely.
+ */
+export function downgradeEffort(
+  requested: ThinkingEffort,
+  supported: readonly ThinkingEffort[],
+): ThinkingEffort | undefined {
+  if (supported.length === 0) return undefined
+  const idx = THINKING_EFFORT_ORDER.indexOf(requested)
+  for (let i = idx; i >= 0; i--) {
+    const level = THINKING_EFFORT_ORDER[i]!
+    if (supported.includes(level)) return level
+  }
+  return supported[0]
+}
 
 /** Everything Hivekeep needs to know about an LLM model. Populated by the
  *  provider's `listModels()` — never hardcoded in consumer code. */

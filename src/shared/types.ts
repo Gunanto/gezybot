@@ -316,8 +316,11 @@ export interface AgentCompactingConfig {
   summaryMaxTokens?: number | null
 }
 
-/** Effort level for thinking/reasoning — maps to provider-specific budgets/flags. */
-export type AgentThinkingEffort = 'low' | 'medium' | 'high' | 'max'
+/** Effort level for thinking/reasoning — maps to provider-specific budgets/flags.
+ *  Mirrors the SDK's `ThinkingEffort` union (kept inline so the client bundle
+ *  never imports SDK values). Canonical order in `THINKING_EFFORTS`
+ *  (shared/constants.ts). */
+export type AgentThinkingEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
 /** Per-Agent thinking/reasoning configuration (stored as JSON in agents.thinking_config) */
 export interface AgentThinkingConfig {
