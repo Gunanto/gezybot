@@ -8,14 +8,21 @@
  * Every card credits the agent that "built" it (ties back to the household).
  */
 import { Icon } from 'astro-icon/components';
+import { getDict, type Locale } from '../i18n';
+
+interface Props {
+  lang: Locale;
+}
+const { lang } = Astro.props;
+const t = getDict(lang).components.marquee;
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const av = (n: string) => `${base}/avatars/${n}.jpg`;
 ---
 <section class="apps reveal" id="mini-apps">
   <div class="wrap">
-    <span class="kicker">Mini-apps · built by your agents</span>
-    <h2 class="display">Ask for an app. Get an app.</h2>
-    <p class="apps-sub">Real web apps your agents build and host inside Hivekeep: themed, installable, and wired to your tools and APIs when you need it. Everything below is the kind of thing one sentence gets you.</p>
+    <span class="kicker">{t.kicker}</span>
+    <h2 class="display">{t.heading}</h2>
+    <p class="apps-sub">{t.sub}</p>
   </div>
 
   <div class="apps-view" aria-label="Examples of mini-apps built by agents">
@@ -139,7 +146,7 @@ const av = (n: string) => `${base}/avatars/${n}.jpg`;
     </div>
   </div>
 
-  <div class="wrap apps-note-wrap"><p class="apps-note mono">Illustrative previews. Agents build, theme, and improve these on request: <b>“add a chart”</b> is a message, not a ticket.</p></div>
+  <div class="wrap apps-note-wrap"><p class="apps-note mono" set:html={t.note}></p></div>
 </section>
 
 <style>

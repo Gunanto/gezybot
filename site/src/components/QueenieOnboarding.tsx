@@ -57,7 +57,16 @@ function renderRich(text: string) {
   })
 }
 
-export default function QueenieOnboarding() {
+const DEFAULT_LABELS = {
+  cap: 'Fig. 5 · Queenie onboarding',
+  liveDemo: 'live demo',
+  online: 'online',
+  role: 'Your setup guide · gets the hive running',
+  placeholder: 'Message Queenie\u2026',
+}
+
+/** Translated chrome labels (the scripted transcript stays English by design). */
+export default function QueenieOnboarding({ labels = DEFAULT_LABELS }: { labels?: typeof DEFAULT_LABELS }) {
   const reduce =
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -239,8 +248,8 @@ export default function QueenieOnboarding() {
   return (
     <div className="figure glass qd" ref={rootRef}>
       <div className="cap">
-        <span>Fig. 5 · Queenie onboarding</span>
-        <span className="amb">live demo</span>
+        <span>{labels.cap}</span>
+        <span className="amb">{labels.liveDemo}</span>
       </div>
       <div className="qd-head">
         <img className="dm-head-av" src={QUEENIE} alt="Queenie" width={40} height={40} />
@@ -249,10 +258,10 @@ export default function QueenieOnboarding() {
             <span className="dm-head-nm">Queenie</span>
             <span className="dm-chip">
               <span className="pip" />
-              online
+              {labels.online}
             </span>
           </div>
-          <span className="dm-head-role">Your setup guide · gets the hive running</span>
+          <span className="dm-head-role">{labels.role}</span>
         </div>
       </div>
       <div className="dm-body qd-body" ref={bodyRef}>
@@ -260,7 +269,7 @@ export default function QueenieOnboarding() {
       </div>
       <div className="dm-input" aria-hidden="true">
         <div className="dm-input-box">
-          <span className="dm-input-ph">Message Queenie…</span>
+          <span className="dm-input-ph">{labels.placeholder}</span>
           <span className="dm-send">
             <ArrowUp />
           </span>

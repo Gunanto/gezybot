@@ -19,6 +19,8 @@ interface Props {
 
 const { lang } = Astro.props;
 const t = getDict(lang);
+// Localized agent-directory domains, keyed by agent name (fallback: agents.json).
+const agentDomains: Record<string, string> = t.components.domains;
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const installHref = `${base}${localePath(lang, '/install')}`;
@@ -145,7 +147,7 @@ const fxCount = fxCategories.reduce((n, c) => n + c.cards.length, 0);
         </div>
 
         <!-- interactive Agents panel: click a row to replay a scripted demo -->
-        <AgentDemo client:load total={agents.length} />
+        <AgentDemo client:load total={agents.length} labels={t.components.agentDemo} />
       </div>
     </div>
 
@@ -316,7 +318,7 @@ const fxCount = fxCategories.reduce((n, c) => n + c.cards.length, 0);
   </section></div>
 
   <!-- ===== mini-apps showcase (marquee) ===== -->
-  <MiniAppsMarquee />
+  <MiniAppsMarquee lang={lang} />
 
   <!-- ===== 04 everywhere ===== -->
   <div class="wrap band" id="channels"><section class="section reveal">
@@ -447,7 +449,7 @@ const fxCount = fxCategories.reduce((n, c) => n + c.cards.length, 0);
           <p>{t.home.s7setup.p1}</p>
           <div class="taglist"><span class="t"><Icon name="lucide:shield-check" /> {t.home.s7setup.tagSecure}</span><span class="t"><Icon name="lucide:wand-sparkles" /> {t.home.s7setup.tagGenerates}</span></div>
         </div>
-        <QueenieOnboarding client:visible />
+        <QueenieOnboarding client:visible labels={t.components.queenieDemo} />
       </div>
     </div>
   </section></div>
@@ -466,7 +468,7 @@ const fxCount = fxCategories.reduce((n, c) => n + c.cards.length, 0);
             <div class="dir">
               <div class="frame"><Avatar name={k.name} avatar={k.avatar} size={52} hue={HUES[i % HUES.length]} /></div>
               <div class="top"><span class="nm">{k.name}</span>{builtin ? <span class="bi">{t.home.s8household.builtIn}</span> : <span class="no">{t.home.s8household.eg}</span>}</div>
-              <div class="dm">{k.domain}</div>
+              <div class="dm">{agentDomains[k.name] ?? k.domain}</div>
             </div>
           );
         })}
@@ -497,7 +499,7 @@ const fxCount = fxCategories.reduce((n, c) => n + c.cards.length, 0);
   <hr class="rule" />
 
   <!-- ===== providers & plugins ===== -->
-  <Providers />
+  <Providers lang={lang} />
   <hr class="rule" />
 
   <!-- ===== why hivekeep (comparison) ===== -->

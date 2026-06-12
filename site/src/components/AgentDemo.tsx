@@ -57,9 +57,25 @@ function renderRich(text: string) {
 interface Props {
   /** Full roster length, for the "{n} active" header count. */
   total: number
+  /** Translated chrome labels (transcripts stay English by design). */
+  labels?: typeof DEFAULT_LABELS
 }
 
-export default function AgentDemo({ total }: Props) {
+const DEFAULT_LABELS = {
+  rosterTitle: '// your agents',
+  active: '{count} active',
+  seeInAction: 'See {name} in action',
+  demoTag: 'demo',
+  close: 'Close',
+  replay: 'Replay',
+  placeholder: 'Message {name}\u2026',
+  note: 'This is a scripted preview. The real thing runs on your server.',
+  statusOnline: 'online',
+  statusWorking: 'working',
+  statusIdle: 'idle',
+}
+
+export default function AgentDemo({ total, labels = DEFAULT_LABELS }: Props) {
   const [mounted, setMounted] = useState(false)
   const [openIdx, setOpenIdx] = useState<number | null>(null)
   const [visible, setVisible] = useState(false)
@@ -251,13 +267,13 @@ export default function AgentDemo({ total }: Props) {
     <>
       <div className="panel glass">
         <div className="ph-head">
-          <span className="t">// your agents</span>
-          <span className="c">{total} active</span>
+          <span className="t">{labels.rosterTitle}</span>
+          <span className="c">{labels.active.replace('{count}', String(total))}</span>
         </div>
         <div>
           {AGENT_DEMOS.map((k, idx) => {
             const st = k.status === 'working' ? 'work' : k.status === 'idle' ? 'idle' : ''
-            const label = k.status === 'working' ? 'working' : k.status === 'idle' ? 'idle' : 'online'
+            const label = k.status === 'working' ? labels.statusWorking : k.status === 'idle' ? labels.statusIdle : labels.statusOnline
             return (
               <button
                 type="button"
@@ -265,7 +281,7 @@ export default function AgentDemo({ total }: Props) {
                 key={k.name}
                 style={{ animationDelay: `${idx * 0.18}s` }}
                 onClick={() => startDemo(idx)}
-                aria-label={`See ${k.name} in action`}
+                aria-label={labels.seeInAction.replace('{name}', k.name)}
                 title={`“${k.prompt}”`}
               >
                 <span className="av">
@@ -310,13 +326,13 @@ export default function AgentDemo({ total }: Props) {
                         <span className="dm-head-nm">{demo.name}</span>
                         <span className={`dm-chip ${demo.status === 'working' ? 'work' : ''}`}>
                           <span className="pip" />
-                          {demo.status}
+                          {demo.status === 'working' ? labels.statusWorking : demo.status === 'idle' ? labels.statusIdle : labels.statusOnline}
                         </span>
                       </div>
                       <span className="dm-head-role">{demo.role}</span>
                     </div>
-                    <span className="dm-demo-tag">demo</span>
-                    <button type="button" className="dm-close" onClick={close} aria-label="Close">
+                    <span className="dm-demo-tag">{labels.demoTag}</span>
+                    <button type="button" className="dm-close" onClick={close} aria-label={labels.close}>
                       <X />
                     </button>
                   </header>
@@ -326,7 +342,7 @@ export default function AgentDemo({ total }: Props) {
                     {finished && (
                       <div className="dm-replay-wrap">
                         <button type="button" className="dm-replay" onClick={replay}>
-                          <RotateCcw /> Replay
+                          <RotateCcw /> {labels.replay}
                         </button>
                       </div>
                     )}
@@ -334,12 +350,12 @@ export default function AgentDemo({ total }: Props) {
 
                   <div className="dm-input" aria-hidden="true">
                     <div className="dm-input-box">
-                      <span className="dm-input-ph">Message {demo.name}…</span>
+                      <span className="dm-input-ph">{labels.placeholder.replace('{name}', demo.name)}</span>
                       <span className="dm-send">
                         <ArrowUp />
                       </span>
                     </div>
-                    <span className="dm-input-note">This is a scripted preview — the real thing runs on your server.</span>
+                    <span className="dm-input-note">{labels.note}</span>
                   </div>
                 </>
               )}
