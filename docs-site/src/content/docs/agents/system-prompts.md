@@ -23,7 +23,7 @@ Hivekeep builds the system prompt from these blocks (in order):
 12. **Workspace** — when an Agent has a workspace directory configured, shows the absolute path and a file tree of its contents. Instructs the Agent to use the workspace for all file operations (repos, scripts, data) and avoid writing to the home folder or other system paths. Empty workspaces get a hint to start organizing
 13. **Current speaker profile** — name, role, and contact notes (both global/shared and per-Agent private notes) for the user who sent the current message. If the user has a linked contact but no notes yet, includes a gentle nudge to discover them naturally. Also resolves channel senders (Telegram, Discord, WhatsApp) to their contact records via platform ID
 14. **Channel origin context** — when the current turn is part of a causal chain originating from an external channel (e.g. inter-Agent reply or task result), informs the Agent that delivery is automatic and advises adapting formatting for the target platform
-15. **Language** — response language from the user's **Agent language** setting (account settings; falls back to the interface language when unset). Agents can speak nearly any language, independent of the UI translation.
+15. **Language** — response language from the user's **Agent language** setting in account settings (falls back to the interface language when unset). Agents can speak nearly any language, independent of the UI translation.
 16. **Date and context** — current timestamp
 
 ## Writing effective characters

@@ -41,8 +41,14 @@ for (const file of files) {
   if (file === REFERENCE) continue
   const locale = flatten(JSON.parse(readFileSync(join(LOCALES_DIR, file), 'utf8')))
 
-  const missing = [...ref.keys()].filter((k) => !locale.has(k))
-  const extra = [...locale.keys()].filter((k) => !ref.has(k))
+  // Languages with richer plural systems (ru, pl, …) legitimately add forms the
+  // English reference doesn't have (_few, _many, …); ja/zh may drop _one.
+  const PLURAL_SUFFIX = /_(zero|one|two|few|many|other)$/
+  const isPluralVariant = (k: string, of: Map<string, string>) =>
+    PLURAL_SUFFIX.test(k) && of.has(`${k.replace(PLURAL_SUFFIX, '')}_other`)
+
+  const missing = [...ref.keys()].filter((k) => !locale.has(k) && !isPluralVariant(k, locale))
+  const extra = [...locale.keys()].filter((k) => !ref.has(k) && !isPluralVariant(k, ref))
   const badInterp: string[] = []
   const emDashes: string[] = []
 

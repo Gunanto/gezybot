@@ -6,6 +6,7 @@ import { LanguageSelector, AgentLanguageSelector } from '@/client/components/com
 import { Sun, Moon, Monitor, Contrast, CircleDot, Loader2 } from 'lucide-react'
 import { usePalette, useTheme, PALETTES } from '@/client/components/theme-provider'
 import { api } from '@/client/lib/api'
+import { changeAppLanguage } from '@/client/lib/i18n'
 
 interface StepPreferencesProps {
   onComplete: () => void
@@ -49,7 +50,7 @@ export function StepPreferences({ onComplete, onBack }: StepPreferencesProps) {
       {/* Interface language */}
       <div className="space-y-2">
         <Label>{t('onboarding.preferences.language')}</Label>
-        <LanguageSelector value={language} onValueChange={(v) => { setLanguage(v); i18n.changeLanguage(v) }} />
+        <LanguageSelector value={language} onValueChange={(v) => { setLanguage(v); void changeAppLanguage(v) }} />
         <p className="text-xs text-muted-foreground">
           {t('onboarding.preferences.languageHint')}
         </p>

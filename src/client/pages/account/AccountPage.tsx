@@ -23,6 +23,7 @@ import {
 import { Calendar, Camera, ChevronDown, ChevronUp, Crop, KeyRound, Loader2, ZoomIn } from 'lucide-react'
 import { useAuth } from '@/client/hooks/useAuth'
 import { api, toastError } from '@/client/lib/api'
+import { changeAppLanguage } from '@/client/lib/i18n'
 import { cropImage, type CropArea } from '@/client/lib/crop-image'
 import { toast } from 'sonner'
 
@@ -185,7 +186,7 @@ export function AccountDialog({ open, onOpenChange }: AccountDialogProps) {
 
       await refetch()
       if (language !== i18n.language) {
-        await i18n.changeLanguage(language)
+        await changeAppLanguage(language)
       }
       onOpenChange(false)
       toast.success(t('account.saved'))

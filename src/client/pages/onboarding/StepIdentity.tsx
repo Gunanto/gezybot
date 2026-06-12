@@ -112,7 +112,7 @@ function extractFieldErrors(err: unknown): {
 }
 
 export function StepIdentity({ onComplete }: StepIdentityProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { register, login } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -190,7 +190,9 @@ export function StepIdentity({ onComplete }: StepIdentityProps) {
           firstName,
           lastName,
           pseudonym,
-          language: 'en',
+          // Auto-detected browser language (see lib/i18n.ts); the user can
+          // change it on the next step (Preferences).
+          language: i18n.language || 'en',
         })
       } catch (profileErr: unknown) {
         const profileMsg = getErrorMessage(profileErr) || ''

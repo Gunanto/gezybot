@@ -46,7 +46,7 @@ Understanding the boundary matters when several people use the same instance.
 **Tied to the individual:**
 
 - **Login and session.** Each person has their own credentials and cookie session.
-- **Profile and preferences.** First name, last name, pseudonym, interface language, Agent language (the language Agents speak to you — independent from the UI translation), and appearance settings (theme, palette, contrast) are stored per profile so they sync across that person's devices.
+- **Profile and preferences.** First name, last name, pseudonym, interface language, Agent language (the language Agents speak to you, independent from the UI translation), and appearance settings (theme, palette, contrast) are stored per profile so they sync across that person's devices.
 - **The author tag on each message.** Every message records its source, and a user message carries the identity of the person who sent it.
 
 ## How Agents recognise who is speaking

@@ -14,7 +14,7 @@ import { getErrorMessage } from '@/client/lib/api'
 import { getUserInitials } from '@/client/lib/utils'
 
 export function InvitePage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { token } = useParams<{ token: string }>()
   const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -31,7 +31,8 @@ export function InvitePage() {
   const [pseudonym, setPseudonym] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
-  const [language, setLanguage] = useState('en')
+  // Defaults to the auto-detected browser language (see lib/i18n.ts)
+  const [language, setLanguage] = useState(i18n.language || 'en')
   // null = Agents follow the UI language
   const [agentLanguage, setAgentLanguage] = useState<string | null>(null)
   const [error, setError] = useState('')

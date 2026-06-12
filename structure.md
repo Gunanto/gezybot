@@ -123,7 +123,7 @@ hivekeep/
 │   │   ├── hooks/                     # Hooks React custom
 │   │   ├── contexts/                  # Contexts (theme, palette, …)
 │   │   ├── lib/                       # Utilitaires client (api, i18n, …)
-│   │   ├── locales/                   # Traductions i18n (en, fr)
+│   │   ├── locales/                   # Traductions i18n (en, fr, es, de, pt-BR, zh-CN, ja, ru, it, pl)
 │   │   └── styles/                    # CSS (Tailwind + design tokens)
 │   │
 │   └── shared/                        # Code partagé client/serveur

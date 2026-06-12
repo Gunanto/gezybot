@@ -55,7 +55,8 @@ All API routes return JSON. Errors follow this format:
 
 ### i18n
 
-- Base language: English (`en.json`). Supported: `en`, `fr`
+- Base language: English (`en.json`). Supported UI locales: `en`, `fr`, `es`, `de`, `pt-BR`, `zh-CN`, `ja`, `ru`, `it`, `pl` (key parity enforced by `bun scripts/check-locales.ts`; no em-dashes in locale strings)
+- UI language (`user_profiles.language`) is decoupled from the Agent communication language (`user_profiles.agent_language`, any `AGENT_LANGUAGES` code, null = follow UI language)
 - Key convention: `namespace.element.action` (e.g. `sidebar.agents.title`)
 - Use `useTranslation()` hook — never hardcode text in JSX
 - Language detected from `user_profiles.language`, not the browser

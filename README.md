@@ -198,7 +198,7 @@ All capabilities are detailed on the [website](https://marlburrow.github.io/hive
 **A nice agent UI (PWA)**
 - Installable PWA, responsive and mobile-first
 - 18 OKLch palettes (aurora, ocean, forest, sunset, monochrome, sakura, neon, lavender, midnight, copper, jade, crimson, galaxy, amber, slate, rose, mint, citrus) x light/dark/system x adaptive contrast
-- Glass/gradient design system, WCAG AA, i18n (English and French)
+- Glass/gradient design system, WCAG AA, i18n (10 UI languages; Agents speak 40+)
 - Rich tool renders inline, @mentions with autocomplete, real-time SSE streaming, auto-generated per-Agent avatars
 - Files: a built-in workspace browser/editor — browse, edit, upload, and share any file your Agents produce, with clickable file paths in chat
 
@@ -224,7 +224,7 @@ All capabilities are detailed on the [website](https://marlburrow.github.io/hive
 Persistent identity and expertise per Agent (shared across users, sender-tagged messages, replies in the last speaker's language). One continuous session, never reset. Hybrid long-term memory (sqlite-vec KNN + FTS5, RRF fusion, importance/decay/category re-ranking, multi-query + HyDE + optional LLM rerank). Progressive compaction (token-aware keep-window + telescoping multi-summary, originals never deleted, triggers around 75% of the context window). FIFO queue per Agent with user-message priority. Sub-Agents (`await` / `async`, max depth 3). Inter-Agent messaging (`request` / `reply`, correlation IDs, rate-limited, chain-depth guarded). Unified contacts registry. Stateful browser (18 `browser_*` tools, Playwright + stealth + accessibility-snapshot refs). Native Anthropic prompt caching.
 
 #### 2. UI/UX, PWA, design system, theming
-Installable PWA (hand-coded service worker, offline app shell). 18 OKLch palettes x light/dark/system x adaptive contrast (normal/soft, DB-synced cross-device). Glass/gradient design system, WCAG AA, 21 micro-interaction keyframes. i18n (English + French). Rich tool renders inline. @mentions with autocomplete. Real-time SSE streaming on a single multiplexed connection. Auto-generated per-Agent avatars (3 independent axes: art style, subject, character).
+Installable PWA (hand-coded service worker, offline app shell). 18 OKLch palettes x light/dark/system x adaptive contrast (normal/soft, DB-synced cross-device). Glass/gradient design system, WCAG AA, 21 micro-interaction keyframes. i18n (10 UI languages: en, fr, es, de, pt-BR, zh-CN, ja, ru, it, pl; Agents answer in 40+ languages, independent of the UI). Rich tool renders inline. @mentions with autocomplete. Real-time SSE streaming on a single multiplexed connection. Auto-generated per-Agent avatars (3 independent axes: art style, subject, character).
 
 #### 3. Custom tools + rich renderers
 Multi-language authoring (Python, Node, Bun, TS, Bash, Deno) with native dependency management. Each tool can bundle a `renderer.tsx`, server-bundled and SSR-validated before deploy, delivered as a content-addressed ESM module. Two-phase (build + SSR) validation. Themed UI kit, native renderers for 20+ built-in tools, per-toolbox scoping.
