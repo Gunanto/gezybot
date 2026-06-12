@@ -123,6 +123,7 @@ Après chaque exécution, `redactResult()` scanne le résultat (feuilles string,
 - S'exécute dans `executeSingleTool` avant le `return` ⇒ couvre d'un coup le retour LLM, l'event SSE `chat:tool-result` (tool-executor.ts:122-141) et la persistance `toolCallsLog`.
 - **Logs serveur** : `http-request-tools.ts` logge les headers en DEBUG après substitution ⇒ exposer `redactKnownSecrets(s: string)` depuis le module et l'appliquer dans ce log (et tout futur log d'args post-substitution). À vérifier au moment de l'implémentation : autres logs de tools loggant des args substitués.
 - Le même moteur de scan/remplacement sert **rétroactivement** : `redact_secret_leak` (§ 7) l'applique à la DB (historique + résumés) au lieu du flux.
+- **Canal mini-apps** : `ctx.secrets.get(name)` (runtime backend, permission nominative `secrets:<KEY>` approuvée par l'utilisateur) alimente aussi le hot cache — une valeur echo'ée dans les logs d'une app puis relue par un agent via un tool est redactée comme les autres. Limite connue : le scoping P7 (`allowedTools`/`allowedHosts`) ne s'applique pas à ce canal, l'approbation de permission par secret en tient lieu.
 
 ---
 

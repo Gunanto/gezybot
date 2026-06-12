@@ -175,6 +175,40 @@ describe('scrubLeakedValue (redact_secret_leak engine)', () => {
   })
 })
 
+describe('mini-app ctx.secrets feeds the redaction hot cache', () => {
+  it('a value read via ctx.secrets.get is scrubbed if it later transits a tool result', async () => {
+    const { buildSecretsApi } = await import('@/server/services/mini-app-capabilities')
+    testSecrets.set('WEATHER_KEY', 'owm-live-0123456789')
+    const api = buildSecretsApi({ appId: 'app-1', appName: 'weather', appDir: '/tmp/x', agentId: 'agent-1', granted: ['secrets:WEATHER_KEY'] })
+
+    expect(await api.get('WEATHER_KEY')).toBe('owm-live-0123456789')
+
+    // The mini-app echoed the value into its logs; an agent reads them via a
+    // tool — the executor's output redaction must recognize the value.
+    const result = await executeSingleTool(
+      { id: 't10', name: 'memorize', args: { content: 'irrelevant' }, offset: 0 },
+      {
+        memorize: { execute: async () => ({ logs: 'fetch failed: appid=owm-live-0123456789 rejected' }) },
+      } as never,
+      new AbortController(),
+    )
+    expect((result as { logs: string }).logs).toBe('fetch failed: appid={{secret:WEATHER_KEY}} rejected')
+  })
+
+  it('an ungranted read throws and feeds nothing', async () => {
+    const { buildSecretsApi } = await import('@/server/services/mini-app-capabilities')
+    testSecrets.set('UNGRANTED_KEY', 'never-cached-9876543')
+    const api = buildSecretsApi({ appId: 'app-1', appName: 'weather', appDir: '/tmp/x', agentId: 'agent-1', granted: [] })
+    await expect(api.get('UNGRANTED_KEY')).rejects.toThrow()
+    const result = await executeSingleTool(
+      { id: 't11', name: 'memorize', args: { content: 'x' }, offset: 0 },
+      { memorize: { execute: async () => ({ out: 'leak: never-cached-9876543' }) } } as never,
+      new AbortController(),
+    )
+    expect((result as { out: string }).out).toBe('leak: never-cached-9876543')
+  })
+})
+
 describe('sweepRevealedCarriers (reveal_secret end-of-turn / boot sweep)', () => {
   const VALUE = 'revealed-raw-value-9f8e7d'
 

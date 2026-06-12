@@ -111,6 +111,10 @@ If a secret value does end up in the conversation, the Agent calls `redact_secre
 
 The flow when you paste a secret in chat: the Agent stores it with `create_secret`, then immediately calls `redact_secret_leak` so the pasted value vanishes from the history. Note that the value was already sent to the LLM provider for the turns where it was visible; scrubbing stops the bleeding from the next turn on.
 
+## How mini-apps access secrets
+
+A mini-app backend reads a secret with `ctx.secrets.get('KEY')`, gated by a per-secret permission (`"secrets:KEY"` in its `app.json`) that **you approve explicitly**. The value flows server-side into the app's backend, never through the model — and any value read this way joins the redaction watchlist, so if the app ever echoes it into logs or a response an Agent later reads, it is replaced by the placeholder before reaching the model. See [Mini-app backend](/docs/mini-apps/backend/) for the runtime API.
+
 ## How plugins access secrets
 
 Plugins get a scoped Vault through their SDK context (`ctx.vault`), built per plugin by name. The scoping rules:

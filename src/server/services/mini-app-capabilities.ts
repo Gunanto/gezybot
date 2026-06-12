@@ -261,7 +261,14 @@ export function buildSecretsApi(params: BuildCapabilitiesParams): MiniAppSecrets
       if (!SECRET_PERMISSION_RE.test(permission)) throw new Error(`secrets.get: invalid secret name "${name}"`)
       if (!grantedSet.has(permission)) throw permissionError(permission)
       const { getSecretValue } = await import('@/server/services/vault')
-      return getSecretValue(name)
+      const { noteHotSecret } = await import('@/server/services/secret-substitution')
+      const value = await getSecretValue(name)
+      // Feed the output-redaction hot cache: if the mini-app ever echoes the
+      // value somewhere an agent later reads through a tool (its console
+      // logs, an endpoint response), the scrubber maps it back to
+      // {{secret:NAME}} instead of letting it re-enter LLM context.
+      if (value !== null) noteHotSecret(name, value)
+      return value
     },
   }
 }
