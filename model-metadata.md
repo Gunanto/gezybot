@@ -287,3 +287,29 @@ vue dans les Réglages. **On garde le contrat SDK** (champs optionnels → plugi
 intacts), on **branche les SEAMs avant de retirer les heuristiques**, derrière un
 **feature-flag**, provider par provider. Débloque prix, contexte fiable, gating
 image/PDF.
+
+---
+
+## 13. Addendum — efforts de reasoning dynamiques (2026-06-12)
+
+Implémenté sur `main` (suite de la décision §10) :
+
+- **Enum élargi** : `ThinkingEffort = 'minimal' | 'low' | 'medium' | 'high' |
+  'xhigh' | 'max'` (alignement models.dev ; `none` upstream = notre toggle
+  off, filtré au mapping). Ordre canonique + clamp partagés :
+  `THINKING_EFFORT_ORDER` / `downgradeEffort` exportés par le SDK (les 7 copies
+  locales des providers ont été supprimées).
+- **Snapshot** : `reasoning_options[].values` (type `effort`) est désormais
+  peuplé upstream → `reasoning_efforts` présent sur ~384 modèles après regen.
+- **Exception de merge** (`mergeAutoMetadata`, `resolve.ts`) : la priorité
+  par champ reste `pin admin > seed API provider > models.dev`, SAUF pour
+  `thinking` quand models.dev porte une liste d'efforts non vide (les seeds
+  providers sont des heuristiques de nommage ; la liste curatée gagne). Une
+  liste vide (toggle/budget-only) n'écrase jamais un seed avec efforts.
+- **Exposition client** : `GET /api/providers/models` renvoie `thinking`
+  (enrichi registry). Tous les sélecteurs d'effort (composer, settings Agent,
+  crons, dialogs de tâches, défauts projet) filtrent leurs options sur
+  `model.thinking.efforts` via `src/client/lib/model-efforts.ts`
+  (`modelReasoningInfo` : unknown / unsupported / toggle / levels +
+  `clampEffort`). Sans contexte modèle → échelle générique, clamp serveur.
+- **Contrat SDK inchangé** structurellement (élargissement d'union seulement).

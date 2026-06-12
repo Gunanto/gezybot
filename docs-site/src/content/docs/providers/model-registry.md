@@ -28,10 +28,13 @@ Match confidence is one of:
 | **family** | Only a base-family match (low confidence) — flagged for review. |
 | **none** | Not in models.dev — flagged for review. |
 
-The priority for each field is **admin override (pinned) → models.dev → the
-provider's own API hint → default**. The effective value is computed at reconcile
-time and stored on the row, so what you see in the table is exactly what an Agent
-gets at runtime.
+The priority for each field is **admin override (pinned) → the provider's own
+API hint → models.dev → default**, with one exception: when models.dev carries
+an explicit **reasoning effort list** for a model, that list wins over the
+provider's hint (provider hints are often name-pattern heuristics; the curated
+per-model list is more accurate). The effective value is computed at reconcile
+time and stored on the row, so what you see in the table is exactly what an
+Agent gets at runtime.
 
 ## Labels
 
@@ -96,6 +99,25 @@ current without a release:
 
 Reconciliation also runs automatically: when a provider is created or
 (re)validated, and on a periodic background cron.
+
+## Reasoning-aware effort selectors
+
+Every place you pick a reasoning effort (the chat composer, Agent settings,
+cron forms, task dialogs) only offers **the levels the selected model actually
+supports**, from the registry's reasoning metadata. The full ladder is
+`minimal, low, medium, high, xhigh, max`:
+
+- A model with an explicit effort list (e.g. `low → xhigh` on recent OpenAI
+  models) shows exactly those levels.
+- A reasoning model with no granularity (e.g. Kimi K2.5) shows a single
+  **Enabled** toggle.
+- A model with no reasoning support shows **Off** with a hint.
+- No model context (project defaults) or an unknown model falls back to the
+  generic ladder; the provider clamps the request to the closest supported
+  level at run time either way.
+
+When you switch a model and its stored effort is out of range, the selector
+clamps it to the nearest supported level.
 
 ## Capability-driven upload gating
 

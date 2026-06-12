@@ -190,6 +190,18 @@ Liste tous les modèles disponibles a travers tous les providers configurés.
     providerId: string
     providerType: string
     capability: 'llm' | 'embedding' | 'image' | 'search'
+    supportsImageInput?: boolean   // llm only — tri-state (absent = inconnu)
+    supportsPdfInput?: boolean     // llm only — tri-state (absent = inconnu)
+    maxImageInputs?: number        // image only
+    contextWindow?: number
+    maxOutput?: number
+    // llm only — support reasoning après enrichissement registry.
+    // Absent = pas un modèle de reasoning ; efforts: [] = toggle on/off
+    // sans granularité. Pilote les sélecteurs d'effort côté client.
+    thinking?: {
+      efforts: Array<'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'>
+      note?: string
+    }
   }>
 }
 ```

@@ -4,7 +4,10 @@
  * The registry resolves a model's metadata from several layers, highest priority
  * first (see `model-metadata.md` §7):
  *
- *   admin override (pinned field) > models.dev > provider-API seed hint > default
+ *   admin override (pinned field) > provider-API seed > models.dev > default
+ *
+ * Exception (see `mergeAutoMetadata`): a models.dev entry with an explicit,
+ * non-empty reasoning-effort list beats the seed for the `thinking` field.
  *
  * `mergeMetadata` applies that priority field-by-field: for each field, the first
  * layer that defines it wins. Phase 1 wires this into the resolve.ts SEAM; this
