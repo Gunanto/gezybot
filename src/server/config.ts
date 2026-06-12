@@ -65,12 +65,16 @@ function resolveEncryptionKey(): string {
 }
 
 /** Detect the installation type based on environment heuristics. */
-type InstallationType = 'docker' | 'systemd-user' | 'systemd-system' | 'manual'
+import type { InstallationType } from '@/shared/types'
 
 function detectInstallationType(): InstallationType {
   // Docker: /.dockerenv file or known Docker data dir
   if (existsSync('/.dockerenv') || process.env.HIVEKEEP_DATA_DIR === '/app/data') {
     return 'docker'
+  }
+  // launchd (macOS service): XPC_SERVICE_NAME is set for launchd-managed jobs
+  if (process.env.XPC_SERVICE_NAME && process.env.XPC_SERVICE_NAME.includes('hivekeep')) {
+    return 'launchd'
   }
   // systemd: INVOCATION_ID is set by systemd for all service processes
   if (process.env.INVOCATION_ID) {
@@ -658,6 +662,8 @@ export const config = {
   versionCheck: {
     enabled: process.env.VERSION_CHECK_ENABLED !== 'false',
     repo: process.env.VERSION_CHECK_REPO ?? 'MarlBurroW/hivekeep',
+    /** Branch tracked by the edge update channel */
+    branch: process.env.VERSION_CHECK_BRANCH ?? 'main',
     intervalHours: Number(process.env.VERSION_CHECK_INTERVAL_HOURS ?? 1),
   },
 

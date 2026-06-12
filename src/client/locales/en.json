@@ -2375,6 +2375,19 @@
       "detailCallSite": "Type",
       "detailSteps": "Steps",
       "detailShowing": "{{from}}–{{to}} of {{total}}"
+    },
+    "updates": {
+      "title": "Updates",
+      "description": "Keep this Hivekeep instance up to date.",
+      "help": "Hivekeep checks GitHub for new versions periodically. The stable channel follows official releases; the edge channel follows the latest commit on the main branch (for testing unreleased changes). Self-update is available for installs managed by install.sh; Docker installs are updated by pulling a newer image.",
+      "channelLabel": "Update channel",
+      "channelTip": "Which stream of updates this instance follows.",
+      "channelSaved": "Update channel saved",
+      "channelStableDescription": "Follows official releases. Recommended for most installs.",
+      "channelEdgeDescription": "Follows the latest commit on main. May be unstable — for testing only.",
+      "updateAvailableBadge": "{{version}} available",
+      "upToDateBadge": "Up to date",
+      "lastChecked": "Last checked: {{date}}"
     }
   },
   "notifications": {
@@ -3029,7 +3042,7 @@
     "channelOnline": "Channel connected",
     "channelOffline": "Channel disconnected",
     "channelError": "Channel connection error",
-    "updateAvailable": "AgentOS {{version}} is available",
+    "updateAvailable": "Hivekeep {{version}} is available",
     "viewRelease": "View"
   },
   "errorBoundary": {
@@ -3041,14 +3054,20 @@
     "description": "v{{current}} → v{{latest}}",
     "current": "Current",
     "latest": "Latest",
-    "releaseNotes": "Release Notes",
+    "releaseNotes": "What's new",
+    "newCommits": "{{count}} new commit on main",
+    "newCommits_other": "{{count}} new commits on main",
     "howToUpdate": "How to Update",
     "dockerInstructions": "Run the following command in the directory containing your docker-compose.yml:",
-    "nonDockerInstructions": "Click the button below to pull the latest version and restart the server. The page will reload automatically.",
-    "viewOnGitHub": "View release on GitHub",
+    "dockerTagNote": "If your compose file pins a specific version tag, change it to {{version}} (or use the latest tag) before pulling.",
+    "selfUpdateInstructions": "Hivekeep will snapshot its database, download the new version and restart. If anything goes wrong, the previous version is restored automatically.",
+    "adminOnly": "Only administrators can apply updates.",
+    "devModeNote": "This instance is running in development mode — update it from your git checkout.",
+    "manualInstallNote": "This install is not managed by Hivekeep — update it the same way it was installed.",
+    "viewOnGitHub": "View on GitHub",
     "updateButton": "Update now",
     "updating": "Updating...",
-    "updateSuccess": "Update applied! Reloading...",
+    "updateSuccess": "Updated to {{version}}!",
     "updateFailed": "Update failed"
   },
   "whatsNew": {
@@ -3519,6 +3538,30 @@
         "error": "Clone failed. Check the message below and click Retry once the issue is fixed."
       },
       "retry": "Retry clone"
+    }
+  },
+  "updateChannel": {
+    "stable": "Stable (releases)",
+    "edge": "Edge (main branch)"
+  },
+  "updateProgress": {
+    "title": "Update in progress",
+    "dontClose": "You can keep using Hivekeep — the update runs in the background and the page will reload when it's done.",
+    "waitingForServer": "Server is restarting… waiting for it to come back",
+    "reloading": "The page will reload automatically.",
+    "failedTitle": "Update failed",
+    "failedSafe": "Nothing was changed — the current version is still running.",
+    "rolledBackTitle": "Update rolled back",
+    "rolledBackDescription": "The new version failed to start, so the previous version was restored automatically. Your data was restored from the pre-update snapshot.",
+    "steps": {
+      "preflight": "Pre-flight checks",
+      "snapshot": "Database snapshot",
+      "backup": "Backing up current version",
+      "download": "Downloading prebuilt assets",
+      "apply": "Fetching the new version",
+      "dependencies": "Installing dependencies",
+      "assets": "Preparing frontend assets",
+      "restart": "Restarting"
     }
   }
 }

@@ -766,15 +766,88 @@ export interface MiniAppSummary {
 }
 
 /** Tool domain categories for UI grouping and color coding */
+
+// ─── Platform update system ──────────────────────────────────────────────────
+
+/** Update channel: stable follows GitHub releases (tags), edge follows main HEAD. */
+export type UpdateChannel = 'stable' | 'edge'
+
+/** How this Hivekeep instance was installed (drives the update UX). */
+export type InstallationType = 'docker' | 'systemd-system' | 'systemd-user' | 'launchd' | 'manual'
+
+/** One entry of the cumulative changelog between the running version and the
+ *  proposed one. Stable channel: one entry per intermediate release (markdown
+ *  notes). Edge channel: one entry per commit on main. */
+export interface ChangelogEntry {
+  /** Release tag without the leading v (stable) or short commit sha (edge) */
+  version: string
+  /** Release title (stable) or commit subject (edge) */
+  title: string
+  /** Markdown release notes (stable only) */
+  notes: string | null
+  url: string | null
+  publishedAt: number | null
+}
+
 /** Version check info returned by the version-check API */
 export interface VersionInfo {
   currentVersion: string
+  /** Short git sha of the running code (null when not determinable) */
+  currentSha: string | null
+  channel: UpdateChannel
+  installationType: InstallationType
+  /** Latest release semver (stable) or main HEAD short sha (edge) */
   latestVersion: string | null
   isUpdateAvailable: boolean
+  /** Whether this install can apply the update itself from the UI.
+   *  False for docker (image repull) and dev/manual non-git setups. */
+  canSelfUpdate: boolean
+  /** When canSelfUpdate is false, a machine-readable reason for the UI */
+  selfUpdateBlockedReason: 'docker' | 'not-git' | 'dev-mode' | null
   releaseUrl: string | null
-  releaseNotes: string | null
+  /** Cumulative changelog from current → latest (newest first) */
+  changelog: ChangelogEntry[]
   publishedAt: number | null
   lastCheckedAt: number | null
+}
+
+/** Steps of a self-update run, in execution order. */
+export type UpdateStepId =
+  | 'preflight'
+  | 'snapshot'
+  | 'backup'
+  | 'download'
+  | 'apply'
+  | 'dependencies'
+  | 'assets'
+  | 'restart'
+
+export type UpdateRunStatus =
+  /** Update is being prepared (pre-restart steps running) */
+  | 'running'
+  /** Files swapped, server is restarting into the new version */
+  | 'restarting'
+  /** New version booted and is healthy */
+  | 'success'
+  /** Update aborted before restart; previous version still running */
+  | 'failed'
+  /** New version failed to boot; automatic rollback restored the previous one */
+  | 'rolled-back'
+
+/** Persisted record of the latest self-update attempt (data/update/journal.json).
+ *  Written by the orchestrator, finalized by the boot guard after restart. */
+export interface UpdateRunInfo {
+  id: string
+  channel: UpdateChannel
+  fromVersion: string
+  fromSha: string | null
+  toVersion: string
+  status: UpdateRunStatus
+  /** Step currently running (while status is 'running') */
+  currentStep: UpdateStepId | null
+  error: string | null
+  startedAt: number
+  finishedAt: number | null
 }
 
 /**

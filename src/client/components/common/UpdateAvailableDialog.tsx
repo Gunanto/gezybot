@@ -11,50 +11,88 @@ import {
 } from '@/client/components/ui/dialog'
 import { Button } from '@/client/components/ui/button'
 import { Badge } from '@/client/components/ui/badge'
-import { ArrowUpCircle, Copy, ExternalLink, Download, Loader2 } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import {
+  ArrowUpCircle,
+  CheckCircle2,
+  Copy,
+  Download,
+  ExternalLink,
+  ShieldAlert,
+  Undo2,
+} from 'lucide-react'
 import { useCopyToClipboard } from '@/client/hooks/useCopyToClipboard'
+import { useAuth } from '@/client/hooks/useAuth'
 import { api, getErrorMessage } from '@/client/lib/api'
 import { toast } from 'sonner'
-import type { VersionInfo } from '@/shared/types'
+import { UpdateChangelog } from '@/client/components/common/UpdateChangelog'
+import { UpdateProgressView } from '@/client/components/common/UpdateProgressView'
+import type { UpdateRunInfo, VersionInfo } from '@/shared/types'
 
 interface UpdateAvailableDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   versionInfo: VersionInfo
-  isDocker: boolean
 }
 
 const DOCKER_UPDATE_COMMAND = 'docker compose pull && docker compose up -d'
+
+type DialogMode = 'info' | 'updating' | 'result'
 
 export function UpdateAvailableDialog({
   open,
   onOpenChange,
   versionInfo,
-  isDocker,
 }: UpdateAvailableDialogProps) {
   const { t } = useTranslation()
   const { copy, copied } = useCopyToClipboard()
-  const [isUpdating, setIsUpdating] = useState(false)
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
+
+  const [mode, setMode] = useState<DialogMode>('info')
+  const [runId, setRunId] = useState<string | null>(null)
+  const [result, setResult] = useState<UpdateRunInfo | null>(null)
+
+  const isDocker = versionInfo.installationType === 'docker'
+  const current =
+    versionInfo.channel === 'edge'
+      ? `${versionInfo.currentVersion} (${versionInfo.currentSha ?? '?'})`
+      : versionInfo.currentVersion
+  const latest = versionInfo.latestVersion ?? ''
 
   const handleUpdate = async () => {
-    setIsUpdating(true)
     try {
-      await api.post('/version-check/update')
-      toast.success(t('updateAvailable.updateSuccess'))
-      // Server will restart in ~2s, reload after a delay
-      setTimeout(() => window.location.reload(), 5000)
+      const { runId: id } = await api.post<{ runId: string }>('/version-check/update')
+      setRunId(id)
+      setMode('updating')
     } catch (err) {
-      toast.error(t('updateAvailable.updateFailed'), {
-        description: getErrorMessage(err),
-      })
-      setIsUpdating(false)
+      toast.error(t('updateAvailable.updateFailed'), { description: getErrorMessage(err) })
     }
   }
 
+  const handleFinished = (run: UpdateRunInfo) => {
+    setResult(run)
+    setMode('result')
+    if (run.status === 'success') {
+      toast.success(t('updateAvailable.updateSuccess', { version: run.toVersion }))
+      // The frontend assets changed under us — reload onto the new build.
+      setTimeout(() => window.location.reload(), 2500)
+    }
+  }
+
+  const handleOpenChange = (next: boolean) => {
+    // The update keeps running server-side, but closing the only progress
+    // window mid-flight is confusing — keep it open until a terminal state.
+    if (!next && mode === 'updating') return
+    if (!next) {
+      setMode('info')
+      setRunId(null)
+      setResult(null)
+    }
+    onOpenChange(next)
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent variant="panel" size="2xl">
         <DialogHeader>
           <div className="flex items-center gap-2">
@@ -64,106 +102,170 @@ export function UpdateAvailableDialog({
             <div>
               <DialogTitle>{t('updateAvailable.title')}</DialogTitle>
               <DialogDescription>
-                {t('updateAvailable.description', {
-                  current: versionInfo.currentVersion,
-                  latest: versionInfo.latestVersion,
-                })}
+                {t('updateAvailable.description', { current, latest })}
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
         <DialogBody className="space-y-4">
-          {/* Version badges */}
+          {/* Version + channel badges */}
           <div className="flex items-center gap-2 flex-wrap">
             <Badge variant="outline" className="text-xs">
-              {t('updateAvailable.current')}: v{versionInfo.currentVersion}
+              {t('updateAvailable.current')}: {versionInfo.channel === 'edge' ? current : `v${current}`}
             </Badge>
             <span className="text-muted-foreground">→</span>
             <Badge variant="default" className="text-xs">
-              {t('updateAvailable.latest')}: v{versionInfo.latestVersion}
+              {t('updateAvailable.latest')}: {versionInfo.channel === 'edge' ? latest : `v${latest}`}
+            </Badge>
+            <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
+              {t(`updateChannel.${versionInfo.channel}`)}
             </Badge>
           </div>
 
-          {/* Release notes */}
-          {versionInfo.releaseNotes && (
+          {mode === 'info' && versionInfo.changelog.length > 0 && (
             <div className="flex flex-col">
-              <h4 className="text-sm font-semibold mb-2">
-                {t('updateAvailable.releaseNotes')}
+              <h4 className="mb-2 text-sm font-semibold">
+                {versionInfo.channel === 'edge'
+                  ? t('updateAvailable.newCommits', { count: versionInfo.changelog.length })
+                  : t('updateAvailable.releaseNotes')}
               </h4>
-              <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground prose prose-xs prose-neutral dark:prose-invert max-w-none prose-headings:text-sm prose-headings:font-semibold prose-p:my-1 prose-ul:my-1 prose-li:my-0 prose-pre:bg-muted prose-pre:text-xs prose-pre:overflow-x-auto prose-code:text-xs prose-code:break-all">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {versionInfo.releaseNotes}
-                </ReactMarkdown>
-              </div>
+              <UpdateChangelog changelog={versionInfo.changelog} channel={versionInfo.channel} />
+            </div>
+          )}
+
+          {mode === 'updating' && runId && (
+            <div className="flex flex-col">
+              <h4 className="mb-2 text-sm font-semibold">{t('updateProgress.title')}</h4>
+              <UpdateProgressView
+                runId={runId}
+                channel={versionInfo.channel}
+                onFinished={handleFinished}
+              />
+              <p className="mt-3 text-xs text-muted-foreground">
+                {t('updateProgress.dontClose')}
+              </p>
+            </div>
+          )}
+
+          {mode === 'result' && result && (
+            <div className="flex flex-col gap-2">
+              {result.status === 'success' && (
+                <div className="flex items-start gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3">
+                  <CheckCircle2 className="size-4 shrink-0 text-emerald-500 mt-0.5" />
+                  <div className="text-xs">
+                    <p className="font-medium">
+                      {t('updateAvailable.updateSuccess', { version: result.toVersion })}
+                    </p>
+                    <p className="mt-1 text-muted-foreground">{t('updateProgress.reloading')}</p>
+                  </div>
+                </div>
+              )}
+              {result.status === 'failed' && (
+                <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3">
+                  <ShieldAlert className="size-4 shrink-0 text-destructive mt-0.5" />
+                  <div className="min-w-0 text-xs">
+                    <p className="font-medium">{t('updateProgress.failedTitle')}</p>
+                    <p className="mt-1 text-muted-foreground">{t('updateProgress.failedSafe')}</p>
+                    {result.error && (
+                      <p className="mt-1 break-words font-mono text-[11px] text-muted-foreground">
+                        {result.error}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+              {result.status === 'rolled-back' && (
+                <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
+                  <Undo2 className="size-4 shrink-0 text-amber-500 mt-0.5" />
+                  <div className="min-w-0 text-xs">
+                    <p className="font-medium">{t('updateProgress.rolledBackTitle')}</p>
+                    <p className="mt-1 text-muted-foreground">
+                      {t('updateProgress.rolledBackDescription')}
+                    </p>
+                    {result.error && (
+                      <p className="mt-1 break-words font-mono text-[11px] text-muted-foreground">
+                        {result.error}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </DialogBody>
 
-        {/* Update instructions — fixed footer, always visible outside scroll */}
-        <DialogFooter className="flex-col items-stretch gap-3 sm:flex-col sm:items-stretch">
-          <h4 className="text-sm font-semibold">
-            {t('updateAvailable.howToUpdate')}
-          </h4>
+        {mode === 'info' && (
+          <DialogFooter className="flex-col items-stretch gap-3 sm:flex-col sm:items-stretch">
+            <h4 className="text-sm font-semibold">{t('updateAvailable.howToUpdate')}</h4>
 
-          {isDocker ? (
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">
-                {t('updateAvailable.dockerInstructions')}
-              </p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 min-w-0 rounded-md bg-muted px-3 py-2 text-xs font-mono truncate">
-                  {DOCKER_UPDATE_COMMAND}
-                </code>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0"
-                  onClick={() => copy(DOCKER_UPDATE_COMMAND)}
-                >
-                  <Copy className="size-3.5 mr-1" />
-                  {copied ? t('common.copied') : t('common.copy')}
-                </Button>
+            {isDocker ? (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  {t('updateAvailable.dockerInstructions')}
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 min-w-0 rounded-md bg-muted px-3 py-2 text-xs font-mono truncate">
+                    {DOCKER_UPDATE_COMMAND}
+                  </code>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() => copy(DOCKER_UPDATE_COMMAND)}
+                  >
+                    <Copy className="size-3.5 mr-1" />
+                    {copied ? t('common.copied') : t('common.copy')}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {t('updateAvailable.dockerTagNote', { version: latest })}
+                </p>
               </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-xs text-muted-foreground">
-                {t('updateAvailable.nonDockerInstructions')}
-              </p>
-              <Button
-                onClick={handleUpdate}
-                disabled={isUpdating}
-                className="w-full"
-              >
-                {isUpdating ? (
-                  <>
-                    <Loader2 className="size-4 mr-2 animate-spin" />
-                    {t('updateAvailable.updating')}
-                  </>
-                ) : (
-                  <>
-                    <Download className="size-4 mr-2" />
-                    {t('updateAvailable.updateButton')}
-                  </>
+            ) : versionInfo.canSelfUpdate ? (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  {t('updateAvailable.selfUpdateInstructions')}
+                </p>
+                <Button onClick={handleUpdate} disabled={!isAdmin} className="w-full">
+                  <Download className="size-4 mr-2" />
+                  {t('updateAvailable.updateButton')}
+                </Button>
+                {!isAdmin && (
+                  <p className="text-center text-xs text-muted-foreground">
+                    {t('updateAvailable.adminOnly')}
+                  </p>
                 )}
-              </Button>
-            </div>
-          )}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                {versionInfo.selfUpdateBlockedReason === 'dev-mode'
+                  ? t('updateAvailable.devModeNote')
+                  : t('updateAvailable.manualInstallNote')}
+              </p>
+            )}
 
-          {/* Link to GitHub release */}
-          {versionInfo.releaseUrl && (
-            <a
-              href={versionInfo.releaseUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
-            >
-              <ExternalLink className="size-3" />
-              {t('updateAvailable.viewOnGitHub')}
-            </a>
-          )}
-        </DialogFooter>
+            {versionInfo.releaseUrl && (
+              <a
+                href={versionInfo.releaseUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+              >
+                <ExternalLink className="size-3" />
+                {t('updateAvailable.viewOnGitHub')}
+              </a>
+            )}
+          </DialogFooter>
+        )}
+
+        {mode === 'result' && (
+          <DialogFooter>
+            <Button variant="outline" onClick={() => handleOpenChange(false)}>
+              {t('common.close')}
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   )

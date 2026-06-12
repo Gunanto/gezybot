@@ -2375,6 +2375,19 @@
       "detailCallSite": "Type",
       "detailSteps": "Étapes",
       "detailShowing": "{{from}}–{{to}} sur {{total}}"
+    },
+    "updates": {
+      "title": "Mises à jour",
+      "description": "Gardez cette instance Hivekeep à jour.",
+      "help": "Hivekeep vérifie périodiquement les nouvelles versions sur GitHub. Le canal stable suit les releases officielles ; le canal edge suit le dernier commit de la branche main (pour tester les changements non publiés). La mise à jour intégrée est disponible pour les installations gérées par install.sh ; les installations Docker se mettent à jour en tirant une image plus récente.",
+      "channelLabel": "Canal de mise à jour",
+      "channelTip": "Le flux de mises à jour suivi par cette instance.",
+      "channelSaved": "Canal de mise à jour enregistré",
+      "channelStableDescription": "Suit les releases officielles. Recommandé pour la plupart des installations.",
+      "channelEdgeDescription": "Suit le dernier commit de main. Potentiellement instable — pour les tests uniquement.",
+      "updateAvailableBadge": "{{version}} disponible",
+      "upToDateBadge": "À jour",
+      "lastChecked": "Dernière vérification : {{date}}"
     }
   },
   "notifications": {
@@ -3029,7 +3042,7 @@
     "channelOnline": "Canal connecté",
     "channelOffline": "Canal déconnecté",
     "channelError": "Erreur de connexion au canal",
-    "updateAvailable": "AgentOS {{version}} est disponible",
+    "updateAvailable": "Hivekeep {{version}} est disponible",
     "viewRelease": "Voir"
   },
   "errorBoundary": {
@@ -3041,15 +3054,21 @@
     "description": "v{{current}} → v{{latest}}",
     "current": "Actuelle",
     "latest": "Dernière",
-    "releaseNotes": "Notes de version",
+    "releaseNotes": "Nouveautés",
+    "newCommits": "{{count}} nouveau commit sur main",
+    "newCommits_other": "{{count}} nouveaux commits sur main",
     "howToUpdate": "Comment mettre à jour",
-    "dockerInstructions": "Exécutez la commande suivante dans le répertoire contenant votre docker-compose.yml :",
-    "nonDockerInstructions": "Cliquez sur le bouton ci-dessous pour télécharger la dernière version et redémarrer le serveur. La page se rechargera automatiquement.",
-    "viewOnGitHub": "Voir la release sur GitHub",
-    "updateButton": "Mettre à jour maintenant",
-    "updating": "Mise à jour en cours...",
-    "updateSuccess": "Mise à jour appliquée ! Rechargement...",
-    "updateFailed": "La mise à jour a échoué"
+    "dockerInstructions": "Exécutez la commande suivante dans le dossier contenant votre docker-compose.yml :",
+    "dockerTagNote": "Si votre fichier compose épingle un tag de version précis, remplacez-le par {{version}} (ou utilisez le tag latest) avant de puller.",
+    "selfUpdateInstructions": "Hivekeep va sauvegarder sa base de données, télécharger la nouvelle version et redémarrer. En cas de problème, la version précédente est restaurée automatiquement.",
+    "adminOnly": "Seuls les administrateurs peuvent appliquer les mises à jour.",
+    "devModeNote": "Cette instance tourne en mode développement — mettez-la à jour depuis votre checkout git.",
+    "manualInstallNote": "Cette installation n'est pas gérée par Hivekeep — mettez-la à jour comme elle a été installée.",
+    "viewOnGitHub": "Voir sur GitHub",
+    "updateButton": "Mettre à jour",
+    "updating": "Mise à jour...",
+    "updateSuccess": "Mis à jour vers {{version}} !",
+    "updateFailed": "Échec de la mise à jour"
   },
   "whatsNew": {
     "title": "Nouveautés",
@@ -3519,6 +3538,30 @@
         "error": "Le clone a échoué. Regarde le message ci-dessous et clique sur Réessayer une fois le problème corrigé."
       },
       "retry": "Réessayer le clone"
+    }
+  },
+  "updateChannel": {
+    "stable": "Stable (releases)",
+    "edge": "Edge (branche main)"
+  },
+  "updateProgress": {
+    "title": "Mise à jour en cours",
+    "dontClose": "Vous pouvez continuer à utiliser Hivekeep — la mise à jour s'exécute en arrière-plan et la page se rechargera à la fin.",
+    "waitingForServer": "Redémarrage du serveur… en attente de son retour",
+    "reloading": "La page va se recharger automatiquement.",
+    "failedTitle": "Échec de la mise à jour",
+    "failedSafe": "Rien n'a été modifié — la version actuelle tourne toujours.",
+    "rolledBackTitle": "Mise à jour annulée (rollback)",
+    "rolledBackDescription": "La nouvelle version n'a pas réussi à démarrer : la version précédente a été restaurée automatiquement, ainsi que la sauvegarde de la base de données.",
+    "steps": {
+      "preflight": "Vérifications préalables",
+      "snapshot": "Sauvegarde de la base de données",
+      "backup": "Sauvegarde de la version actuelle",
+      "download": "Téléchargement des assets pré-compilés",
+      "apply": "Récupération de la nouvelle version",
+      "dependencies": "Installation des dépendances",
+      "assets": "Préparation des assets frontend",
+      "restart": "Redémarrage"
     }
   }
 }

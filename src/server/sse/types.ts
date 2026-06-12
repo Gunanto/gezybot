@@ -105,6 +105,8 @@ export type SSEEventType =
   | 'settings:hub-changed'
   | 'settings:defaults-updated'
   | 'version:update-available'
+  | 'update:progress'
+  | 'update:finished'
   | 'log:entry'
   | 'card:updated'
   | 'agent:active-project'

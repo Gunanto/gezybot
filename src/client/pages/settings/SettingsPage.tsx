@@ -42,6 +42,7 @@ import { CustomToolsSettings } from '@/client/pages/settings/CustomToolsSettings
 import { CustomDomainsSettings } from '@/client/pages/settings/CustomDomainsSettings'
 import { LogsSettings } from '@/client/pages/settings/LogsSettings'
 import { TokenUsageSettings } from '@/client/pages/settings/TokenUsageSettings'
+import { UpdatesSettings } from '@/client/pages/settings/UpdatesSettings'
 import {
   Bell,
   Brain,
@@ -69,6 +70,7 @@ import {
   Shapes,
   Mail,
   Image as ImageIcon,
+  ArrowUpCircle,
 } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/client/components/ui/tooltip'
 import { api } from '@/client/lib/api'
@@ -130,6 +132,7 @@ const sectionGroups: SectionGroup[] = [
     items: [
       { id: 'logs', icon: ScrollText, labelKey: 'settings.logs.title' },
       { id: 'tokenUsage', icon: Coins, labelKey: 'settings.tokenUsage.title' },
+      { id: 'updates', icon: ArrowUpCircle, labelKey: 'settings.updates.title' },
     ],
   },
 ]
@@ -179,6 +182,7 @@ const sectionComponents: Record<string, React.FC> = {
   notifications: NotificationPreferences,
   logs: LogsSettings,
   tokenUsage: TokenUsageSettings,
+  updates: UpdatesSettings,
 }
 
 export interface SettingsFilters {

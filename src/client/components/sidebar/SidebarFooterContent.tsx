@@ -16,18 +16,14 @@ interface SidebarFooterContentProps {
 export const SidebarFooterContent = memo(function SidebarFooterContent({ onOpenSettings }: SidebarFooterContentProps) {
   const { t } = useTranslation()
   const [version, setVersion] = useState<string | null>(null)
-  const [isDocker, setIsDocker] = useState(false)
   const [whatsNewOpen, setWhatsNewOpen] = useState(false)
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false)
   const { versionInfo, isChecking, forceCheck } = useVersionCheck()
 
   useEffect(() => {
     api
-      .get<{ version: string; isDocker?: boolean }>('/info')
-      .then((data) => {
-        setVersion(data.version)
-        setIsDocker(data.isDocker ?? false)
-      })
+      .get<{ version: string }>('/info')
+      .then((data) => setVersion(data.version))
       .catch(() => {})
   }, [])
 
@@ -116,7 +112,6 @@ export const SidebarFooterContent = memo(function SidebarFooterContent({ onOpenS
           open={updateDialogOpen}
           onOpenChange={setUpdateDialogOpen}
           versionInfo={versionInfo}
-          isDocker={isDocker}
         />
       )}
 
