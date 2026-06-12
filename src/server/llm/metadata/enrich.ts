@@ -16,7 +16,7 @@
 import { config } from '@/server/config'
 import { getRegistryRow, rowToMetadata, apiSeedFromModel } from '@/server/services/model-registry'
 import { resolveFromModelsDev, type ResolvedModelMetadata } from '@/server/llm/metadata/models-dev'
-import { mergeMetadata } from '@/server/llm/metadata/resolve'
+import { mergeAutoMetadata } from '@/server/llm/metadata/resolve'
 import type { LLMModel } from '@/server/llm/llm/types'
 
 /** Apply resolved metadata onto a copy of the model. */
@@ -34,7 +34,13 @@ function applyMetadata(model: LLMModel, meta: ResolvedModelMetadata): LLMModel {
   if (meta.supportsToolCall === false) out.maxTools = 0
   // thinking present (incl. efforts: []) = reasoning model; absent = no opinion
   // (leave the provider's value, which during phase 1 is still populated).
-  if (meta.thinking !== undefined) out.thinking = meta.thinking
+  // Provider-supplied UI notes (model quirks) survive the registry overwrite —
+  // the registry stores only `{ enabled, efforts }`.
+  if (meta.thinking !== undefined) {
+    out.thinking = model.thinking?.note
+      ? { ...meta.thinking, note: model.thinking.note }
+      : meta.thinking
+  }
   if (meta.pricing !== undefined) out.pricing = meta.pricing
   return out
 }
@@ -57,7 +63,7 @@ export function enrichModel(providerId: string, providerType: string, model: LLM
     // Lazy fallback before reconciliation has created a row: API seed > models.dev.
     const md = resolveFromModelsDev(providerType, model.id)?.metadata
     if (!md) return model
-    return applyMetadata(model, mergeMetadata(apiSeedFromModel(model), md))
+    return applyMetadata(model, mergeAutoMetadata(apiSeedFromModel(model), md))
   } catch {
     return model
   }

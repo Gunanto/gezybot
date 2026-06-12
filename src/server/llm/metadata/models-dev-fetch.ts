@@ -49,6 +49,7 @@ export function trimModel(m: RawModel): SnapshotModel {
   const efforts = (m.reasoning_options ?? [])
     .filter((o) => o.type === 'effort' && Array.isArray(o.values))
     .flatMap((o) => o.values!)
+    .filter((v): v is string => typeof v === 'string')
   if (efforts.length) out.reasoning_efforts = [...new Set(efforts)]
   if (typeof m.tool_call === 'boolean') out.tool_call = m.tool_call
   if (m.cost) {

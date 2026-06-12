@@ -62,7 +62,7 @@ beforeEach(() => {
 })
 
 d('reconcileProviderModels', () => {
-  it('seeds a matched model: API value wins, models.dev fills the gaps (pricing)', () => {
+  it('seeds a matched model: API value wins, models.dev fills the gaps (pricing) and owns efforts', () => {
     // deepseek provider sets context + thinking; does NOT set pricing.
     reconcileProviderModels(PROVIDER, 'deepseek', [
       { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', contextWindow: 1_000_000, thinking: { efforts: ['low', 'medium', 'high', 'max'] } },
@@ -76,7 +76,9 @@ d('reconcileProviderModels', () => {
     expect(row.enabled).toBe(true) // confident match → active immediately
     expect(row.stale).toBe(false)
     expect(JSON.parse(row.pricing!)).toEqual({ input: 0.14, output: 0.28, cacheRead: 0.0028 }) // models.dev
-    expect(JSON.parse(row.reasoning!)).toEqual({ enabled: true, efforts: ['low', 'medium', 'high', 'max'] })
+    // models.dev's explicit per-model effort list beats the provider's
+    // heuristic seed (mergeAutoMetadata thinking exception).
+    expect(JSON.parse(row.reasoning!)).toEqual({ enabled: true, efforts: ['high', 'max'] })
   })
 
   it('flags an unmatched model for review (no models.dev entry)', () => {

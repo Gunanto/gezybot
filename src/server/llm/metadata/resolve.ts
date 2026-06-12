@@ -43,3 +43,23 @@ export function mergeMetadata(
   }
   return out
 }
+
+/**
+ * Merge the two AUTO layers (provider-API seed > models.dev) with one
+ * field-level exception: when models.dev carries an explicit, non-empty effort
+ * list for `thinking`, it wins over the seed. Provider seeds are either
+ * name-pattern heuristics (OpenAI/xAI hardcode `['low','medium','high']`) or a
+ * coarser capability read — models.dev's curated per-model list is strictly
+ * more accurate there (e.g. gpt-5.2 supports minimal→xhigh). The inverse stays
+ * protected: a models.dev entry with NO effort granularity (`efforts: []`,
+ * i.e. toggle- or budget-only) never clobbers a seed that advertises efforts
+ * (e.g. Anthropic's capabilities API), because the seed wins the generic merge.
+ */
+export function mergeAutoMetadata(
+  apiSeed: ResolvedModelMetadata | null | undefined,
+  modelsDev: ResolvedModelMetadata | null | undefined,
+): ResolvedModelMetadata {
+  const out = mergeMetadata(apiSeed, modelsDev)
+  if (modelsDev?.thinking?.efforts?.length) out.thinking = modelsDev.thinking
+  return out
+}

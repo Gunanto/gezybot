@@ -7,7 +7,7 @@ import {
   toModelsDevProviderId,
   type ModelsDevModel,
 } from './models-dev'
-import { mergeMetadata } from './resolve'
+import { mergeMetadata, mergeAutoMetadata } from './resolve'
 
 // Fixture mirrors the real snapshot shape (a few providers + models).
 const SNAP = {
@@ -131,6 +131,14 @@ describe('modelsDevToMetadata', () => {
     const md = modelsDevToMetadata({ context: 1000 })
     expect(md.displayName).toBeUndefined()
   })
+
+  it('keeps the full minimal→xhigh→max ladder and drops non-enum values (none)', () => {
+    const md = modelsDevToMetadata({
+      reasoning: true,
+      reasoning_efforts: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'default'],
+    })
+    expect(md.thinking?.efforts).toEqual(['minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
+  })
 })
 
 describe('mergeMetadata (priority: override > models.dev > apiSeed > default)', () => {
@@ -149,5 +157,34 @@ describe('mergeMetadata (priority: override > models.dev > apiSeed > default)', 
   it('ignores null/undefined layers', () => {
     const merged = mergeMetadata(null, undefined, { contextWindow: 42 })
     expect(merged.contextWindow).toBe(42)
+  })
+})
+
+describe('mergeAutoMetadata (apiSeed > models.dev, except explicit efforts)', () => {
+  it('lets a non-empty models.dev effort list beat the seed heuristic', () => {
+    const apiSeed = { thinking: { efforts: ['low', 'medium', 'high'] as const } }
+    const modelsDev = { thinking: { efforts: ['minimal', 'low', 'medium', 'high', 'xhigh'] as const } }
+    const merged = mergeAutoMetadata(apiSeed as never, modelsDev as never)
+    expect(merged.thinking?.efforts).toEqual(['minimal', 'low', 'medium', 'high', 'xhigh'])
+  })
+
+  it('never lets an empty models.dev effort list clobber a seed with efforts', () => {
+    // e.g. Anthropic: capabilities API advertises efforts; models.dev entry is
+    // budget_tokens-only → efforts: [].
+    const apiSeed = { thinking: { efforts: ['low', 'medium', 'high', 'max'] as const } }
+    const modelsDev = { thinking: { efforts: [] as const } }
+    const merged = mergeAutoMetadata(apiSeed as never, modelsDev as never)
+    expect(merged.thinking?.efforts).toEqual(['low', 'medium', 'high', 'max'])
+  })
+
+  it('falls back to models.dev toggle-only when the seed has no opinion', () => {
+    const merged = mergeAutoMetadata({}, { thinking: { efforts: [] } })
+    expect(merged.thinking).toEqual({ efforts: [] })
+  })
+
+  it('keeps the generic priority for every other field', () => {
+    const merged = mergeAutoMetadata({ contextWindow: 999 }, { contextWindow: 1_000_000, maxOutput: 64_000 })
+    expect(merged.contextWindow).toBe(999) // apiSeed wins
+    expect(merged.maxOutput).toBe(64_000) // models.dev fills the gap
   })
 })

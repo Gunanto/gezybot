@@ -16,6 +16,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { db } from '@/server/db/index'
 import { modelRegistry, providers as providersTable } from '@/server/db/schema'
 import { getModelsDevByKey, modelsDevToMetadata, resolveFromModelsDev, type MatchConfidence, type ResolvedModelMetadata } from '@/server/llm/metadata/models-dev'
+import { mergeAutoMetadata } from '@/server/llm/metadata/resolve'
 import { getLLMProvider } from '@/server/llm/llm/registry'
 import { loadProviderConfig } from '@/server/services/provider-config'
 import { createLogger } from '@/server/logger'
@@ -61,19 +62,8 @@ export function apiSeedFromModel(model: LLMModel): ResolvedModelMetadata {
   return out
 }
 
-/** Per-field merge (first defined wins) — used to bake the auto value at reconcile. */
-function mergeSeed(...layers: Array<ResolvedModelMetadata | null | undefined>): ResolvedModelMetadata {
-  const out: ResolvedModelMetadata = {}
-  for (const f of PINNABLE_FIELDS) {
-    for (const layer of layers) {
-      if (layer && layer[f] !== undefined) {
-        ;(out as Record<string, unknown>)[f] = layer[f]
-        break
-      }
-    }
-  }
-  return out
-}
+// (The per-field auto merge lives in resolve.ts — `mergeAutoMetadata`, which
+// also encodes the thinking-efforts exception. Reconcile uses it directly.)
 
 /** Parse a registry row back into resolved metadata (columns already hold the
  *  effective value: pinned override or reconciled auto). */
@@ -225,7 +215,7 @@ export function reconcileProviderModels(
   for (const model of liveModels) {
     const md = resolveFromModelsDev(providerType, model.id)
     const apiSeed = apiSeedFromModel(model)
-    const auto = mergeSeed(apiSeed, md?.metadata)
+    const auto = mergeAutoMetadata(apiSeed, md?.metadata)
     const matchKey = md?.match.key ?? null
     const confidence: MatchConfidence = md?.match.confidence ?? 'none'
     const needsReview = confidence === 'family' || confidence === 'none'

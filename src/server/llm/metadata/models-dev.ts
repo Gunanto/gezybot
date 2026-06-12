@@ -12,6 +12,7 @@
 import { readFileSync } from 'node:fs'
 
 import type { ThinkingEffort } from '@/server/llm/llm/types'
+import { THINKING_EFFORT_ORDER } from '@/server/llm/llm/types'
 
 /** Trimmed per-model shape stored in the snapshot (see fetch-models-dev.ts). */
 export interface ModelsDevModel {
@@ -141,7 +142,9 @@ export function matchModelsDev(providerType: string, modelId: string): ModelsDev
 
 // ─── Mapping models.dev → LLMModel metadata ──────────────────────────────────
 
-const VALID_EFFORTS: readonly ThinkingEffort[] = ['low', 'medium', 'high', 'max']
+// models.dev also emits 'none' (= reasoning off — our separate enabled toggle)
+// and the odd junk value ('default'); the enum filter below drops those.
+const VALID_EFFORTS: readonly ThinkingEffort[] = THINKING_EFFORT_ORDER
 
 /** The subset of `LLMModel` the registry owns. */
 export interface ResolvedModelMetadata {
