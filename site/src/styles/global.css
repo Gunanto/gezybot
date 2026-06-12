@@ -520,6 +520,16 @@ html.js .reveal.in{opacity:1;transform:none;}
   .cmp th,.cmp td{padding:9px 9px;}
 }
 
+/* very narrow phones: keep brand + language switcher + CTA + hamburger on one
+   row without overflow (the switcher collapses to its globe icon). */
+@media(max-width:480px){
+  .nav-actions{gap:8px;}
+  .lang-switcher .ls-code,
+  .lang-switcher .ls-chev{display:none;}
+  .topbar .brand{font-size:1rem;gap:8px;}
+  .topbar .btn-sm{padding:.4rem .65rem;font-size:.78rem;}
+}
+
 /* ============================================================ */
 /* /install — method comparison + interactive configurator       */
 /* ============================================================ */

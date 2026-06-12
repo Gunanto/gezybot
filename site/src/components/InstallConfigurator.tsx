@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import en from '../i18n/locales/en'
 
 /**
  * Client-side install-command generator for the /install page.
@@ -13,23 +14,25 @@ import { useMemo, useState } from 'react'
  *                  encryption key; lose it and every vault secret is gone)
  *  - app port:     3000 inside the container; install.sh default 3000
  *  - install.sh:   reads HIVEKEEP_PORT / HIVEKEEP_PUBLIC_URL
+ *
+ * i18n: every user-visible string comes from the `labels` prop
+ * (t.install.configurator in the locale dictionary), defaulting to English.
+ * Rich strings carry inline HTML + {port}/{url}/{host} placeholders.
  */
 
 const IMAGE = 'ghcr.io/marlburrow/hivekeep'
 const INSTALL_SH = 'https://raw.githubusercontent.com/MarlBurroW/hivekeep/main/install.sh'
+
+type Labels = typeof en.install.configurator
 
 type UseCase = 'try' | 'permanent' | 'server'
 type Method = 'docker' | 'native'
 type Proxy = 'caddy' | 'nginx' | 'own'
 type DockerTab = 'run' | 'compose'
 
-const USE_CASES: { id: UseCase; label: string; hint: string }[] = [
-  { id: 'try', label: 'Just trying it out', hint: 'Run it on this machine, localhost only. Zero config.' },
-  { id: 'permanent', label: 'Permanent on this machine', hint: 'A lasting home for your agents. Optional access from other devices.' },
-  { id: 'server', label: 'Server with a domain', hint: 'Public, HTTPS, reachable at your own domain.' },
-]
+const USE_CASE_IDS: UseCase[] = ['try', 'permanent', 'server']
 
-function CopyButton({ text }: { text: string }) {
+function CopyButton({ text, labels }: { text: string; labels: Labels }) {
   const [done, setDone] = useState(false)
   return (
     <button
@@ -44,14 +47,14 @@ function CopyButton({ text }: { text: string }) {
           /* clipboard blocked: no-op */
         }
       }}
-      aria-label="Copy to clipboard"
+      aria-label={labels.copyAria}
     >
-      {done ? 'Copied' : 'Copy'}
+      {done ? labels.copied : labels.copy}
     </button>
   )
 }
 
-function CodeBlock({ title, code, lang }: { title?: string; code: string; lang?: string }) {
+function CodeBlock({ title, code, lang, labels }: { title?: string; code: string; lang?: string; labels: Labels }) {
   return (
     <div className="cfg-block">
       {title && (
@@ -60,7 +63,7 @@ function CodeBlock({ title, code, lang }: { title?: string; code: string; lang?:
             {title}
             {lang && <span className="cfg-lang">{lang}</span>}
           </span>
-          <CopyButton text={code} />
+          <CopyButton text={code} labels={labels} />
         </div>
       )}
       <pre className="cfg-code">
@@ -77,7 +80,7 @@ function randomKey() {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-export default function InstallConfigurator() {
+export default function InstallConfigurator({ labels = en.install.configurator }: { labels?: Labels }) {
   const [useCase, setUseCase] = useState<UseCase>('try')
   const [method, setMethod] = useState<Method>('native')
   const [port, setPort] = useState('3000')
@@ -149,16 +152,16 @@ export default function InstallConfigurator() {
 
   const envFile = useMemo(() => {
     const lines = [
-      '# Public URL: used for invitation links, webhooks, OAuth callbacks, CORS.',
+      labels.envComments.publicUrl,
       `PUBLIC_URL=${publicUrl}`,
       '',
-      '# Encryption key (AES-256-GCM, 64 hex chars). Auto-generated and stored',
-      '# inside the data volume if you leave this unset. Setting it yourself lets',
-      '# you back it up: losing it makes every vault secret unrecoverable.',
+      labels.envComments.key1,
+      labels.envComments.key2,
+      labels.envComments.key3,
       setKey && key ? `ENCRYPTION_KEY=${key}` : '# ENCRYPTION_KEY=',
     ]
     return lines.join('\n')
-  }, [publicUrl, setKey, key])
+  }, [publicUrl, setKey, key, labels])
 
   const nativeCmd = useMemo(() => {
     const env: string[] = []
@@ -187,32 +190,32 @@ export default function InstallConfigurator() {
         '        proxy_set_header Host $host;',
         '        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;',
         '        proxy_set_header X-Forwarded-Proto $scheme;',
-        '        # SSE: stream events without buffering',
+        `        ${labels.nginxComments.sse}`,
         '        proxy_set_header Connection \'\';',
         '        proxy_buffering off;',
         '    }',
         '}',
         '',
-        `# Then add HTTPS:  sudo certbot --nginx -d ${host.trim() || 'hivekeep.example.com'}`,
+        labels.nginxComments.https.replace('{host}', host.trim() || 'hivekeep.example.com'),
       ].join('\n'),
-    [host, portN],
+    [host, portN, labels],
   )
 
   return (
     <div className="cfg">
       {/* Step 1: use case */}
       <div className="cfg-step">
-        <h3>1 · How will you use it?</h3>
+        <h3>{labels.step1}</h3>
         <div className="cfg-opts">
-          {USE_CASES.map((uc) => (
+          {USE_CASE_IDS.map((id) => (
             <button
-              key={uc.id}
+              key={id}
               type="button"
-              className={`cfg-opt${useCase === uc.id ? ' sel' : ''}`}
-              onClick={() => pickUseCase(uc.id)}
+              className={`cfg-opt${useCase === id ? ' sel' : ''}`}
+              onClick={() => pickUseCase(id)}
             >
-              <span className="cfg-opt-label">{uc.label}</span>
-              <span className="cfg-opt-hint">{uc.hint}</span>
+              <span className="cfg-opt-label">{labels.useCases[id].label}</span>
+              <span className="cfg-opt-hint">{labels.useCases[id].hint}</span>
             </button>
           ))}
         </div>
@@ -220,23 +223,23 @@ export default function InstallConfigurator() {
 
       {/* Step 2: settings */}
       <div className="cfg-step">
-        <h3>2 · Settings</h3>
+        <h3>{labels.step2}</h3>
         <div className="cfg-fields">
           {/* method: native is recommended; Docker stays available with a caveat */}
           <div className="cfg-field">
-            <label>Method</label>
+            <label>{labels.method}</label>
             <div className="cfg-seg">
               <button type="button" className={method === 'native' ? 'sel' : ''} onClick={() => setMethod('native')}>
-                Native (recommended)
+                {labels.methodNative}
               </button>
               <button type="button" className={method === 'docker' ? 'sel' : ''} onClick={() => setMethod('docker')}>
-                Docker
+                {labels.methodDocker}
               </button>
             </div>
           </div>
 
           <div className="cfg-field">
-            <label htmlFor="cfg-port">Port</label>
+            <label htmlFor="cfg-port">{labels.port}</label>
             <input
               id="cfg-port"
               type="text"
@@ -250,15 +253,15 @@ export default function InstallConfigurator() {
           {useCase === 'permanent' && (
             <div className="cfg-field">
               <label>
-                <input type="checkbox" checked={lanAccess} onChange={(e) => setLanAccess(e.target.checked)} /> Access from
-                other devices on my network
+                <input type="checkbox" checked={lanAccess} onChange={(e) => setLanAccess(e.target.checked)} />{' '}
+                {labels.lanAccess}
               </label>
               {lanAccess && (
                 <input
                   type="text"
                   value={host}
                   onChange={(e) => setHost(e.target.value)}
-                  placeholder="this machine's LAN IP, e.g. 192.168.1.50"
+                  placeholder={labels.lanPlaceholder}
                 />
               )}
             </div>
@@ -266,7 +269,7 @@ export default function InstallConfigurator() {
 
           {isServer && (
             <div className="cfg-field">
-              <label htmlFor="cfg-domain">Your domain</label>
+              <label htmlFor="cfg-domain">{labels.domain}</label>
               <input
                 id="cfg-domain"
                 type="text"
@@ -279,7 +282,7 @@ export default function InstallConfigurator() {
 
           {isServer && (
             <div className="cfg-field">
-              <label>Reverse proxy (HTTPS)</label>
+              <label>{labels.reverseProxy}</label>
               <div className="cfg-seg">
                 <button type="button" className={proxy === 'caddy' ? 'sel' : ''} onClick={() => setProxy('caddy')}>
                   Caddy
@@ -288,7 +291,7 @@ export default function InstallConfigurator() {
                   nginx
                 </button>
                 <button type="button" className={proxy === 'own' ? 'sel' : ''} onClick={() => setProxy('own')}>
-                  I have my own
+                  {labels.proxyOwn}
                 </button>
               </div>
             </div>
@@ -305,13 +308,13 @@ export default function InstallConfigurator() {
                   if (e.target.checked && !key) setKey_(randomKey())
                 }}
               />{' '}
-              Set a fixed encryption key (advanced: back it up)
+              {labels.fixedKey}
             </label>
             {setKey && (
               <div className="cfg-keyrow">
                 <input type="text" value={key} onChange={(e) => setKey_(e.target.value)} spellCheck={false} />
                 <button type="button" className="cfg-mini" onClick={() => setKey_(randomKey())}>
-                  Generate
+                  {labels.generate}
                 </button>
               </div>
             )}
@@ -321,20 +324,25 @@ export default function InstallConfigurator() {
 
       {/* Step 3: output */}
       <div className="cfg-step">
-        <h3>3 · Run it</h3>
+        <h3>{labels.step3}</h3>
 
         {method === 'docker' ? (
           <>
             {/* Honest caveat: the published image is not available yet. */}
             <div className="cfg-warn">
-              <strong>Heads up: the published Docker image is not available yet.</strong>
+              <strong>{labels.dockerWarn.title}</strong>
               <span>
-                These commands pull <code>{IMAGE}</code>, which is not public on the registry at the moment, so they will
-                fail with <code>manifest unknown</code> or <code>denied</code>. Until it's published, use the{' '}
+                {labels.dockerWarn.beforeImage}
+                <code>{IMAGE}</code>
+                {labels.dockerWarn.afterImage}
+                <code>manifest unknown</code>
+                {labels.dockerWarn.or}
+                <code>denied</code>
+                {labels.dockerWarn.beforeLink}
                 <button type="button" className="cfg-inline-link" onClick={() => setMethod('native')}>
-                  native install
-                </button>{' '}
-                (it builds locally and needs no image), or build the image yourself from a clone of the repo.
+                  {labels.dockerWarn.link}
+                </button>
+                {labels.dockerWarn.afterLink}
               </span>
             </div>
             <div className="cfg-tabs">
@@ -347,72 +355,44 @@ export default function InstallConfigurator() {
             </div>
             {dockerTab === 'run' ? (
               <>
-                <CodeBlock title="Run" lang="shell" code={dockerRun} />
-                <p className="cfg-note cfg-keynote">
-                  <strong>Keep your encryption key.</strong> The key is stored inside the <code>hivekeep-data</code>{' '}
-                  volume. If you delete or recreate that volume without persisting the key (or pinning a fixed{' '}
-                  <code>ENCRYPTION_KEY</code> with the advanced toggle above), every vault secret becomes unrecoverable.
-                </p>
+                <CodeBlock title={labels.blockRun} lang="shell" code={dockerRun} labels={labels} />
+                <p className="cfg-note cfg-keynote" dangerouslySetInnerHTML={{ __html: labels.dockerKeynote }} />
               </>
             ) : (
               <>
-                <CodeBlock title="docker-compose.yml" lang="yaml" code={composeYml} />
-                <CodeBlock title=".env" lang="env" code={envFile} />
-                <CodeBlock title="Start" lang="shell" code="docker compose up -d" />
-                <p className="cfg-note cfg-keynote">
-                  <strong>Keep your encryption key.</strong> It lives in the <code>hivekeep-data</code> volume. Recreating
-                  the volume without persisting the key (or setting a fixed <code>ENCRYPTION_KEY</code> in{' '}
-                  <code>.env</code>) makes every stored secret unrecoverable.
-                </p>
+                <CodeBlock title="docker-compose.yml" lang="yaml" code={composeYml} labels={labels} />
+                <CodeBlock title=".env" lang="env" code={envFile} labels={labels} />
+                <CodeBlock title={labels.blockStart} lang="shell" code="docker compose up -d" labels={labels} />
+                <p className="cfg-note cfg-keynote" dangerouslySetInnerHTML={{ __html: labels.composeKeynote }} />
               </>
             )}
             {/* Recovery notes for the common non-dev Docker failures. */}
             <div className="cfg-recover">
-              <span className="cfg-recover-head">If a command fails</span>
+              <span className="cfg-recover-head">{labels.dockerRecover.head}</span>
               <ul>
+                <li dangerouslySetInnerHTML={{ __html: labels.dockerRecover.port.replace('{port}', portN) }} />
                 <li>
-                  <code>port is already allocated</code>: port {portN} is in use. Change the Port field above and copy
-                  the new command.
-                </li>
-                <li>
-                  <code>manifest unknown</code> / <code>denied</code>: the published image isn't available yet. Use the{' '}
+                  <code>manifest unknown</code> / <code>denied</code>: {labels.dockerRecover.manifest.before}
                   <button type="button" className="cfg-inline-link" onClick={() => setMethod('native')}>
-                    native install
-                  </button>{' '}
-                  instead, or build locally.
+                    {labels.dockerRecover.manifest.link}
+                  </button>
+                  {labels.dockerRecover.manifest.after}
                 </li>
-                <li>
-                  <code>Cannot connect to the Docker daemon</code>: Docker isn't running. Start Docker Desktop, or run{' '}
-                  <code>sudo systemctl start docker</code> on Linux.
-                </li>
+                <li dangerouslySetInnerHTML={{ __html: labels.dockerRecover.daemon }} />
               </ul>
             </div>
           </>
         ) : (
           <>
-            <CodeBlock title="Install" lang="shell" code={nativeCmd} />
-            <p className="cfg-note cfg-keynote">
-              <strong>Your encryption key is handled for you.</strong> The installer auto-generates and saves it at{' '}
-              <code>$DATA_DIR/.encryption-key</code> so your secrets survive restarts. Back up that file alongside your
-              database. (Pin a fixed <code>ENCRYPTION_KEY</code> with the advanced toggle above if you'd rather manage it
-              yourself.)
-            </p>
+            <CodeBlock title={labels.blockInstall} lang="shell" code={nativeCmd} labels={labels} />
+            <p className="cfg-note cfg-keynote" dangerouslySetInnerHTML={{ __html: labels.nativeKeynote }} />
             {/* Recovery notes for the common native failures. */}
             <div className="cfg-recover">
-              <span className="cfg-recover-head">If the install fails</span>
+              <span className="cfg-recover-head">{labels.nativeRecover.head}</span>
               <ul>
-                <li>
-                  <code>port already in use</code> / <code>EADDRINUSE</code>: port {portN} is taken. Change the Port
-                  field above and re-run.
-                </li>
-                <li>
-                  <strong>Windows</strong>: the installer is Linux and macOS only. Run it inside <strong>WSL2</strong>,
-                  or use Docker Desktop.
-                </li>
-                <li>
-                  <strong>Download or clone hangs</strong>: make sure the machine can reach <code>github.com</code> and{' '}
-                  <code>bun.sh</code> over HTTPS (a proxy may be blocking them).
-                </li>
+                <li dangerouslySetInnerHTML={{ __html: labels.nativeRecover.port.replace('{port}', portN) }} />
+                <li dangerouslySetInnerHTML={{ __html: labels.nativeRecover.windows }} />
+                <li dangerouslySetInnerHTML={{ __html: labels.nativeRecover.network }} />
               </ul>
             </div>
           </>
@@ -423,33 +403,28 @@ export default function InstallConfigurator() {
           <div className="cfg-proxy">
             {proxy === 'caddy' && (
               <>
-                <p className="cfg-note">
-                  Caddy handles HTTPS automatically (Let's Encrypt). Put this in your <code>Caddyfile</code> and run{' '}
-                  <code>caddy run</code>.
-                </p>
-                <CodeBlock title="Caddyfile" code={caddyfile} />
+                <p className="cfg-note" dangerouslySetInnerHTML={{ __html: labels.proxyCaddy }} />
+                <CodeBlock title="Caddyfile" code={caddyfile} labels={labels} />
               </>
             )}
             {proxy === 'nginx' && (
               <>
-                <p className="cfg-note">An nginx server block proxying to Hivekeep, then certbot for HTTPS.</p>
-                <CodeBlock title="/etc/nginx/sites-available/hivekeep" code={nginxConf} />
+                <p className="cfg-note" dangerouslySetInnerHTML={{ __html: labels.proxyNginx }} />
+                <CodeBlock title="/etc/nginx/sites-available/hivekeep" code={nginxConf} labels={labels} />
               </>
             )}
             {proxy === 'own' && (
-              <p className="cfg-note">
-                Point your reverse proxy at <code>http://localhost:{portN}</code>, make sure{' '}
-                <code>PUBLIC_URL={publicUrl}</code> is set (it already is above), and disable response buffering on{' '}
-                <code>/api/sse</code> so server-sent events stream through.
-              </p>
+              <p
+                className="cfg-note"
+                dangerouslySetInnerHTML={{
+                  __html: labels.proxyOwnNote.replace('{port}', portN).replace('{url}', publicUrl),
+                }}
+              />
             )}
           </div>
         )}
 
-        <p className="cfg-foot">
-          Open <code>{publicUrl}</code> in your browser. Queenie walks you through the rest (admin account, your first AI
-          provider, your first agents). No config files to edit.
-        </p>
+        <p className="cfg-foot" dangerouslySetInnerHTML={{ __html: labels.foot.replace('{url}', publicUrl) }} />
       </div>
     </div>
   )
