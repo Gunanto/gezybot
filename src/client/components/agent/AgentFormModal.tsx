@@ -46,7 +46,7 @@ import type { GeneratedAgentConfig } from '@/client/hooks/useAgents'
 import type { ProviderModel } from '@/client/hooks/useModels'
 import { modelReasoningInfo, clampEffort } from '@/client/lib/model-efforts'
 import { ThinkingEffortSelect } from '@/client/components/common/ThinkingEffortSelect'
-import type { ThinkingChoice } from '@/client/lib/thinking-choice'
+import { configToChoice, choiceToConfig, type ThinkingChoice } from '@/client/lib/thinking-choice'
 
 type Model = ProviderModel
 
@@ -62,6 +62,7 @@ interface AgentDetail {
   providerId?: string | null
   scoutModel?: string | null
   scoutProviderId?: string | null
+  scoutThinkingConfig?: AgentThinkingConfig | null
   toolboxIds?: string[] | null
   /** Individual tool grants on top of toolboxes (incl. approved
    *  request_tool_access requests). Null/[] → none. */
@@ -97,6 +98,7 @@ interface AgentFormModalProps {
     providerId?: string | null
     scoutModel?: string | null
     scoutProviderId?: string | null
+    scoutThinkingConfig?: AgentThinkingConfig | null
     toolboxIds?: string[] | null
   }) => Promise<{ id: string }>
   // Mode edit
@@ -273,6 +275,8 @@ export function AgentFormModal({
   const [providerId, setProviderId] = useState<string | null>(null)
   const [scoutModel, setScoutModel] = useState<string | null>(null)
   const [scoutProviderId, setScoutProviderId] = useState<string | null>(null)
+  // 'inherit' = unset tier (scouts fall back to project/global/Agent config)
+  const [scoutThinking, setScoutThinking] = useState<ThinkingChoice>('inherit')
   const [toolboxIds, setToolboxIds] = useState<string[] | null>(null)
   const [extraToolNames, setExtraToolNames] = useState<string[] | null>(null)
   const [compactingConfig, setCompactingConfig] = useState<AgentCompactingConfig | null>(null)
@@ -305,9 +309,9 @@ export function AgentFormModal({
   const currentGeneral = useMemo(
     () => {
       const { scoutModel: sm, scoutProviderId: sp } = normalizeScoutPair(scoutModel, scoutProviderId)
-      return JSON.stringify({ name, slug, role, model, providerId, scoutModel: sm, scoutProviderId: sp, character, expertise })
+      return JSON.stringify({ name, slug, role, model, providerId, scoutModel: sm, scoutProviderId: sp, scoutThinking, character, expertise })
     },
-    [name, slug, role, model, providerId, scoutModel, scoutProviderId, character, expertise],
+    [name, slug, role, model, providerId, scoutModel, scoutProviderId, scoutThinking, character, expertise],
   )
   const currentToolboxIds = useMemo(() => JSON.stringify(toolboxIds ?? null), [toolboxIds])
   const currentExtraTools = useMemo(() => JSON.stringify(extraToolNames ?? null), [extraToolNames])
@@ -380,6 +384,7 @@ export function AgentFormModal({
       setProviderId(agent.providerId ?? null)
       setScoutModel(agent.scoutModel ?? null)
       setScoutProviderId(agent.scoutProviderId ?? null)
+      setScoutThinking(configToChoice(agent.scoutThinkingConfig ?? null))
       setToolboxIds(agent.toolboxIds ?? null)
       // Normalize []/null → null so dirty-tracking compares stably.
       const loadedExtras = agent.extraToolNames && agent.extraToolNames.length > 0 ? agent.extraToolNames : null
@@ -392,6 +397,7 @@ export function AgentFormModal({
 
       // Capture per-tab snapshots so each tab can derive its own dirtiness.
       const loadedScout = normalizeScoutPair(agent.scoutModel ?? null, agent.scoutProviderId ?? null)
+      const loadedScoutThinking = configToChoice(agent.scoutThinkingConfig ?? null)
       setInitialGeneral(JSON.stringify({
         name: agent.name,
         slug: agent.slug,
@@ -400,6 +406,7 @@ export function AgentFormModal({
         providerId: agent.providerId ?? null,
         scoutModel: loadedScout.scoutModel,
         scoutProviderId: loadedScout.scoutProviderId,
+        scoutThinking: loadedScoutThinking,
         character: agent.character,
         expertise: agent.expertise,
       }))
@@ -610,7 +617,7 @@ export function AgentFormModal({
 
     try {
       const { scoutModel: effectiveScoutModel, scoutProviderId: effectiveScoutProviderId } = normalizeScoutPair(scoutModel, scoutProviderId)
-      const created = await onCreateAgent({ name, slug: slug || undefined, role, character, expertise, model, providerId, scoutModel: effectiveScoutModel, scoutProviderId: effectiveScoutProviderId, toolboxIds })
+      const created = await onCreateAgent({ name, slug: slug || undefined, role, character, expertise, model, providerId, scoutModel: effectiveScoutModel, scoutProviderId: effectiveScoutProviderId, scoutThinkingConfig: choiceToConfig(scoutThinking), toolboxIds })
       if (avatarFile) await onUploadAvatar(created.id, avatarFile)
       resetDirty()
       onOpenChange(false)
@@ -632,13 +639,13 @@ export function AgentFormModal({
     setSavingGeneral(true)
     try {
       const { scoutModel: effectiveScoutModel, scoutProviderId: effectiveScoutProviderId } = normalizeScoutPair(scoutModel, scoutProviderId)
-      await onUpdateAgent(agent.id, { name, slug, role, model, providerId, scoutModel: effectiveScoutModel, scoutProviderId: effectiveScoutProviderId, character, expertise })
+      await onUpdateAgent(agent.id, { name, slug, role, model, providerId, scoutModel: effectiveScoutModel, scoutProviderId: effectiveScoutProviderId, scoutThinkingConfig: choiceToConfig(scoutThinking), character, expertise })
       if (avatarFile) {
         await onUploadAvatar(agent.id, avatarFile)
         setAvatarFile(null)
       }
       // Re-snapshot so this tab is clean (using the normalized scout pair).
-      setInitialGeneral(JSON.stringify({ name, slug, role, model, providerId, scoutModel: effectiveScoutModel, scoutProviderId: effectiveScoutProviderId, character, expertise }))
+      setInitialGeneral(JSON.stringify({ name, slug, role, model, providerId, scoutModel: effectiveScoutModel, scoutProviderId: effectiveScoutProviderId, scoutThinking, character, expertise }))
       setScoutModel(effectiveScoutModel)
       setScoutProviderId(effectiveScoutProviderId)
       toast.success(t('agent.settings.tabSaved'))
@@ -1116,6 +1123,23 @@ export function AgentFormModal({
                               placeholder={t('agent.create.scoutModelInherit')}
                               allowClear
                               clearLabel={t('agent.create.scoutModelInherit')}
+                            />
+                          </FormField>
+
+                          {/* Scout reasoning — per-Agent tier of the scout
+                              thinking chain (project beats this; per-call
+                              override beats everything). 'inherit' = unset. */}
+                          <FormField
+                            label={t('agent.create.scoutThinking')}
+                            tip={t('agent.create.scoutThinkingTip')}
+                          >
+                            <ThinkingEffortSelect
+                              value={scoutThinking}
+                              onChange={(v) => { setScoutThinking(v); markDirty() }}
+                              inheritLabel={t('agent.create.scoutThinkingInherit')}
+                              reasoning={scoutModel
+                                ? modelReasoningInfo(llmModels.find((m) => m.id === scoutModel && (!scoutProviderId || m.providerId === scoutProviderId)))
+                                : undefined}
                             />
                           </FormField>
 

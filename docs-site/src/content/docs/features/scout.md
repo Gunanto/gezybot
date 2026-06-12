@@ -64,16 +64,21 @@ set_default_model(service: "scout", model: "claude-haiku-4-6", provider_id: "ant
 
 ## Reasoning effort for scouts
 
-The scout's reasoning follows the same priority principle as its model:
+The scout's reasoning has its own settings, resolved through the same chain
+shape as the scout model:
 
 1. **Per-call override**: the `scout` tool accepts a `thinking_effort` argument
    (`off`, `minimal` … `max`) for that call only.
-2. **Project default**: the project's default reasoning config, when the scout
-   runs in a project context.
-3. **The calling Agent's own thinking config**: the fallback at execution time.
+2. **Project scout reasoning**: in a project's settings, next to its scout
+   model.
+3. **Agent scout reasoning**: in an Agent's settings, next to its scout model.
+4. **Global scout reasoning**: in **Settings → Models & services**, next to the
+   default scout model.
+5. **The calling Agent's own thinking config**: the fallback at execution time
+   when no tier is set anywhere.
 
-Scouts are meant to be fast and cheap; prefer low efforts (or `off`) when
-overriding. As everywhere else, the requested effort is clamped at run time to
+Scouts are meant to be fast and cheap; `low` (or `off`) is usually the right
+setting. As everywhere else, the requested effort is clamped at run time to
 what the scout model actually supports.
 
 ## When to use scout

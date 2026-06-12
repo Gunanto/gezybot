@@ -385,7 +385,10 @@
       "scoutModelInherit": "Héritage (projet / global / modèle de l'Agent)",
       "characterTip": "Définit la personnalité de l'Agent : comment il parle, son ton, ses particularités. C'est en quelque sorte l'\"âme\" de l'Agent.",
       "expertiseTip": "Décrit ce que l'Agent sait et sur quoi il doit se concentrer. Guide ses réponses et domaines de compétence.",
-      "slugPlaceholder": "mon-agent-slug"
+      "slugPlaceholder": "mon-agent-slug",
+      "scoutThinking": "Raisonnement des scouts",
+      "scoutThinkingTip": "Effort de raisonnement des scouts de cet Agent. Le réglage scout d'un projet est prioritaire ; l'override par appel bat tout. Hériter = retomber sur le défaut global, puis la config de cet Agent.",
+      "scoutThinkingInherit": "Hériter (défaut global, puis cet Agent)"
     },
     "settings": {
       "title": "Paramètres de l'Agent",
@@ -1511,7 +1514,10 @@
         "bullet1": "Le LLM par défaut est pré-sélectionné lors de la création de nouveaux Agents, ce qui fait gagner du temps",
         "bullet2": "Les modèles de compaction et d'extraction peuvent être légers : pas besoin du même modèle que le chat",
         "bullet3": "Changer le modèle d'embedding nécessite de re-indexer tous les souvenirs existants"
-      }
+      },
+      "defaultScoutThinking": "Raisonnement des scouts",
+      "defaultScoutThinkingTip": "Effort de raisonnement par défaut des scouts. La chaîne suit celle du modèle scout : override par appel, puis projet, puis Agent, puis ce réglage. Non défini = les scouts suivent la config de raisonnement de l'Agent appelant.",
+      "defaultScoutThinkingInherit": "Aucun défaut (suivre l'Agent appelant)"
     },
     "mcp": {
       "title": "Serveurs MCP",
@@ -3537,7 +3543,10 @@
         "title": "Supprimer ce projet ?",
         "description": "« {{title}} » et tous ses tickets, tags et liens d'historique seront définitivement supprimés. L'historique des tâches est conservé (leur lien vers les tickets est désactivé).",
         "confirm": "Supprimer le projet"
-      }
+      },
+      "scoutThinkingField": "Raisonnement des scouts par défaut",
+      "scoutThinkingHint": "Effort de raisonnement des scouts envoyés dans ce projet : prioritaire sur le réglage scout de chaque Agent et sur le défaut global. Hériter = retomber sur le scout de l'Agent, puis le défaut global.",
+      "scoutThinkingInherit": "Hériter (scout de l'Agent, puis global)"
     },
     "tags": {
       "empty": "Aucun tag pour le moment. Ajoutes-en ci-dessous.",

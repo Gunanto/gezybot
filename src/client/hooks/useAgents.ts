@@ -58,6 +58,7 @@ interface CreateAgentData {
   providerId?: string | null
   scoutModel?: string | null
   scoutProviderId?: string | null
+  scoutThinkingConfig?: AgentThinkingConfig | null
   toolboxIds?: string[] | null
 }
 
@@ -75,6 +76,7 @@ interface UpdateAgentData {
   extraToolNames?: string[] | null
   compactingConfig?: AgentCompactingConfig | null
   thinkingConfig?: AgentThinkingConfig | null
+  scoutThinkingConfig?: AgentThinkingConfig | null
 }
 
 interface UserProfile {

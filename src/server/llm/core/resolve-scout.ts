@@ -27,7 +27,8 @@
 import { eq } from 'drizzle-orm'
 import { db } from '@/server/db/index'
 import { agents, projects } from '@/server/db/schema'
-import { getDefaultScoutModel, getDefaultScoutProviderId } from '@/server/services/app-settings'
+import { getDefaultScoutModel, getDefaultScoutProviderId, getDefaultScoutThinking } from '@/server/services/app-settings'
+import type { AgentThinkingConfig } from '@/shared/types'
 
 /** A resolved model target. `providerId` may be null (auto-resolve at call). */
 export interface ResolvedScoutModel {
@@ -115,4 +116,72 @@ export async function resolveScoutModel(
 
   // 5. Safety net: the Agent's own main model (notNull in schema).
   return { modelId: agent.model, providerId: agent.providerId ?? null }
+}
+
+// ─── Scout reasoning ──────────────────────────────────────────────────────────
+
+export interface ResolveScoutThinkingOptions {
+  /** Agent that owns the scout. */
+  agentId: string
+  /** Active/ticket project, when the scout is spawned in a project context. */
+  projectId?: string | null
+  /** Highest-priority per-call override (built from the scout tool's
+   *  `thinking_effort` argument). */
+  override?: AgentThinkingConfig | null
+}
+
+function parseThinking(raw: string | null | undefined): AgentThinkingConfig | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as AgentThinkingConfig
+    return parsed && typeof parsed === 'object' ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Resolve the reasoning config a scout should run with — same priority
+ * principle as the scout model:
+ *
+ *   1. per-call override        (the scout tool's `thinking_effort` argument)
+ *   2. project scout thinking   (projects.scout_thinking_config)
+ *   3. Agent scout thinking     (agents.scout_thinking_config)
+ *   4. global scout default     (app_settings default_scout_thinking)
+ *   5. null — the spawned task row stays unset and the execution-time fallback
+ *      applies (the calling Agent's own general thinking config).
+ *
+ * Unlike the model chain this can return null: "no scout-specific reasoning
+ * configured anywhere" is a valid state and means "behave like the Agent".
+ */
+export async function resolveScoutThinking(
+  opts: ResolveScoutThinkingOptions,
+): Promise<AgentThinkingConfig | null> {
+  const { agentId, projectId, override } = opts
+
+  // 1. Per-call override.
+  if (override) return override
+
+  // 2. Project scout thinking.
+  if (projectId) {
+    const project = db
+      .select({ scoutThinkingConfig: projects.scoutThinkingConfig })
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .get()
+    const fromProject = parseThinking(project?.scoutThinkingConfig)
+    if (fromProject) return fromProject
+  }
+
+  // 3. Agent scout thinking.
+  const agent = db
+    .select({ scoutThinkingConfig: agents.scoutThinkingConfig })
+    .from(agents)
+    .where(eq(agents.id, agentId))
+    .get()
+  const fromAgent = parseThinking(agent?.scoutThinkingConfig)
+  if (fromAgent) return fromAgent
+
+  // 4. Global scout default.
+  return getDefaultScoutThinking()
 }

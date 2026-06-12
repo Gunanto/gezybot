@@ -387,7 +387,10 @@
       "scoutModelInherit": "Dziedzicz (projekt / globalny / model Agenta)",
       "characterTip": "Definiuje osobowość Agenta: sposób mówienia, ton, dziwactwa i styl komunikacji. Traktuj to jak \"duszę\" Agenta.",
       "expertiseTip": "Opisuje, co Agent wie i na czym powinien się skupiać. To wyznacza jego odpowiedzi, priorytety i obszary kompetencji.",
-      "slugPlaceholder": "my-agent-slug"
+      "slugPlaceholder": "my-agent-slug",
+      "scoutThinking": "Rozumowanie scoutów",
+      "scoutThinkingTip": "Wysiłek rozumowania scoutów tego Agenta. Ustawienie projektu ma pierwszeństwo; nadpisanie per wywołanie wygrywa ze wszystkim. Dziedzicz = wróć do globalnego domyślnego, potem do konfiguracji tego Agenta.",
+      "scoutThinkingInherit": "Dziedzicz (globalne domyślne, potem ten Agent)"
     },
     "settings": {
       "title": "Ustawienia Agenta",
@@ -1527,7 +1530,10 @@
         "bullet1": "Domyślny LLM jest wstępnie wybrany przy tworzeniu nowych Agentów, co oszczędza czas konfiguracji",
         "bullet2": "Modele kompaktowania i ekstrakcji mogą być lekkie: nie muszą być takie same jak twój model czatu",
         "bullet3": "Zmiana modelu embeddingów wymaga ponownego przeliczenia embeddingów wszystkich istniejących wspomnień"
-      }
+      },
+      "defaultScoutThinking": "Rozumowanie scoutów",
+      "defaultScoutThinkingTip": "Domyślny wysiłek rozumowania scoutów. Łańcuch odpowiada łańcuchowi modelu scout: nadpisanie per wywołanie, potem projekt, potem Agent, potem to ustawienie. Nieustawione = scouty podążają za konfiguracją wywołującego Agenta.",
+      "defaultScoutThinkingInherit": "Brak domyślnego (podążaj za Agentem)"
     },
     "mcp": {
       "title": "Serwery MCP",
@@ -3575,7 +3581,10 @@
         "title": "Usunąć ten projekt?",
         "description": "\"{{title}}\" oraz wszystkie jego tickety, tagi i historia ticketów zostaną trwale usunięte. Historia zadań zostanie zachowana (ich powiązanie z ticketem zostanie usunięte).",
         "confirm": "Usuń projekt"
-      }
+      },
+      "scoutThinkingField": "Domyślne rozumowanie scoutów",
+      "scoutThinkingHint": "Wysiłek rozumowania scoutów wysyłanych w tym projekcie: ma pierwszeństwo przed ustawieniem scout każdego Agenta i globalnym domyślnym. Dziedzicz = wróć do scouta Agenta, potem globalnego domyślnego.",
+      "scoutThinkingInherit": "Dziedzicz (scout Agenta, potem globalne)"
     },
     "tags": {
       "empty": "Brak tagów. Dodaj kilka poniżej.",

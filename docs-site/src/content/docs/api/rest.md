@@ -454,6 +454,7 @@ Pending approval prompts (e.g. tool use confirmations).
 | `PUT` | `/api/settings/default-image` | Set default image generation model + provider |
 | `PUT` | `/api/settings/default-compacting` | Set default compacting model + provider |
 | `PUT` | `/api/settings/default-scout` | Set default scout model + provider |
+| `PUT` | `/api/settings/default-scout-thinking` | Set the global scout reasoning default (`{ thinking: AgentThinkingConfig \| null }`) |
 | `PUT` | `/api/settings/default-search` | Set default search provider |
 | `PUT` | `/api/settings/default-tts` | Set default text-to-speech provider/model |
 | `PUT` | `/api/settings/default-stt` | Set default speech-to-text provider/model |

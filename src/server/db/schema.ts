@@ -146,6 +146,11 @@ export const agents = sqliteTable('agents', {
    *  being set without the other is treated as "no scout override"). */
   scoutModel: text('scout_model'),
   scoutProviderId: text('scout_provider_id').references(() => providers.id, { onDelete: 'set null' }),
+  /** Optional reasoning config for this Agent's scouts (JSON:
+   *  AgentThinkingConfig). One step in resolveScoutThinking()'s chain:
+   *  per-call override → project scout thinking → THIS → global default →
+   *  the calling Agent's own general thinking config. Null = unset tier. */
+  scoutThinkingConfig: text('scout_thinking_config'),
   workspacePath: text('workspace_path').notNull(),
   toolboxIds: text('toolbox_ids'), // JSON string[] of toolbox ids; null/empty → 'all' built-in at resolution
   /** JSON string[] of individual tool names granted on top of toolboxes
@@ -1153,11 +1158,15 @@ export const projects = sqliteTable('projects', {
    *  model. */
   scoutModel: text('scout_model'),
   scoutProviderId: text('scout_provider_id'),
+  /** Optional reasoning config for scouts dispatched in this project's context
+   *  (JSON: AgentThinkingConfig). Beats the per-Agent scout thinking, like the
+   *  scout model chain. Null = unset tier. */
+  scoutThinkingConfig: text('scout_thinking_config'),
   /** Optional default thinking/reasoning config for sub-Agent tasks spawned on
-   *  tickets of this project (and for scouts dispatched in a project context).
-   *  JSON: AgentThinkingConfig. Same freeze-at-spawn pattern as `model`:
-   *  copied into `tasks.thinking_config` if no explicit task override is
-   *  given. Falls back to the parent Agent's own config. */
+   *  tickets of this project. JSON: AgentThinkingConfig. Same freeze-at-spawn
+   *  pattern as `model`: copied into `tasks.thinking_config` if no explicit
+   *  task override is given. Falls back to the parent Agent's own config.
+   *  (Scouts use the dedicated `scoutThinkingConfig` instead.) */
   thinkingConfig: text('thinking_config'),
   /** Optional default toolbox selection for sub-Agent tasks spawned on tickets
    *  of this project. JSON: string[] of toolbox ids. Frozen into

@@ -385,7 +385,10 @@
       "scoutModelInherit": "Inherit (project / global / Agent's model)",
       "characterTip": "Defines the Agent's personality: how it talks, its tone, quirks, and communication style. Think of it as the Agent's \"soul\".",
       "expertiseTip": "Describes what the Agent knows and should focus on. This guides its answers, priorities, and areas of competence.",
-      "slugPlaceholder": "my-agent-slug"
+      "slugPlaceholder": "my-agent-slug",
+      "scoutThinking": "Scout reasoning",
+      "scoutThinkingTip": "Reasoning effort for this Agent's scouts. A project-level scout reasoning takes precedence; per-call overrides beat everything. Inherit = fall back to the global default, then this Agent's own config.",
+      "scoutThinkingInherit": "Inherit (global default, then this Agent)"
     },
     "settings": {
       "title": "Agent settings",
@@ -1511,7 +1514,10 @@
         "bullet1": "The default LLM is pre-selected when creating new Agents, saving time during setup",
         "bullet2": "Compacting and extraction models can be lightweight: they don't need to be the same as your chat model",
         "bullet3": "Changing the embedding model requires re-embedding all existing memories"
-      }
+      },
+      "defaultScoutThinking": "Scout reasoning",
+      "defaultScoutThinkingTip": "Default reasoning effort for scouts. The chain mirrors the scout model: per-call override, then project, then Agent, then this. Unset = scouts follow the calling Agent's own reasoning config.",
+      "defaultScoutThinkingInherit": "No default (follow the calling Agent)"
     },
     "mcp": {
       "title": "MCP Servers",
@@ -3537,7 +3543,10 @@
         "title": "Delete this project?",
         "description": "\"{{title}}\" and all its tickets, tags, and ticket history will be permanently deleted. Tasks history is preserved (their ticket link is unset).",
         "confirm": "Delete project"
-      }
+      },
+      "scoutThinkingField": "Default scout reasoning",
+      "scoutThinkingHint": "Reasoning effort for scouts dispatched in this project: takes precedence over each Agent's scout reasoning and the global default. Inherit = fall back to the Agent's scout reasoning, then the global default.",
+      "scoutThinkingInherit": "Inherit (Agent scout, then global)"
     },
     "tags": {
       "empty": "No tags yet. Add some below.",

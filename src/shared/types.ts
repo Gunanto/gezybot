@@ -1099,12 +1099,17 @@ export interface Project {
    *  own model when null. An explicit model passed at spawn still wins. */
   model: string | null
   providerId: string | null
-  /** Optional default scout model for sub-Agent tasks spawned on tickets of this
-   *  project. One tier of resolveScoutModel()'s chain (between the per-Agent
-   *  scout model and the global default). Coupled with `scoutProviderId`.
-   *  Null falls through to the global scout default → the Agent's main model. */
+  /** Optional default scout model for work in this project's context. One tier
+   *  of resolveScoutModel()'s chain, BETWEEN the per-call override and the
+   *  per-Agent scout (project beats Agent). Coupled with `scoutProviderId`.
+   *  Null falls through to the Agent scout → global default → Agent main model. */
   scoutModel: string | null
   scoutProviderId: string | null
+  /** Optional reasoning config for scouts dispatched in this project's context.
+   *  Same chain position as `scoutModel` (project beats Agent). Null = unset
+   *  tier (falls through to the Agent scout thinking → global default → the
+   *  calling Agent's own general config). */
+  scoutThinkingConfig: AgentThinkingConfig | null
   /** Optional default thinking/reasoning config for sub-Agent tasks spawned on
    *  tickets of this project. Same freeze-at-spawn semantics as `model`.
    *  Null means "inherit from each Agent". */

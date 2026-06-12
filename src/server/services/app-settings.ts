@@ -3,6 +3,7 @@ import { db } from '@/server/db/index'
 import { appSettings } from '@/server/db/schema'
 import { createLogger } from '@/server/logger'
 import { config } from '@/server/config'
+import type { AgentThinkingConfig } from '@/shared/types'
 
 const log = createLogger('app-settings')
 
@@ -213,7 +214,7 @@ export async function setDefaultLlmProviderId(providerId: string | null): Promis
 // ─── Default Scout Model (cheap delegation for the `scout` tool) ─────────────
 //
 // Global fallback for the scout model resolved by resolveScoutModel(). Sits
-// near the end of the chain: per-spawn override → Agent scout → project scout →
+// near the end of the chain: per-spawn override → project scout → Agent scout →
 // THIS global default → Agent's own main model. Mirrors getDefaultLlmModel /
 // setDefaultLlmModel exactly (k/v, no dedicated column). A scout-less install
 // leaves both null and every scout falls back to the main model.
@@ -234,6 +235,26 @@ export async function getDefaultScoutProviderId(): Promise<string | null> {
 export async function setDefaultScoutProviderId(providerId: string | null): Promise<void> {
   if (providerId === null) return deleteSetting('default_scout_provider_id')
   return setSetting('default_scout_provider_id', providerId)
+}
+
+/** Global default reasoning config for scouts (JSON: AgentThinkingConfig).
+ *  One tier of resolveScoutThinking()'s chain: per-call override → project
+ *  scout thinking → Agent scout thinking → THIS → the calling Agent's own
+ *  general thinking config. Null = unset. */
+export async function getDefaultScoutThinking(): Promise<AgentThinkingConfig | null> {
+  const raw = await getSetting('default_scout_thinking')
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as AgentThinkingConfig
+    return parsed && typeof parsed === 'object' ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+export async function setDefaultScoutThinking(cfg: AgentThinkingConfig | null): Promise<void> {
+  if (cfg === null) return deleteSetting('default_scout_thinking')
+  return setSetting('default_scout_thinking', JSON.stringify(cfg))
 }
 
 // ─── Default Image Model ─────────────────────────────────────────────────────

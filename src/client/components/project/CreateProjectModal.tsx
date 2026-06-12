@@ -14,6 +14,7 @@ import { GithubRepoPicker } from '@/client/components/project/GithubRepoPicker'
 import { getErrorMessage } from '@/client/lib/api'
 import { choiceToConfig, type ThinkingChoice } from '@/client/lib/thinking-choice'
 import { ThinkingEffortSelect } from '@/client/components/common/ThinkingEffortSelect'
+import { modelReasoningInfo } from '@/client/lib/model-efforts'
 import { toast } from 'sonner'
 import type { AgentThinkingConfig } from '@/shared/types'
 
@@ -27,6 +28,7 @@ interface CreateProjectInputSubset {
   providerId?: string | null
   scoutModel?: string | null
   scoutProviderId?: string | null
+  scoutThinkingConfig?: AgentThinkingConfig | null
   thinkingConfig?: AgentThinkingConfig | null
   defaultToolboxIds?: string[] | null
 }
@@ -52,6 +54,7 @@ export function CreateProjectModal({ open, onOpenChange, onCreate, onCreated }: 
   const [scoutModel, setScoutModel] = useState('')
   const [scoutProviderId, setScoutProviderId] = useState('')
   const [thinkingChoice, setThinkingChoice] = useState<ThinkingChoice>('inherit')
+  const [scoutThinkingChoice, setScoutThinkingChoice] = useState<ThinkingChoice>('inherit')
   const [defaultToolboxIds, setDefaultToolboxIds] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -95,6 +98,7 @@ export function CreateProjectModal({ open, onOpenChange, onCreate, onCreated }: 
         scoutModel: scoutBothSet ? scoutModel : undefined,
         scoutProviderId: scoutBothSet ? scoutProviderId : undefined,
         thinkingConfig: thinkingChoice !== 'inherit' ? choiceToConfig(thinkingChoice) : undefined,
+        scoutThinkingConfig: scoutThinkingChoice !== 'inherit' ? choiceToConfig(scoutThinkingChoice) : undefined,
         // Empty selection = inherit (built-in default). Only send when chosen.
         defaultToolboxIds: defaultToolboxIds.length > 0 ? defaultToolboxIds : undefined,
       })
@@ -169,6 +173,17 @@ export function CreateProjectModal({ open, onOpenChange, onCreate, onCreated }: 
           placeholder={t('projects.edit.scoutModelPlaceholder')}
           allowClear
           clearLabel={t('projects.edit.scoutModelPlaceholder')}
+        />
+      </FormField>
+
+      <FormField label={t('projects.edit.scoutThinkingField')} hint={t('projects.edit.scoutThinkingHint')}>
+        <ThinkingEffortSelect
+          value={scoutThinkingChoice}
+          onChange={setScoutThinkingChoice}
+          inheritLabel={t('projects.edit.scoutThinkingInherit')}
+          reasoning={scoutModel
+            ? modelReasoningInfo(llmModels.find((m) => m.id === scoutModel && (!scoutProviderId || m.providerId === scoutProviderId)))
+            : undefined}
         />
       </FormField>
 

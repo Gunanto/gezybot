@@ -385,7 +385,10 @@
       "scoutModelInherit": "Eredita (progetto / globale / modello dell'Agente)",
       "characterTip": "Definisce la personalità dell'Agente: come parla, il suo tono, le sue particolarità e il suo stile di comunicazione. Pensalo come l'\"anima\" dell'Agente.",
       "expertiseTip": "Descrive cosa sa l'Agente e su cosa deve concentrarsi. Guida le sue risposte, priorità e aree di competenza.",
-      "slugPlaceholder": "slug-del-mio-agente"
+      "slugPlaceholder": "slug-del-mio-agente",
+      "scoutThinking": "Ragionamento degli scout",
+      "scoutThinkingTip": "Sforzo di ragionamento degli scout di questo Agente. L'impostazione scout di un progetto ha la priorità; l'override per chiamata batte tutto. Eredita = ricadi sul predefinito globale e poi sulla configurazione di questo Agente.",
+      "scoutThinkingInherit": "Eredita (predefinito globale, poi questo Agente)"
     },
     "settings": {
       "title": "Impostazioni Agente",
@@ -1511,7 +1514,10 @@
         "bullet1": "L'LLM predefinito è preselezionato alla creazione di nuovi Agenti, risparmiando tempo in fase di configurazione",
         "bullet2": "I modelli di compattazione ed estrazione possono essere leggeri: non devono essere gli stessi del tuo modello di chat",
         "bullet3": "Cambiare il modello di embedding richiede di rigenerare gli embedding di tutti i ricordi esistenti"
-      }
+      },
+      "defaultScoutThinking": "Ragionamento degli scout",
+      "defaultScoutThinkingTip": "Sforzo di ragionamento predefinito degli scout. La catena segue quella del modello scout: override per chiamata, poi progetto, poi Agente, poi questa impostazione. Non impostato = gli scout seguono la configurazione dell'Agente chiamante.",
+      "defaultScoutThinkingInherit": "Nessun predefinito (segui l'Agente)"
     },
     "mcp": {
       "title": "Server MCP",
@@ -3537,7 +3543,10 @@
         "title": "Eliminare questo progetto?",
         "description": "\"{{title}}\" e tutti i suoi ticket, tag e cronologia dei ticket saranno eliminati definitivamente. La cronologia delle attività è conservata (il loro collegamento al ticket viene rimosso).",
         "confirm": "Elimina progetto"
-      }
+      },
+      "scoutThinkingField": "Ragionamento scout predefinito",
+      "scoutThinkingHint": "Sforzo di ragionamento degli scout inviati in questo progetto: ha la priorità sull'impostazione scout di ogni Agente e sul predefinito globale. Eredita = ricadi sullo scout dell'Agente e poi sul predefinito globale.",
+      "scoutThinkingInherit": "Eredita (scout dell'Agente, poi globale)"
     },
     "tags": {
       "empty": "Ancora nessun tag. Aggiungine qualcuno qui sotto.",

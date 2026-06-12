@@ -60,6 +60,9 @@ export interface CreateAgentInput {
    *  treated as "no scout override"). */
   scoutModel?: string | null
   scoutProviderId?: string | null
+  /** Optional reasoning config for this Agent's scouts (one tier of
+   *  resolveScoutThinking()'s chain). Null/undefined = unset. */
+  scoutThinkingConfig?: AgentThinkingConfig | null
   createdBy: string | null
   mcpServerIds?: string[]
   /** Optional toolbox selection. Null/empty → 'all' built-in at resolution. */
@@ -81,6 +84,8 @@ export interface UpdateAgentInput {
    *  is normalized to "cleared". */
   scoutModel?: string | null
   scoutProviderId?: string | null
+  /** Reasoning config for this Agent's scouts. Null clears (unset tier). */
+  scoutThinkingConfig?: AgentThinkingConfig | null
   slug?: string
   /** JSON-serialized array of toolbox ids. Null/empty → 'all' built-in at
    *  resolution. The toolbox is the sole tool-grant primitive. */
@@ -104,6 +109,7 @@ export interface AgentRecord {
   providerId: string | null
   scoutModel: string | null
   scoutProviderId: string | null
+  scoutThinkingConfig: string | null
   workspacePath: string
   toolboxIds: string | null
   extraToolNames: string | null
@@ -164,6 +170,7 @@ export async function createAgent(input: CreateAgentInput): Promise<AgentRecord>
       providerId: input.providerId ?? null,
       scoutModel: scoutPaired ? input.scoutModel!.trim() : null,
       scoutProviderId: scoutPaired ? input.scoutProviderId! : null,
+      scoutThinkingConfig: input.scoutThinkingConfig ? JSON.stringify(input.scoutThinkingConfig) : null,
       workspacePath,
       toolboxIds: input.toolboxIds && input.toolboxIds.length > 0 ? JSON.stringify(input.toolboxIds) : null,
       createdBy: input.createdBy,
@@ -241,6 +248,7 @@ export async function updateAgent(
     // Null/empty → store null so resolution falls back to the 'all' built-in.
     updates.toolboxIds = input.toolboxIds && input.toolboxIds.length > 0 ? JSON.stringify(input.toolboxIds) : null
   }
+  if (input.scoutThinkingConfig !== undefined) updates.scoutThinkingConfig = input.scoutThinkingConfig ? JSON.stringify(input.scoutThinkingConfig) : null
   if (input.compactingConfig !== undefined) updates.compactingConfig = input.compactingConfig ? JSON.stringify(input.compactingConfig) : null
   if (input.thinkingConfig !== undefined) updates.thinkingConfig = input.thinkingConfig ? JSON.stringify(input.thinkingConfig) : null
 

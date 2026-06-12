@@ -385,7 +385,10 @@
       "scoutModelInherit": "Erben (Projekt / global / Modell des Agenten)",
       "characterTip": "Definiert die Persönlichkeit des Agenten: wie er spricht, sein Tonfall, seine Eigenheiten und sein Kommunikationsstil. Quasi die \"Seele\" des Agenten.",
       "expertiseTip": "Beschreibt, was der Agent weiß und worauf er sich konzentrieren soll. Das lenkt seine Antworten, Prioritäten und Kompetenzbereiche.",
-      "slugPlaceholder": "mein-agent-slug"
+      "slugPlaceholder": "mein-agent-slug",
+      "scoutThinking": "Scout-Reasoning",
+      "scoutThinkingTip": "Reasoning-Aufwand für die Scouts dieses Agents. Eine Projekt-Einstellung hat Vorrang; ein Override pro Aufruf schlägt alles. Erben = auf den globalen Standard und dann die Konfiguration dieses Agents zurückfallen.",
+      "scoutThinkingInherit": "Erben (globaler Standard, dann dieser Agent)"
     },
     "settings": {
       "title": "Agenten-Einstellungen",
@@ -1511,7 +1514,10 @@
         "bullet1": "Das Standard-LLM ist beim Erstellen neuer Agenten vorausgewählt und spart Zeit bei der Einrichtung",
         "bullet2": "Kompaktierungs- und Extraktionsmodelle können leichtgewichtig sein: Sie müssen nicht dasselbe sein wie dein Chatmodell",
         "bullet3": "Ein Wechsel des Embedding-Modells erfordert das Neu-Einbetten aller bestehenden Erinnerungen"
-      }
+      },
+      "defaultScoutThinking": "Scout-Reasoning",
+      "defaultScoutThinkingTip": "Standard-Reasoning-Aufwand für Scouts. Die Kette folgt der des Scout-Modells: Override pro Aufruf, dann Projekt, dann Agent, dann diese Einstellung. Nicht gesetzt = Scouts folgen der Reasoning-Konfiguration des aufrufenden Agents.",
+      "defaultScoutThinkingInherit": "Kein Standard (dem Agent folgen)"
     },
     "mcp": {
       "title": "MCP-Server",
@@ -3537,7 +3543,10 @@
         "title": "Dieses Projekt löschen?",
         "description": "\"{{title}}\" und alle seine Tickets, Tags und der Ticketverlauf werden dauerhaft gelöscht. Der Aufgabenverlauf bleibt erhalten (die Ticket-Verknüpfung wird entfernt).",
         "confirm": "Projekt löschen"
-      }
+      },
+      "scoutThinkingField": "Standard-Scout-Reasoning",
+      "scoutThinkingHint": "Reasoning-Aufwand für Scouts in diesem Projekt: hat Vorrang vor der Scout-Einstellung jedes Agents und dem globalen Standard. Erben = auf das Scout-Reasoning des Agents und dann den globalen Standard zurückfallen.",
+      "scoutThinkingInherit": "Erben (Agent-Scout, dann global)"
     },
     "tags": {
       "empty": "Noch keine Tags. Füge unten welche hinzu.",

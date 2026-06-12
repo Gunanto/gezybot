@@ -385,7 +385,10 @@
       "scoutModelInherit": "继承（项目 / 全局 / 智能体模型）",
       "characterTip": "定义智能体的个性：说话方式、语气、小习惯和沟通风格。可以把它看作智能体的「灵魂」。",
       "expertiseTip": "描述智能体掌握什么、应该专注什么。这会引导它的回答、优先级和能力范围。",
-      "slugPlaceholder": "my-agent-slug"
+      "slugPlaceholder": "my-agent-slug",
+      "scoutThinking": "Scout 推理",
+      "scoutThinkingTip": "此 Agent 的 scout 推理强度。项目级设置优先；单次调用覆盖优先于一切。继承 = 回退到全局默认，再到此 Agent 自身配置。",
+      "scoutThinkingInherit": "继承（全局默认，再此 Agent）"
     },
     "settings": {
       "title": "智能体设置",
@@ -1511,7 +1514,10 @@
         "bullet1": "创建新智能体时会预选默认 LLM，节省设置时间",
         "bullet2": "压缩和提取模型可以很轻量：它们不必和你的聊天模型相同",
         "bullet3": "更换嵌入模型需要重新嵌入所有现有记忆"
-      }
+      },
+      "defaultScoutThinking": "Scout 推理",
+      "defaultScoutThinkingTip": "Scout 的默认推理强度。链条与 scout 模型一致：单次调用覆盖、然后项目、然后 Agent、最后此设置。未设置 = scout 跟随调用方 Agent 的推理配置。",
+      "defaultScoutThinkingInherit": "无默认（跟随调用方 Agent）"
     },
     "mcp": {
       "title": "MCP 服务器",
@@ -3537,7 +3543,10 @@
         "title": "删除此项目？",
         "description": "「{{title}}」及其所有工单、标签和工单历史将被永久删除。任务历史会保留（其工单关联会被解除）。",
         "confirm": "删除项目"
-      }
+      },
+      "scoutThinkingField": "默认 Scout 推理",
+      "scoutThinkingHint": "本项目中派出的 scout 的推理强度：优先于每个 Agent 的 scout 设置和全局默认。继承 = 回退到 Agent 的 scout 设置，再到全局默认。",
+      "scoutThinkingInherit": "继承（Agent 的 scout，再全局）"
     },
     "tags": {
       "empty": "还没有标签，在下方添加。",

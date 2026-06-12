@@ -385,7 +385,10 @@
       "scoutModelInherit": "Herdar (projeto / global / modelo do Agente)",
       "characterTip": "Define a personalidade do Agente: como ele fala, seu tom, manias e estilo de comunicação. Pense nisso como a \"alma\" do Agente.",
       "expertiseTip": "Descreve o que o Agente sabe e em que deve focar. Isso orienta suas respostas, prioridades e áreas de competência.",
-      "slugPlaceholder": "slug-do-meu-agente"
+      "slugPlaceholder": "slug-do-meu-agente",
+      "scoutThinking": "Raciocínio dos scouts",
+      "scoutThinkingTip": "Esforço de raciocínio dos scouts deste Agente. A configuração scout de um projeto tem prioridade; o override por chamada vence tudo. Herdar = recorrer ao padrão global e depois à configuração deste Agente.",
+      "scoutThinkingInherit": "Herdar (padrão global, depois este Agente)"
     },
     "settings": {
       "title": "Configurações do Agente",
@@ -1511,7 +1514,10 @@
         "bullet1": "O LLM padrão vem pré-selecionado ao criar novos Agentes, economizando tempo na configuração",
         "bullet2": "Os modelos de compactação e extração podem ser leves: não precisam ser os mesmos do seu modelo de chat",
         "bullet3": "Trocar o modelo de embedding exige reprocessar os embeddings de todas as memórias existentes"
-      }
+      },
+      "defaultScoutThinking": "Raciocínio dos scouts",
+      "defaultScoutThinkingTip": "Esforço de raciocínio padrão dos scouts. A cadeia segue a do modelo scout: override por chamada, depois projeto, depois Agente, depois esta configuração. Não definido = os scouts seguem a configuração do Agente chamador.",
+      "defaultScoutThinkingInherit": "Sem padrão (seguir o Agente)"
     },
     "mcp": {
       "title": "Servidores MCP",
@@ -3537,7 +3543,10 @@
         "title": "Excluir este projeto?",
         "description": "\"{{title}}\" e todos os seus tickets, tags e histórico de tickets serão excluídos permanentemente. O histórico de tarefas é preservado (o vínculo com o ticket é removido).",
         "confirm": "Excluir projeto"
-      }
+      },
+      "scoutThinkingField": "Raciocínio de scouts padrão",
+      "scoutThinkingHint": "Esforço de raciocínio dos scouts enviados neste projeto: tem prioridade sobre a configuração scout de cada Agente e o padrão global. Herdar = recorrer ao scout do Agente e depois ao padrão global.",
+      "scoutThinkingInherit": "Herdar (scout do Agente, depois global)"
     },
     "tags": {
       "empty": "Nenhuma tag ainda. Adicione algumas abaixo.",

@@ -1,3 +1,5 @@
+import { THINKING_EFFORTS } from '@/shared/constants'
+import type { AgentThinkingEffort } from '@/shared/types'
 import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
 import { db } from '@/server/db/index'
@@ -36,6 +38,8 @@ import {
   setDefaultScoutModel,
   getDefaultScoutProviderId,
   setDefaultScoutProviderId,
+  getDefaultScoutThinking,
+  setDefaultScoutThinking,
   getDefaultSearchProviderId,
   setDefaultSearchProviderId,
   getDefaultTtsProviderId,
@@ -306,6 +310,7 @@ settingsRoutes.get('/default-models', async (c) => {
     defaultImageModel, defaultImageProviderId,
     defaultCompactingModel, defaultCompactingProviderId,
     defaultScoutModel, defaultScoutProviderId,
+    defaultScoutThinking,
     extractionModel, extractionProviderId,
     embeddingModel, embeddingProviderId,
     defaultSearchProviderId,
@@ -316,6 +321,7 @@ settingsRoutes.get('/default-models', async (c) => {
     getDefaultImageModel(), getDefaultImageProviderId(),
     getDefaultCompactingModel(), getDefaultCompactingProviderId(),
     getDefaultScoutModel(), getDefaultScoutProviderId(),
+    getDefaultScoutThinking(),
     getExtractionModel(), getExtractionProviderId(),
     getEmbeddingModel(), getEmbeddingProviderId(),
     getDefaultSearchProviderId(),
@@ -327,6 +333,7 @@ settingsRoutes.get('/default-models', async (c) => {
     defaultImageModel, defaultImageProviderId,
     defaultCompactingModel, defaultCompactingProviderId,
     defaultScoutModel, defaultScoutProviderId,
+    defaultScoutThinking,
     extractionModel, extractionProviderId,
     embeddingModel, embeddingProviderId,
     defaultSearchProviderId,
@@ -444,6 +451,39 @@ settingsRoutes.put('/default-scout', async (c) => {
   log.info({ model: model.trim(), providerId }, 'Default scout model updated')
   broadcastDefaultsUpdated()
   return c.json({ defaultScoutModel: model.trim(), defaultScoutProviderId: providerId ?? null })
+})
+
+// PUT /api/settings/default-scout-thinking
+//
+// Global default reasoning config for scouts (one tier of
+// resolveScoutThinking()'s chain). Body: { thinking: AgentThinkingConfig | null }
+// — null clears (scouts then fall back to the calling Agent's own config).
+settingsRoutes.put('/default-scout-thinking', async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  const thinking = (body as { thinking?: unknown }).thinking
+
+  if (thinking === null || thinking === undefined) {
+    await setDefaultScoutThinking(null)
+    log.info('Default scout thinking cleared')
+    broadcastDefaultsUpdated()
+    return c.json({ defaultScoutThinking: null })
+  }
+  if (typeof thinking !== 'object') {
+    return c.json(
+      { error: { code: 'INVALID_BODY', message: 'thinking must be an object or null' } },
+      400,
+    )
+  }
+  const cfg = thinking as Record<string, unknown>
+  const enabled = cfg.enabled === true
+  const effort = typeof cfg.effort === 'string' && (THINKING_EFFORTS as readonly string[]).includes(cfg.effort)
+    ? (cfg.effort as AgentThinkingEffort)
+    : null
+  const sanitized = { enabled, ...(effort !== null ? { effort } : {}) }
+  await setDefaultScoutThinking(sanitized)
+  log.info({ thinking: sanitized }, 'Default scout thinking updated')
+  broadcastDefaultsUpdated()
+  return c.json({ defaultScoutThinking: sanitized })
 })
 
 // PUT /api/settings/default-search

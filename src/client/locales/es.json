@@ -385,7 +385,10 @@
       "scoutModelInherit": "Heredar (proyecto / global / modelo del Agente)",
       "characterTip": "Define la personalidad del Agente: cómo habla, su tono, sus manías y su estilo de comunicación. Es como el \"alma\" del Agente.",
       "expertiseTip": "Describe lo que el Agente sabe y en qué debe centrarse. Esto guía sus respuestas, prioridades y áreas de competencia.",
-      "slugPlaceholder": "mi-agente-slug"
+      "slugPlaceholder": "mi-agente-slug",
+      "scoutThinking": "Razonamiento de los scouts",
+      "scoutThinkingTip": "Esfuerzo de razonamiento de los scouts de este Agente. El ajuste scout de un proyecto tiene prioridad; el override por llamada lo supera todo. Heredar = recurrir al predeterminado global y luego a la configuración de este Agente.",
+      "scoutThinkingInherit": "Heredar (predeterminado global, luego este Agente)"
     },
     "settings": {
       "title": "Ajustes del Agente",
@@ -1511,7 +1514,10 @@
         "bullet1": "El LLM por defecto viene preseleccionado al crear nuevos Agentes, lo que ahorra tiempo",
         "bullet2": "Los modelos de compactación y extracción pueden ser ligeros: no tienen por qué ser tu modelo de chat",
         "bullet3": "Cambiar el modelo de embeddings requiere recalcular los embeddings de todos los recuerdos existentes"
-      }
+      },
+      "defaultScoutThinking": "Razonamiento de los scouts",
+      "defaultScoutThinkingTip": "Esfuerzo de razonamiento predeterminado de los scouts. La cadena sigue la del modelo scout: override por llamada, luego proyecto, luego Agente, luego este ajuste. Sin definir = los scouts siguen la configuración del Agente que llama.",
+      "defaultScoutThinkingInherit": "Sin valor predeterminado (seguir al Agente)"
     },
     "mcp": {
       "title": "Servidores MCP",
@@ -3537,7 +3543,10 @@
         "title": "¿Eliminar este proyecto?",
         "description": "\"{{title}}\" y todos sus tickets, etiquetas e historial de tickets se eliminarán permanentemente. El historial de tareas se conserva (se desvinculan de su ticket).",
         "confirm": "Eliminar proyecto"
-      }
+      },
+      "scoutThinkingField": "Razonamiento de scouts predeterminado",
+      "scoutThinkingHint": "Esfuerzo de razonamiento de los scouts enviados en este proyecto: tiene prioridad sobre el ajuste scout de cada Agente y el predeterminado global. Heredar = recurrir al scout del Agente y luego al predeterminado global.",
+      "scoutThinkingInherit": "Heredar (scout del Agente, luego global)"
     },
     "tags": {
       "empty": "Aún no hay etiquetas. Añade alguna abajo.",

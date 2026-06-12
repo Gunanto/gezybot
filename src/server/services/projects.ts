@@ -121,6 +121,15 @@ export async function getProject(projectId: string): Promise<Project | null> {
     }
   }
 
+  let scoutThinkingConfig: AgentThinkingConfig | null = null
+  if (row.scoutThinkingConfig) {
+    try {
+      scoutThinkingConfig = JSON.parse(row.scoutThinkingConfig) as AgentThinkingConfig
+    } catch {
+      scoutThinkingConfig = null
+    }
+  }
+
   let defaultToolboxIds: string[] | null = null
   if (row.defaultToolboxIds) {
     try {
@@ -150,6 +159,7 @@ export async function getProject(projectId: string): Promise<Project | null> {
     providerId: row.providerId,
     scoutModel: row.scoutModel,
     scoutProviderId: row.scoutProviderId,
+    scoutThinkingConfig,
     thinkingConfig,
     defaultToolboxIds,
     tags,
@@ -190,6 +200,8 @@ export interface CreateProjectInput {
    *  with `scoutProviderId` — clearing one clears both. */
   scoutModel?: string | null
   scoutProviderId?: string | null
+  /** Reasoning config for scouts dispatched in this project's context. */
+  scoutThinkingConfig?: AgentThinkingConfig | null
   /** Default thinking config for sub-Agent tasks of this project. */
   thinkingConfig?: AgentThinkingConfig | null
   /** Default toolbox selection (toolbox ids) for sub-Agent tasks of this
@@ -267,6 +279,7 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
       providerId: providerSet ? input.providerId : null,
       scoutModel: scoutModelSet ? input.scoutModel : null,
       scoutProviderId: scoutProviderSet ? input.scoutProviderId : null,
+      scoutThinkingConfig: input.scoutThinkingConfig ? JSON.stringify(input.scoutThinkingConfig) : null,
       thinkingConfig: input.thinkingConfig ? JSON.stringify(input.thinkingConfig) : null,
       defaultToolboxIds:
         input.defaultToolboxIds && input.defaultToolboxIds.length > 0
@@ -337,6 +350,9 @@ export interface UpdateProjectInput {
    *  paired with scoutProviderId. */
   scoutModel?: string | null
   scoutProviderId?: string | null
+  /** Reasoning config for scouts dispatched in this project's context. Pass
+   *  null to clear (fall back to the Agent scout thinking → global default). */
+  scoutThinkingConfig?: AgentThinkingConfig | null
   /** Default thinking config for sub-Agent tasks of this project. Pass null
    *  to clear (fall back to each Agent's own config). */
   thinkingConfig?: AgentThinkingConfig | null
@@ -375,6 +391,9 @@ export async function updateProject(
   if (input.providerId !== undefined) update.providerId = input.providerId
   if (input.scoutModel !== undefined) update.scoutModel = input.scoutModel
   if (input.scoutProviderId !== undefined) update.scoutProviderId = input.scoutProviderId
+  if (input.scoutThinkingConfig !== undefined) {
+    update.scoutThinkingConfig = input.scoutThinkingConfig === null ? null : JSON.stringify(input.scoutThinkingConfig)
+  }
   if (input.thinkingConfig !== undefined) {
     update.thinkingConfig = input.thinkingConfig === null ? null : JSON.stringify(input.thinkingConfig)
   }

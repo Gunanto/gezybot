@@ -26,12 +26,14 @@ sqlite.run(`CREATE TABLE agents (
   model text NOT NULL,
   provider_id text,
   scout_model text,
-  scout_provider_id text
+  scout_provider_id text,
+  scout_thinking_config text
 )`)
 sqlite.run(`CREATE TABLE projects (
   id text PRIMARY KEY NOT NULL,
   scout_model text,
-  scout_provider_id text
+  scout_provider_id text,
+  scout_thinking_config text
 )`)
 sqlite.run(`CREATE TABLE app_settings (
   key text PRIMARY KEY NOT NULL,
@@ -48,7 +50,7 @@ if (schemaIsReal) {
 const mod = schemaIsReal
   ? await import('@/server/llm/core/resolve-scout')
   : ({} as typeof import('@/server/llm/core/resolve-scout'))
-const { resolveScoutModel } = mod
+const { resolveScoutModel, resolveScoutThinking } = mod
 
 // Real app-settings service (its in-memory cache must stay coherent with our
 // table — always go through the setters, never raw SQL on app_settings).
@@ -59,13 +61,18 @@ const appSettings = schemaIsReal
 const AGENT = 'agent-1'
 const PROJECT = 'project-1'
 
-function seed(opts: { agentScout?: string | null; projectScout?: string | null }) {
-  sqlite.run(`INSERT INTO agents (id, model, provider_id, scout_model, scout_provider_id)
-              VALUES (?, 'agent-main-model', 'prov-main', ?, ?)`,
-    [AGENT, opts.agentScout ?? null, opts.agentScout ? 'prov-agent' : null])
-  sqlite.run(`INSERT INTO projects (id, scout_model, scout_provider_id)
-              VALUES (?, ?, ?)`,
-    [PROJECT, opts.projectScout ?? null, opts.projectScout ? 'prov-project' : null])
+function seed(opts: {
+  agentScout?: string | null
+  projectScout?: string | null
+  agentScoutThinking?: string | null
+  projectScoutThinking?: string | null
+}) {
+  sqlite.run(`INSERT INTO agents (id, model, provider_id, scout_model, scout_provider_id, scout_thinking_config)
+              VALUES (?, 'agent-main-model', 'prov-main', ?, ?, ?)`,
+    [AGENT, opts.agentScout ?? null, opts.agentScout ? 'prov-agent' : null, opts.agentScoutThinking ?? null])
+  sqlite.run(`INSERT INTO projects (id, scout_model, scout_provider_id, scout_thinking_config)
+              VALUES (?, ?, ?, ?)`,
+    [PROJECT, opts.projectScout ?? null, opts.projectScout ? 'prov-project' : null, opts.projectScoutThinking ?? null])
 }
 
 async function setGlobalScout(model: string | null, providerId: string | null) {
@@ -73,11 +80,15 @@ async function setGlobalScout(model: string | null, providerId: string | null) {
   await appSettings.setDefaultScoutProviderId(providerId)
 }
 
+const LOW = JSON.stringify({ enabled: true, effort: 'low' })
+const HIGH = JSON.stringify({ enabled: true, effort: 'high' })
+
 beforeEach(async () => {
   if (!schemaIsReal) return
   sqlite.run('DELETE FROM agents')
   sqlite.run('DELETE FROM projects')
   await setGlobalScout(null, null) // clears rows AND the service's cache
+  await appSettings.setDefaultScoutThinking(null)
 })
 
 d('resolveScoutModel priority chain', () => {
@@ -126,5 +137,48 @@ d('resolveScoutModel priority chain', () => {
     seed({ agentScout: 'agent-scout', projectScout: '  ' })
     const r = await resolveScoutModel({ agentId: AGENT, projectId: PROJECT })
     expect(r).toEqual({ modelId: 'agent-scout', providerId: 'prov-agent' })
+  })
+})
+
+d('resolveScoutThinking priority chain', () => {
+  it('per-call override beats everything, project included', async () => {
+    seed({ agentScoutThinking: LOW, projectScoutThinking: HIGH })
+    const r = await resolveScoutThinking({
+      agentId: AGENT,
+      projectId: PROJECT,
+      override: { enabled: false },
+    })
+    expect(r).toEqual({ enabled: false })
+  })
+
+  it('PROJECT scout thinking beats the Agent scout thinking', async () => {
+    seed({ agentScoutThinking: LOW, projectScoutThinking: HIGH })
+    const r = await resolveScoutThinking({ agentId: AGENT, projectId: PROJECT })
+    expect(r).toEqual({ enabled: true, effort: 'high' })
+  })
+
+  it('falls back to the Agent scout thinking when the project sets none', async () => {
+    seed({ agentScoutThinking: LOW })
+    const r = await resolveScoutThinking({ agentId: AGENT, projectId: PROJECT })
+    expect(r).toEqual({ enabled: true, effort: 'low' })
+  })
+
+  it('global default when neither project nor Agent set scout thinking', async () => {
+    seed({})
+    await appSettings.setDefaultScoutThinking({ enabled: true, effort: 'minimal' })
+    const r = await resolveScoutThinking({ agentId: AGENT, projectId: PROJECT })
+    expect(r).toEqual({ enabled: true, effort: 'minimal' })
+  })
+
+  it('null when nothing is configured (execution-time Agent fallback applies)', async () => {
+    seed({})
+    const r = await resolveScoutThinking({ agentId: AGENT, projectId: PROJECT })
+    expect(r).toBeNull()
+  })
+
+  it('ignores malformed JSON tiers', async () => {
+    seed({ agentScoutThinking: LOW, projectScoutThinking: '{not-json' })
+    const r = await resolveScoutThinking({ agentId: AGENT, projectId: PROJECT })
+    expect(r).toEqual({ enabled: true, effort: 'low' })
   })
 })

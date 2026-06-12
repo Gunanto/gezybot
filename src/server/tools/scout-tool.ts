@@ -2,9 +2,9 @@ import { tool } from '@/server/tools/tool-helper'
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { db } from '@/server/db/index'
-import { tickets, agents, projects } from '@/server/db/schema'
+import { tickets, agents } from '@/server/db/schema'
 import { spawnTask, suspendTaskForChild } from '@/server/services/tasks'
-import { resolveScoutModel } from '@/server/llm/core/resolve-scout'
+import { resolveScoutModel, resolveScoutThinking } from '@/server/llm/core/resolve-scout'
 import { createLogger } from '@/server/logger'
 import type { ToolRegistration } from '@/server/tools/types'
 import type { AgentThinkingConfig, AgentThinkingEffort } from '@/shared/types'
@@ -124,26 +124,20 @@ export const scoutTool: ToolRegistration = {
         })
 
         // Reasoning for the scout — same priority principle as the model:
-        // per-call override → project default → (at execution) the calling
-        // Agent's own thinking config. Frozen on the task row when a tier hits;
-        // left null otherwise so the execution-time Agent fallback applies.
-        let thinkingConfig: AgentThinkingConfig | undefined
-        if (thinking_effort === 'off') {
-          thinkingConfig = { enabled: false }
-        } else if (thinking_effort) {
-          thinkingConfig = { enabled: true, effort: thinking_effort as AgentThinkingEffort }
-        } else if (projectId) {
-          const projectRow = db
-            .select({ thinkingConfig: projects.thinkingConfig })
-            .from(projects)
-            .where(eq(projects.id, projectId))
-            .get()
-          if (projectRow?.thinkingConfig) {
-            try {
-              thinkingConfig = JSON.parse(projectRow.thinkingConfig) as AgentThinkingConfig
-            } catch { /* malformed project config — fall back to the Agent's */ }
-          }
-        }
+        // per-call override → project scout thinking → Agent scout thinking →
+        // global scout default → (at execution) the calling Agent's own general
+        // thinking config. Frozen on the task row when a tier hits; left null
+        // otherwise so the execution-time Agent fallback applies.
+        const thinkingOverride: AgentThinkingConfig | null = thinking_effort === 'off'
+          ? { enabled: false }
+          : thinking_effort
+            ? { enabled: true, effort: thinking_effort as AgentThinkingEffort }
+            : null
+        const thinkingConfig = await resolveScoutThinking({
+          agentId: ctx.agentId,
+          projectId,
+          override: thinkingOverride,
+        })
 
         // Resolve the read-only 'scout' built-in toolbox. It excludes
         // scout/spawn_self/spawn_agent, so a scout sub-task is always a LEAF.
@@ -189,7 +183,7 @@ export const scoutTool: ToolRegistration = {
             model: scout.modelId,
             providerId: scout.providerId ?? undefined,
             toolboxIds: [scoutBox.id],
-            thinkingConfig,
+            thinkingConfig: thinkingConfig ?? undefined,
             channelOriginId: ctx.channelOriginId,
             parentTaskId: ctx.taskId ?? undefined,
             depth: ctx.taskDepth ? ctx.taskDepth + 1 : undefined,

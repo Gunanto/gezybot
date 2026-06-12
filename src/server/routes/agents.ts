@@ -595,6 +595,7 @@ agentRoutes.get('/:id', async (c) => {
     })(),
     compactingConfig: details.compactingConfig ? JSON.parse(details.compactingConfig) : null,
     thinkingConfig: details.thinkingConfig ? JSON.parse(details.thinkingConfig) : null,
+    scoutThinkingConfig: details.scoutThinkingConfig ? JSON.parse(details.scoutThinkingConfig) : null,
     mcpServers: details.mcpServers,
     queueSize,
     isProcessing,
@@ -719,6 +720,7 @@ agentRoutes.patch('/:id', async (c) => {
       : body.extraToolNames === null ? null : undefined,
     compactingConfig: body.compactingConfig,
     thinkingConfig: body.thinkingConfig,
+    scoutThinkingConfig: body.scoutThinkingConfig,
     mcpServerIds: body.mcpServerIds,
   })
 
@@ -745,6 +747,7 @@ agentRoutes.patch('/:id', async (c) => {
       toolboxIds: parseToolboxIds(details.toolboxIds),
       compactingConfig: details.compactingConfig ? JSON.parse(details.compactingConfig) : null,
       thinkingConfig: details.thinkingConfig ? JSON.parse(details.thinkingConfig) : null,
+      scoutThinkingConfig: details.scoutThinkingConfig ? JSON.parse(details.scoutThinkingConfig) : null,
       mcpServers: details.mcpServers,
       queueSize: 0,
       isProcessing: false,

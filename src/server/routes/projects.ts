@@ -149,12 +149,13 @@ projectRoutes.post('/', async (c) => {
   }
   let thinkingConfig: AgentThinkingConfig | null | undefined
   if (body.thinkingConfig && typeof body.thinkingConfig === 'object') {
-    const cfg = body.thinkingConfig as Record<string, unknown>
-    const enabled = cfg.enabled === true
-    const effort = typeof cfg.effort === 'string' && (VALID_EFFORTS as readonly string[]).includes(cfg.effort)
-      ? (cfg.effort as AgentThinkingEffort)
-      : null
-    thinkingConfig = { enabled, ...(effort !== null ? { effort } : {}) }
+    thinkingConfig = sanitizeThinkingConfig(body.thinkingConfig)
+  }
+  // Scout reasoning — same shape, dedicated column (project tier of
+  // resolveScoutThinking()'s chain).
+  let scoutThinkingConfig: AgentThinkingConfig | null | undefined
+  if (body.scoutThinkingConfig && typeof body.scoutThinkingConfig === 'object') {
+    scoutThinkingConfig = sanitizeThinkingConfig(body.scoutThinkingConfig)
   }
   // Default toolbox selection: array of toolbox ids. null / [] both mean
   // "inherit the runtime default" — normalized to null by the service layer.
@@ -179,6 +180,7 @@ projectRoutes.post('/', async (c) => {
       providerId,
       scoutModel,
       scoutProviderId,
+      scoutThinkingConfig,
       thinkingConfig,
       defaultToolboxIds,
     })
@@ -204,6 +206,18 @@ projectRoutes.post('/', async (c) => {
 
 const VALID_EFFORTS: readonly AgentThinkingEffort[] = THINKING_EFFORTS
 
+/** Validate a thinking-config body into the canonical shape (unknown efforts
+ *  dropped → enabled-with-default-effort). Shared by `thinkingConfig` and
+ *  `scoutThinkingConfig` on both verbs. */
+function sanitizeThinkingConfig(value: unknown): AgentThinkingConfig {
+  const cfg = value as Record<string, unknown>
+  const enabled = cfg.enabled === true
+  const effort = typeof cfg.effort === 'string' && (VALID_EFFORTS as readonly string[]).includes(cfg.effort)
+    ? (cfg.effort as AgentThinkingEffort)
+    : null
+  return { enabled, ...(effort !== null ? { effort } : {}) }
+}
+
 projectRoutes.patch('/:id', async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json().catch(() => ({}))
@@ -218,6 +232,7 @@ projectRoutes.patch('/:id', async (c) => {
     providerId?: string | null
     scoutModel?: string | null
     scoutProviderId?: string | null
+    scoutThinkingConfig?: AgentThinkingConfig | null
     thinkingConfig?: AgentThinkingConfig | null
     defaultToolboxIds?: string[] | null
   } = {}
@@ -267,12 +282,13 @@ projectRoutes.patch('/:id', async (c) => {
   if (body.thinkingConfig === null) {
     update.thinkingConfig = null
   } else if (body.thinkingConfig && typeof body.thinkingConfig === 'object') {
-    const cfg = body.thinkingConfig as Record<string, unknown>
-    const enabled = cfg.enabled === true
-    const effort = typeof cfg.effort === 'string' && (VALID_EFFORTS as readonly string[]).includes(cfg.effort)
-      ? (cfg.effort as AgentThinkingEffort)
-      : null
-    update.thinkingConfig = { enabled, ...(effort !== null ? { effort } : {}) }
+    update.thinkingConfig = sanitizeThinkingConfig(body.thinkingConfig)
+  }
+  // scoutThinkingConfig: same clearing/validation semantics.
+  if (body.scoutThinkingConfig === null) {
+    update.scoutThinkingConfig = null
+  } else if (body.scoutThinkingConfig && typeof body.scoutThinkingConfig === 'object') {
+    update.scoutThinkingConfig = sanitizeThinkingConfig(body.scoutThinkingConfig)
   }
   // defaultToolboxIds: null clears (inherit runtime default); array validates
   // shape ([] is normalized to null by the service layer).
