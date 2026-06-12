@@ -1777,6 +1777,11 @@ Connexion SSE **globale** (une seule par client). Le serveur multiplex les évé
 // ces ids de leur liste (filtre idempotent, sync multi-appareils).
 { event: 'chat:messages-deleted', data: { agentId: string, messageIds: string[] } }
 
+// Messages nettoyés en place par redact_secret_leak (la valeur d'un secret a été
+// remplacée par son placeholder {{secret:KEY}} dans content/tool_calls) — les
+// clients re-fetchent la conversation (le contenu a changé, pas disparu).
+{ event: 'chat:messages-redacted', data: { agentId: string, messageIds: string[] } }
+
 // Changement d'état d'une tâche
 { event: 'task:status', data: { taskId: string, agentId: string, status: string } }
 

@@ -204,6 +204,18 @@ export interface ToolRegistration {
    * Doesn't affect execution scheduling — purely a user-facing signal.
    */
   destructive?: boolean
+  /**
+   * True iff `{{secret:KEY}}` placeholders in this tool's arguments should
+   * be expanded to the real vault value just before execution. Set it ONLY
+   * on tools whose arguments leave the platform (HTTP clients, shell,
+   * workspace file writes, external DB queries). Tools that persist text
+   * which re-enters LLM context (memories, knowledge, notes, messages)
+   * must stay at the default `false`: the placeholder passes through as
+   * inert text — expanding it there would leak the real value back into
+   * future prompts. Custom tools (`custom_*`) and MCP tools (`mcp_*`)
+   * always expand regardless of this flag.
+   */
+  expandsSecrets?: boolean
   /** Optional gating predicate evaluated at resolve time. Return false to omit
    *  the tool from the resolved toolset for a particular context. */
   condition?: (ctx: ToolExecutionContext) => boolean

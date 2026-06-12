@@ -3,15 +3,15 @@ title: Vault and secrets
 description: "How Hivekeep stores secrets encrypted at rest, how Agents and plugins read them, and how secure input keeps API keys out of the conversation."
 ---
 
-The Vault is where Hivekeep keeps anything sensitive: API keys, bot tokens, passwords, credentials a custom tool needs, and structured entries like logins or cards. Everything in the Vault is encrypted at rest, and secret values never appear in an Agent's prompt or in the chat transcript. An Agent reads a secret only when it explicitly calls the `get_secret` tool, and even then it is told never to repeat the value back to you.
+The Vault is where Hivekeep keeps anything sensitive: API keys, bot tokens, passwords, credentials a custom tool needs, and structured entries like logins or cards. Everything in the Vault is encrypted at rest, and secret values never enter the model at all: an Agent references a secret with a **placeholder** like `{{secret:GITHUB_TOKEN}}`, and Hivekeep substitutes the real value at the moment a tool executes. The Agent never sees, and never needs, the raw value.
 
 ## Why it matters
 
 Your Agents act on your behalf. They send messages through Discord, call APIs, run scripts, and connect to providers. All of that needs credentials. Without a vault, those credentials would end up pasted into the chat, copied into the conversation history, and eventually swept into the compacted summaries the LLM sees on every turn. The Vault exists so that:
 
 - Secrets live encrypted on disk, not in plaintext config files or in the message log.
-- The raw value is fetched on demand, used, and discarded, never persisted into the prompt.
-- If you accidentally paste a secret into the chat, the Agent can move it into the Vault and redact the message.
+- The model only ever handles placeholders. The real value is injected just before a tool runs (an HTTP call, a shell command, a file write) and scrubbed from the tool's output on the way back, so it never reaches the conversation history, the LLM provider, or your screen.
+- If a secret does end up in the conversation (you pasted it, or it slipped through before being vaulted), the Agent can scrub every trace of it from the entire history with one call.
 
 ## How secrets are stored
 
@@ -63,12 +63,23 @@ A plain secret (the `text` type) is just a key and an encrypted value. Typed ent
 
 ## How Agents access secrets
 
-Agents do not see secret values in their prompt. They only ever learn that a secret exists by its key and description. To use one, an Agent calls a Vault tool. The full set available to a main Agent:
+Agents never see secret values. They learn that a secret exists by its key and description, and they use it through its placeholder:
+
+1. The Agent calls `get_secret("GITHUB_TOKEN")` and receives `{{secret:GITHUB_TOKEN}}` (plus usage instructions), never the value.
+2. It inserts the placeholder verbatim in any tool argument: an HTTP header, a shell command, a file it writes.
+3. Just before the tool executes, Hivekeep replaces the placeholder with the decrypted value. The substitution only happens for tools whose arguments leave the platform (HTTP, shell, file writes, custom tools, MCP tools); everywhere else the placeholder stays inert text, so a secret can never be smuggled into memories or notes that would re-enter the prompt later.
+4. On the way back, the tool's result is scanned for the value (an `echo`, an API error that mirrors your auth header) and any occurrence is replaced by the placeholder again.
+
+If a placeholder references a key that does not exist, the tool is not executed at all and the Agent gets an actionable error: Hivekeep fails closed rather than sending a literal placeholder over the network.
+
+For shell commands and scripts, the recommended pattern is environment variables, and Agents are taught it: write the script to read `process.env.GITHUB_TOKEN`, then run it with `GITHUB_TOKEN={{secret:GITHUB_TOKEN}} bun run script.ts`. The secret never appears in the script file or in the command the model wrote.
+
+The full tool set available to a main Agent:
 
 | Tool | What it does |
 |---|---|
-| `get_secret` | Fetch a plain secret value by key. The Agent is instructed never to print it. |
-| `search_secrets` | Search keys and descriptions. Returns metadata only, never values. |
+| `get_secret` | Returns the `{{secret:KEY}}` placeholder for a secret, never the value. |
+| `search_secrets` | Search keys and descriptions. Returns metadata and placeholders only. |
 | `create_secret` | Store a new plain secret. Errors if the key already exists. |
 | `update_secret` | Replace the value of an existing secret. |
 | `delete_secret` | Delete a secret the Agent created itself. It cannot delete a secret created by someone else. |
@@ -76,13 +87,13 @@ Agents do not see secret values in their prompt. They only ever learn that a sec
 | `create_vault_entry` | Create a typed entry (text, credential, card, note, identity, or a custom type). |
 | `create_vault_type` | Define a custom entry type with a field schema. |
 | `get_vault_attachment` | Download an entry's attachment as base64. |
-| `redact_message` | Replace secret content already in the chat with a placeholder such as `[REDACTED]`. |
+| `redact_secret_leak` | Scrub every occurrence of a vaulted secret's value from the whole history. |
 
-A typical flow: you mention you have a GitHub token, the Agent offers to store it with `create_secret`, then later a script the Agent runs calls `get_secret("GITHUB_TOKEN")` to use it without ever echoing it.
+### Scrubbing a leaked secret
 
-### Redaction and compacting
+If a secret value does end up in the conversation, the Agent calls `redact_secret_leak(key)` with the vault key (never the value). Hivekeep decrypts the value server-side and replaces every occurrence of it, across message contents, tool calls and results, and compacting summaries, in every conversation, with the placeholder. The cleanup is surgical: the rest of each message survives. Connected clients refresh immediately so the value disappears from screens too.
 
-If a secret ends up in the visible conversation, the Agent can call `redact_message` to overwrite that message's content and mark it redacted. Hivekeep also protects against the value leaking through summarization: a message flagged as pending redaction is excluded from the context Hivekeep sends to the LLM and from compacting, so the secret is not carried forward into a summary.
+The flow when you paste a secret in chat: the Agent stores it with `create_secret`, then immediately calls `redact_secret_leak` so the pasted value vanishes from the history. Note that the value was already sent to the LLM provider for the turns where it was visible; scrubbing stops the bleeding from the next turn on.
 
 ## How plugins access secrets
 

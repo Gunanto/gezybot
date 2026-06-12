@@ -631,6 +631,15 @@ export function useChat(agentId: string | null) {
       setMessages((prev) => prev.filter((m) => !ids.has(m.id)))
     },
 
+    'chat:messages-redacted': (data) => {
+      // A secret value was scrubbed from history (redact_secret_leak) —
+      // contents changed in place, so refetch rather than patch: the server
+      // is the only source of the cleaned text, and the whole point is to
+      // stop displaying the leaked value.
+      if (data.agentId !== agentId) return
+      fetchMessages()
+    },
+
     'channel:transferred': (data) => {
       // A channel was re-bound. If the current Agent is either side of the
       // transfer (source or target), refetch the conversation so the new

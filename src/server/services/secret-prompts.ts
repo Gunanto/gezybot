@@ -208,7 +208,10 @@ export async function respondToSecretPrompt(
         storedKeys.push(f.key)
       }
       resultRef = { vaultKeys: storedKeys }
-      summary = `Secret${storedKeys.length > 1 ? 's' : ''} stored in the vault: ${storedKeys.join(', ')}.`
+      const placeholders = storedKeys.map((k) => `{{secret:${k}}}`).join(', ')
+      summary =
+        `Secret${storedKeys.length > 1 ? 's' : ''} stored in the vault: ${storedKeys.join(', ')}. ` +
+        `Use the placeholder${storedKeys.length > 1 ? 's' : ''} ${placeholders} verbatim in tool arguments — the real value is substituted at execution time and is never shown to you.`
       log.info({ promptId, keys: storedKeys }, 'Secret(s) stored from secure input')
     } else if (prompt.purpose === 'channel') {
       const cs = spec as unknown as ChannelSecretSpec

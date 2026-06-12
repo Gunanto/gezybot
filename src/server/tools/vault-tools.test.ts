@@ -3,6 +3,10 @@ import type { ToolExecutionContext } from '@/server/tools/types'
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
+const mockRedaction = {
+  redactSecretLeak: mock(() => Promise.resolve({ ok: false, error: 'x', messagesCleaned: 0, summariesCleaned: 0 } as any)),
+}
+
 const mockVault = {
   getSecretValue: mock(() => Promise.resolve(null as string | null)),
   redactMessage: mock(() => Promise.resolve(false)),
@@ -25,6 +29,7 @@ const mockVaultTypes = {
 }
 
 mock.module('@/server/services/vault', () => mockVault)
+mock.module('@/server/services/secret-redaction', () => mockRedaction)
 mock.module('@/server/services/vault-types', () => mockVaultTypes)
 mock.module('@/server/logger', () => ({
   createLogger: () => ({ debug: () => {}, info: () => {}, warn: () => {}, error: () => {} }),
@@ -33,7 +38,7 @@ mock.module('@/server/logger', () => ({
 // Import after mocks
 const {
   getSecretTool,
-  redactMessageTool,
+  redactSecretLeakTool,
   createSecretTool,
   updateSecretTool,
   deleteSecretTool,
@@ -55,6 +60,7 @@ function execute(registration: any, args: any) {
 
 function resetMocks() {
   Object.values(mockVault).forEach((m) => m.mockReset())
+  Object.values(mockRedaction).forEach((m) => m.mockReset())
   Object.values(mockVaultTypes).forEach((m) => m.mockReset())
 }
 
@@ -68,7 +74,7 @@ describe('vault-tools', () => {
   describe('availability', () => {
     it('all vault tools are main-only', () => {
       const tools = [
-        getSecretTool, redactMessageTool, createSecretTool, updateSecretTool,
+        getSecretTool, redactSecretLeakTool, createSecretTool, updateSecretTool,
         deleteSecretTool, searchSecretsTool, getVaultEntryTool, createVaultEntryTool,
         createVaultTypeTool, getVaultAttachmentTool,
       ]
@@ -81,34 +87,43 @@ describe('vault-tools', () => {
   // ── get_secret ────────────────────────────────────────────────────────────
 
   describe('get_secret', () => {
-    it('returns value when secret exists', async () => {
-      mockVault.getSecretValue.mockResolvedValueOnce('s3cr3t')
+    it('returns the placeholder (never the value) when the secret exists', async () => {
+      mockVault.getSecretByKey.mockResolvedValueOnce({ id: 'sec-1', key: 'MY_KEY', description: 'My key' })
       const result = await execute(getSecretTool, { key: 'MY_KEY' })
-      expect(result).toEqual({ value: 's3cr3t' })
-      expect(mockVault.getSecretValue).toHaveBeenCalledWith('MY_KEY')
+      expect(result.placeholder).toBe('{{secret:MY_KEY}}')
+      expect(result.key).toBe('MY_KEY')
+      expect(result.description).toBe('My key')
+      expect(result.usage).toContain('verbatim')
+      expect(result.value).toBeUndefined()
+      // The decrypted value is never even read.
+      expect(mockVault.getSecretValue).not.toHaveBeenCalled()
     })
 
-    it('returns error when secret not found', async () => {
-      mockVault.getSecretValue.mockResolvedValueOnce(null)
+    it('returns an actionable error when secret not found', async () => {
+      mockVault.getSecretByKey.mockResolvedValueOnce(null)
       const result = await execute(getSecretTool, { key: 'NOPE' })
-      expect(result).toEqual({ error: 'Secret not found' })
+      expect(result.error).toContain('"NOPE" not found')
+      expect(result.error).toContain('search_secrets')
     })
   })
 
-  // ── redact_message ────────────────────────────────────────────────────────
+  // ── redact_secret_leak ────────────────────────────────────────────────────
 
-  describe('redact_message', () => {
-    it('returns success when message redacted', async () => {
-      mockVault.redactMessage.mockResolvedValueOnce(true)
-      const result = await execute(redactMessageTool, { message_id: 'msg-1', redacted_text: '[REDACTED]' })
-      expect(result).toEqual({ success: true })
-      expect(mockVault.redactMessage).toHaveBeenCalledWith('msg-1', 'agent-abc', '[REDACTED]')
+  describe('redact_secret_leak', () => {
+    it('returns counters and the placeholder on success', async () => {
+      mockRedaction.redactSecretLeak.mockResolvedValueOnce({ ok: true, messagesCleaned: 3, summariesCleaned: 1 })
+      const result = await execute(redactSecretLeakTool, { key: 'GH_TOKEN' })
+      expect(result.success).toBe(true)
+      expect(result.placeholder).toBe('{{secret:GH_TOKEN}}')
+      expect(result.messages_cleaned).toBe(3)
+      expect(result.summaries_cleaned).toBe(1)
+      expect(mockRedaction.redactSecretLeak).toHaveBeenCalledWith('GH_TOKEN')
     })
 
-    it('returns error when message not found', async () => {
-      mockVault.redactMessage.mockResolvedValueOnce(false)
-      const result = await execute(redactMessageTool, { message_id: 'msg-x', redacted_text: '[REDACTED]' })
-      expect(result).toEqual({ error: 'Message not found' })
+    it('propagates failures (unknown key, value too short)', async () => {
+      mockRedaction.redactSecretLeak.mockResolvedValueOnce({ ok: false, error: 'Secret with key "NOPE" not found', messagesCleaned: 0, summariesCleaned: 0 })
+      const result = await execute(redactSecretLeakTool, { key: 'NOPE' })
+      expect(result).toEqual({ error: 'Secret with key "NOPE" not found' })
     })
   })
 
@@ -119,7 +134,9 @@ describe('vault-tools', () => {
       mockVault.getSecretByKey.mockResolvedValueOnce(null)
       mockVault.createSecret.mockResolvedValueOnce({ id: 'sec-new', key: 'NEW_KEY' })
       const result = await execute(createSecretTool, { key: 'NEW_KEY', value: 'val', description: 'desc' })
-      expect(result).toEqual({ id: 'sec-new', key: 'NEW_KEY' })
+      expect(result.id).toBe('sec-new')
+      expect(result.key).toBe('NEW_KEY')
+      expect(result.placeholder).toBe('{{secret:NEW_KEY}}')
       expect(mockVault.createSecret).toHaveBeenCalledWith('NEW_KEY', 'val', 'agent-abc', 'desc')
     })
 
@@ -137,7 +154,7 @@ describe('vault-tools', () => {
     it('updates secret when key exists', async () => {
       mockVault.updateSecretValueByKey.mockResolvedValueOnce({ id: 'sec-1' })
       const result = await execute(updateSecretTool, { key: 'KEY', value: 'new-val' })
-      expect(result).toEqual({ id: 'sec-1', key: 'KEY' })
+      expect(result).toEqual({ id: 'sec-1', key: 'KEY', placeholder: '{{secret:KEY}}' })
     })
 
     it('returns error when key not found', async () => {
@@ -183,10 +200,9 @@ describe('vault-tools', () => {
 
   describe('search_secrets', () => {
     it('returns matching secrets', async () => {
-      const secrets = [{ key: 'GH_TOKEN', description: 'GitHub' }]
-      mockVault.searchSecrets.mockResolvedValueOnce(secrets)
+      mockVault.searchSecrets.mockResolvedValueOnce([{ key: 'GH_TOKEN', description: 'GitHub' }])
       const result = await execute(searchSecretsTool, { query: 'github' })
-      expect(result).toEqual({ secrets })
+      expect(result).toEqual({ secrets: [{ key: 'GH_TOKEN', description: 'GitHub', placeholder: '{{secret:GH_TOKEN}}' }] })
     })
 
     it('returns empty array when no matches', async () => {

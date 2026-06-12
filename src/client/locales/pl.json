@@ -2680,7 +2680,7 @@
       "update_secret": "Aktualizuj sekret",
       "delete_secret": "Usuń sekret",
       "search_secrets": "Szukaj sekretów",
-      "redact_message": "Ocenzuruj wiadomość",
+      "redact_secret_leak": "Wyczyść ujawniony sekret",
       "spawn_self": "Uruchom podzadanie",
       "spawn_agent": "Uruchom zadanie Agenta",
       "scout": "Zwiadowca",

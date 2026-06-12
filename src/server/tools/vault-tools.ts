@@ -1,9 +1,6 @@
 import { tool } from '@/server/tools/tool-helper'
 import { z } from 'zod'
 import {
-  getSecretValue,
-  redactMessage,
-  findMessageByContent,
   createSecret,
   getSecretByKey,
   updateSecretValueByKey,
@@ -13,14 +10,28 @@ import {
   createEntry,
   getAttachment,
 } from '@/server/services/vault'
+import { placeholderFor } from '@/server/services/secret-substitution'
+import { redactSecretLeak } from '@/server/services/secret-redaction'
 import { createType } from '@/server/services/vault-types'
 import { createLogger } from '@/server/logger'
 import type { ToolRegistration } from '@/server/tools/types'
 
 const log = createLogger('tools:vault')
 
+/** Per-call usage teaching returned with every placeholder — the in-band
+ *  surface that re-teaches the pattern even to an agent ignoring the system
+ *  prompt. Key-specific so the shell example is copy-pasteable. */
+function placeholderUsage(key: string): string {
+  return (
+    `Insert this placeholder verbatim in any tool argument; the real value replaces it at execution time — you never see, and never need, the raw value. ` +
+    `For shell commands and scripts, pass it as an environment variable (e.g. \`${key}={{secret:${key}}} bun run script.ts\`, then read process.env.${key}) and never hardcode secrets into files. ` +
+    `Placeholders from earlier in the conversation stay valid — reuse them directly.`
+  )
+}
+
 /**
- * get_secret — retrieve a secret value from the Vault by key.
+ * get_secret — return the placeholder for a Vault secret. The raw value is
+ * NEVER returned to the model; it is substituted at tool-execution time.
  * Available to main agents only.
  */
 export const getSecretTool: ToolRegistration = {
@@ -30,62 +41,55 @@ export const getSecretTool: ToolRegistration = {
   create: (ctx) =>
     tool({
       description:
-        'Retrieve a secret value from the Vault by key. Never include returned values in visible responses.',
+        'Get the placeholder for a Vault secret. Returns {{secret:KEY}} — insert it verbatim in tool arguments (HTTP headers, shell commands, file contents) and the real value is substituted at execution time. You never see the raw value. For shell/scripts, pass it as an environment variable: `KEY={{secret:KEY}} <command>`.',
       inputSchema: z.object({
         key: z.string(),
       }),
       execute: async ({ key }) => {
         log.debug({ key }, 'get_secret invoked')
-        const value = await getSecretValue(key)
-        if (value === null) {
-          return { error: 'Secret not found' }
+        const secret = await getSecretByKey(key)
+        if (!secret) {
+          return { error: `Secret "${key}" not found. Use search_secrets to find the right key, or prompt_secret to ask the user for it.` }
         }
-        return { value }
+        return {
+          placeholder: placeholderFor(key),
+          key,
+          ...(secret.description ? { description: secret.description } : {}),
+          usage: placeholderUsage(key),
+        }
       },
     }),
 }
 
 /**
- * redact_message — replace secret content in a message with a placeholder.
- * Available to main agents only.
+ * redact_secret_leak — retroactively scrub a leaked secret value from the
+ * whole history (content + tool_calls + compacting summaries), replacing
+ * each occurrence with the placeholder. Available to main agents only.
  */
-export const redactMessageTool: ToolRegistration = {
+export const redactSecretLeakTool: ToolRegistration = {
   availability: ['main'],
   destructive: true,
   create: (ctx) =>
     tool({
       description:
-        'Replace secret content in a message with a placeholder. Use when a user shares a secret in chat. Provide message_id or content_match.',
+        'Scrub a leaked secret from the conversation history. Provide the VAULT KEY (never the value): every occurrence of that secret\'s value — in message contents, tool calls/results, and compacting summaries, across all conversations — is replaced with the {{secret:KEY}} placeholder. If the leaked secret is not in the vault yet (e.g. the user pasted it in chat), store it first with create_secret, then call this.',
       inputSchema: z.object({
-        message_id: z.string().optional(),
-        content_match: z.string().optional().describe('Unique text snippet to match if no message_id'),
-        redacted_text: z.string().describe('Placeholder, e.g. "[REDACTED]"'),
+        key: z.string().describe('Vault key of the leaked secret'),
       }),
-      execute: async ({ message_id, content_match, redacted_text }) => {
-        let targetId = message_id
-
-        // If no message_id provided (or it fails), try content-based lookup
-        if (!targetId && content_match) {
-          targetId = await findMessageByContent(ctx.agentId, content_match) ?? undefined
+      execute: async ({ key }) => {
+        log.info({ key, agentId: ctx.agentId }, 'redact_secret_leak invoked')
+        const result = await redactSecretLeak(key)
+        if (!result.ok) {
+          return { error: result.error }
         }
-
-        if (!targetId) {
-          return { error: 'Message not found. Provide a valid message_id or a content_match snippet that exists in a recent message.' }
+        return {
+          success: true,
+          key,
+          placeholder: placeholderFor(key),
+          messages_cleaned: result.messagesCleaned,
+          summaries_cleaned: result.summariesCleaned,
+          note: 'Already-sent context for the current turn may still contain the value; from the next turn on, the history only carries the placeholder.',
         }
-
-        const success = await redactMessage(targetId, ctx.agentId, redacted_text)
-        if (!success) {
-          // If message_id was provided directly but failed, try content fallback
-          if (message_id && content_match) {
-            const fallbackId = await findMessageByContent(ctx.agentId, content_match)
-            if (fallbackId) {
-              const fallbackSuccess = await redactMessage(fallbackId, ctx.agentId, redacted_text)
-              if (fallbackSuccess) return { success: true, matched_by: 'content_match' }
-            }
-          }
-          return { error: 'Message not found' }
-        }
-        return { success: true }
       },
     }),
 }
@@ -111,7 +115,7 @@ export const createSecretTool: ToolRegistration = {
           return { error: `Secret with key "${key}" already exists. Use update_secret to change its value.` }
         }
         const secret = await createSecret(key, value, ctx.agentId, description)
-        return { id: secret.id, key: secret.key }
+        return { id: secret.id, key: secret.key, placeholder: placeholderFor(secret.key), usage: placeholderUsage(secret.key) }
       },
     }),
 }
@@ -135,7 +139,7 @@ export const updateSecretTool: ToolRegistration = {
         if (!updated) {
           return { error: `Secret with key "${key}" not found` }
         }
-        return { id: updated.id, key }
+        return { id: updated.id, key, placeholder: placeholderFor(key) }
       },
     }),
 }
@@ -183,14 +187,14 @@ export const searchSecretsTool: ToolRegistration = {
   concurrencySafe: true,
   create: (ctx) =>
     tool({
-      description: 'Search secrets by key or description. Returns metadata only, never values.',
+      description: 'Search secrets by key or description. Returns metadata and the {{secret:KEY}} placeholders, never values — insert a placeholder verbatim in tool arguments to use the secret.',
       inputSchema: z.object({
         query: z.string(),
       }),
       execute: async ({ query }) => {
         log.debug({ query, agentId: ctx.agentId }, 'search_secrets invoked')
         const results = await searchSecrets(query)
-        return { secrets: results }
+        return { secrets: results.map((s) => ({ ...s, placeholder: placeholderFor(s.key) })) }
       },
     }),
 }

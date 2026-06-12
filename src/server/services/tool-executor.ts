@@ -1,6 +1,13 @@
 import type { Tool, JSONValue } from '@/server/tools/tool-helper'
 import { toolRegistry } from '@/server/tools/index'
 import { getCustomTool } from '@/server/services/custom-tools'
+import { getSecretValue } from '@/server/services/vault'
+import {
+  extractPlaceholderKeys,
+  resolvePlaceholderSecrets,
+  substitutePlaceholders,
+  redactSecretsInResult,
+} from '@/server/services/secret-substitution'
 import { sseManager } from '@/server/sse/index'
 import { config } from '@/server/config'
 import { createLogger } from '@/server/logger'
@@ -208,6 +215,17 @@ export function describeUnavailableTool(name: string): string {
   return unknown
 }
 
+/** Should `{{secret:KEY}}` placeholders in this tool's args be expanded to
+ *  real vault values? Native/plugin tools opt in via the `expandsSecrets`
+ *  registration flag (only tools whose args leave the platform). Custom and
+ *  MCP tools always expand — they talk to the outside by nature and aren't
+ *  in the registry. Every other tool receives the placeholder as inert text
+ *  (the correct semantic for memorize/knowledge/notes: the reference
+ *  survives, the value never lands somewhere that re-enters LLM context). */
+function toolExpandsSecrets(name: string): boolean {
+  return toolRegistry.expandsSecrets(name) || name.startsWith('custom_') || name.startsWith('mcp_')
+}
+
 export async function executeSingleTool(
   tc: ToolCall,
   tools: Record<string, Tool<any, any>>,
@@ -224,9 +242,33 @@ export async function executeSingleTool(
     return { error: 'Tool execution was aborted' }
   }
 
+  // ── Secret placeholder expansion (input direction) ──
+  // Works on a copy: `tc.args` stays untouched — it is what gets persisted
+  // (messages.tool_calls), broadcast over SSE, and replayed to the LLM, and
+  // all of those must only ever carry the placeholder.
+  let execArgs = tc.args
+  if (toolExpandsSecrets(tc.name)) {
+    const keys = extractPlaceholderKeys(tc.args)
+    if (keys.length > 0) {
+      const { resolved, missing } = await resolvePlaceholderSecrets(keys, getSecretValue)
+      if (missing.length > 0) {
+        // Fail closed: never execute with a literal placeholder (a request
+        // carrying a fake token would still hit the network).
+        const list = missing.map((k) => `"${k}"`).join(', ')
+        return {
+          error:
+            `Unknown secret${missing.length > 1 ? 's' : ''} ${list} — the tool was NOT executed. ` +
+            `Use search_secrets to find the right key, or prompt_secret to ask the user for it.`,
+        }
+      }
+      execArgs = substitutePlaceholders(tc.args, resolved)
+      log.debug({ toolName: tc.name, secretKeys: keys }, 'Expanded secret placeholders in tool args')
+    }
+  }
+
   const execPromise = (async () => {
     try {
-      return await (toolDef.execute as Function)(tc.args, { abortSignal: abortController.signal })
+      return await (toolDef.execute as Function)(execArgs, { abortSignal: abortController.signal })
     } catch (err) {
       return { error: err instanceof Error ? err.message : String(err) }
     }
@@ -243,7 +285,11 @@ export async function executeSingleTool(
     abortController.signal.addEventListener('abort', onAbort, { once: true })
   })
   try {
-    return await Promise.race([execPromise, abortPromise])
+    // Output-direction redaction: whatever the tool returns (success, error
+    // message, abort placeholder) is scanned for hot secret values before it
+    // reaches the LLM, SSE, or persistence. Catches `echo $TOKEN`, APIs that
+    // echo auth headers in error bodies, and exceptions embedding the value.
+    return redactSecretsInResult(await Promise.race([execPromise, abortPromise]))
   } finally {
     if (onAbort) abortController.signal.removeEventListener('abort', onAbort)
     execPromise.catch(() => {}) // swallow late rejection from the abandoned tool

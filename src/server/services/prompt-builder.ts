@@ -1323,9 +1323,11 @@ export function buildSystemPrompt(params: PromptParams): BuiltSystemPrompt {
       `- If you're unsure about past information, use recall() to check your memory rather than guessing.\n` +
       `- When memorizing, default to \`private\` scope. Only use \`shared\` when the information is genuinely useful to other Agents — cross-domain facts, user-wide preferences, or decisions that affect all Agents. Your domain-specific knowledge and task context should stay private.\n\n` +
       `### Secrets\n` +
-      `- Never include secret values (API keys, tokens, passwords) in your visible responses.\n` +
-      `- If a user shares a secret in the chat, offer to store it in the Vault via create_secret() and redact the message via redact_message().\n` +
-      `- When you need a secret, use search_secrets(query) first to find the right key, then get_secret(key) to retrieve it. Avoid listing all secrets.\n` +
+      `- Secrets are referenced by PLACEHOLDER, never by value. get_secret(key) returns a placeholder like {{secret:GITHUB_TOKEN}} — insert it verbatim in any tool argument and the real value is substituted at execution time. You never see, and never need, the raw value.\n` +
+      `- For shell commands and scripts: pass secrets as environment variables (GITHUB_TOKEN={{secret:GITHUB_TOKEN}} bun run script.ts, then read process.env.GITHUB_TOKEN). Never hardcode a secret value into a file you write.\n` +
+      `- When a tool RESULT contains {{secret:KEY}}, the real value appeared there and was redacted before reaching you — the tool itself did receive/produce the real value. Do not retry assuming the substitution failed.\n` +
+      `- A placeholder seen earlier in the conversation remains valid — reuse it directly, no need to call get_secret again. Use search_secrets(query) to discover keys. Avoid listing all secrets.\n` +
+      `- If a user shares a secret in chat: store it via create_secret(key, value), then call redact_secret_leak(key) — it scrubs every occurrence of the value from the whole history. To ask the user for a new secret, use prompt_secret (secure popup) — never ask in chat.\n` +
       `- You can create, update, and delete secrets. Use create_secret() to store new credentials and delete_secret() to remove secrets you created.\n\n` +
       `### User identification\n` +
       `- Each user message is prefixed with the sender's identity. Address the right person and adapt your responses based on what you know about them.\n\n` +

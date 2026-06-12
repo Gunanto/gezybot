@@ -111,6 +111,15 @@ class ToolRegistry {
     return this.tools.get(name)?.registration.destructive === true
   }
 
+  /** Check if `{{secret:KEY}}` placeholders in this tool's args should be
+   *  expanded to real vault values before execution. Default false: the
+   *  placeholder passes through as inert text (correct for tools whose
+   *  output re-enters LLM context, e.g. memorize). Custom/MCP tools are
+   *  handled by the executor — they always expand. */
+  expandsSecrets(name: string): boolean {
+    return this.tools.get(name)?.registration.expandsSecrets === true
+  }
+
   /**
    * Best-effort extraction of a tool's LLM-facing description.
    *

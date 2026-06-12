@@ -2686,7 +2686,7 @@
       "update_secret": "Обновить секрет",
       "delete_secret": "Удалить секрет",
       "search_secrets": "Поиск секретов",
-      "redact_message": "Скрыть сообщение",
+      "redact_secret_leak": "Очистить утёкший секрет",
       "spawn_self": "Породить подзадачу",
       "spawn_agent": "Породить задачу Агента",
       "scout": "Разведчик",

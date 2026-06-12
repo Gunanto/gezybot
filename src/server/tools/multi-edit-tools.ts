@@ -35,6 +35,7 @@ function detectLanguage(filePath: string): string | undefined {
 
 export const multiEditTool: ToolRegistration = {
   availability: ['main', 'sub-agent'],
+  expandsSecrets: true,
   create: (ctx) =>
     tool({
       description:

@@ -228,6 +228,7 @@ export const _SHELL_INTERNALS_FOR_TEST = { truncateOutput, MAX_OUTPUT_LENGTH }
 
 export const runShellTool: ToolRegistration = {
   availability: ['main', 'sub-agent'],
+  expandsSecrets: true,
   create: (ctx) =>
     tool({
       description:

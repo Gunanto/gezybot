@@ -6,6 +6,7 @@ import { db } from '@/server/db/index'
 import { createLogger } from '@/server/logger'
 import { vaultSecrets, vaultAttachments, messages } from '@/server/db/schema'
 import { encrypt, decrypt, encryptBuffer, decryptBuffer } from '@/server/services/encryption'
+import { invalidateHotSecrets } from '@/server/services/secret-substitution'
 import { config } from '@/server/config'
 import type { VaultEntryType } from '@/shared/types'
 
@@ -67,6 +68,9 @@ export async function updateSecret(
 
   await db.update(vaultSecrets).set(setValues).where(eq(vaultSecrets.id, secretId))
 
+  // Key renames make per-key invalidation unreliable — clear the whole hot cache.
+  invalidateHotSecrets()
+
   const updated = await db.select().from(vaultSecrets).where(eq(vaultSecrets.id, secretId)).get()
   return updated ? { id: updated.id, key: updated.key, updatedAt: updated.updatedAt } : null
 }
@@ -76,6 +80,7 @@ export async function deleteSecret(secretId: string) {
   if (!existing) return false
 
   await db.delete(vaultSecrets).where(eq(vaultSecrets.id, secretId))
+  invalidateHotSecrets(existing.key)
   log.info({ secretId }, 'Vault secret deleted')
   return true
 }
@@ -109,6 +114,7 @@ export async function updateSecretValueByKey(key: string, newValue: string) {
     .set({ encryptedValue, updatedAt: now })
     .where(eq(vaultSecrets.key, key))
 
+  invalidateHotSecrets(key)
   return { id: existing.id, key, updatedAt: now }
 }
 
@@ -339,6 +345,8 @@ export async function updateEntry(id: string, updates: UpdateEntryData) {
 
   await db.update(vaultSecrets).set(setValues).where(eq(vaultSecrets.id, id))
 
+  invalidateHotSecrets()
+
   const updated = await db.select().from(vaultSecrets).where(eq(vaultSecrets.id, id)).get()
   return updated ? { id: updated.id, key: updated.key, entryType: updated.entryType, updatedAt: updated.updatedAt } : null
 }
@@ -360,6 +368,7 @@ export async function deleteEntry(id: string) {
 
   // CASCADE will delete vault_attachments rows
   await db.delete(vaultSecrets).where(eq(vaultSecrets.id, id))
+  invalidateHotSecrets(existing.key)
   log.info({ entryId: id }, 'Vault entry deleted')
   return true
 }

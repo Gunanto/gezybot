@@ -1,4 +1,5 @@
 import { tool } from '@/server/tools/tool-helper'
+import { redactKnownSecrets } from '@/server/services/secret-substitution'
 import { z } from 'zod'
 import { createLogger } from '@/server/logger'
 import type { ToolExecutionContext, ToolRegistration } from '@/server/tools/types'
@@ -61,6 +62,7 @@ function checkUrlSafety(urlStr: string): UrlSafety {
  */
 export const httpRequestTool: ToolRegistration = {
   availability: ['main', 'sub-agent'],
+  expandsSecrets: true,
   create: (_ctx: ToolExecutionContext) => {
     return tool({
       description:
@@ -110,7 +112,9 @@ export const httpRequestTool: ToolRegistration = {
             }
           }
 
-          log.debug({ method, url }, 'HTTP request')
+          // The URL may carry a substituted secret (query param) at this point
+          // — scrub known values before it lands in the server logs.
+          log.debug({ method, url: redactKnownSecrets(url) }, 'HTTP request')
 
           const response = await fetch(url, {
             method,

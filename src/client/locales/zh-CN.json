@@ -2662,7 +2662,7 @@
       "update_secret": "更新机密",
       "delete_secret": "删除机密",
       "search_secrets": "搜索机密",
-      "redact_message": "隐去消息",
+      "redact_secret_leak": "清除泄露的密钥",
       "spawn_self": "派生子任务",
       "spawn_agent": "派生智能体任务",
       "scout": "侦察",

@@ -208,6 +208,7 @@ export const readFileTool: ToolRegistration = {
 
 export const writeFileTool: ToolRegistration = {
   availability: ['main', 'sub-agent'],
+  expandsSecrets: true,
   create: (ctx) =>
     tool({
       description:
@@ -273,6 +274,7 @@ export const writeFileTool: ToolRegistration = {
 
 export const editFileTool: ToolRegistration = {
   availability: ['main', 'sub-agent'],
+  expandsSecrets: true,
   create: (ctx) =>
     tool({
       description:

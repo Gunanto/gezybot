@@ -2662,7 +2662,7 @@
       "update_secret": "Update Secret",
       "delete_secret": "Delete Secret",
       "search_secrets": "Search Secrets",
-      "redact_message": "Redact Message",
+      "redact_secret_leak": "Scrub Leaked Secret",
       "spawn_self": "Spawn Sub-Task",
       "spawn_agent": "Spawn Agent Task",
       "scout": "Scout",
