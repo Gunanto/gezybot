@@ -37,11 +37,14 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:"Plus Jakarta Sa
 .comb-dim{background:oklch(1 0 0/.05);-webkit-mask:url(/comb-thin.svg) 0 0/45px 78px repeat;mask:url(/comb-thin.svg) 0 0/45px 78px repeat;mask-mode:alpha;}
 .comb-lit-clip{position:absolute;inset:0;-webkit-mask-image:var(--comb-lit,radial-gradient(440px 300px at 22% 26%,#000 0%,transparent 62%),radial-gradient(420px 300px at 82% 74%,#000 0%,transparent 62%));mask-image:var(--comb-lit,radial-gradient(440px 300px at 22% 26%,#000 0%,transparent 62%),radial-gradient(420px 300px at 82% 74%,#000 0%,transparent 62%));-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;}
 .comb-lit{background:var(--grad);-webkit-mask:url(/comb-thin.svg) 0 0/45px 78px repeat;mask:url(/comb-thin.svg) 0 0/45px 78px repeat;mask-mode:alpha;opacity:.8;filter:drop-shadow(0 0 1px oklch(0.72 0.19 305/.5));}
-/* comb behind the "household" section (07): full-bleed (breaks out of the
-   centered .wrap) with the section content lifted above it. */
-#household{position:relative;}
-#household>.comb{inset:0 auto 0 50%;width:100vw;transform:translateX(-50%);}
-#household>.section{position:relative;z-index:1;}
+/* comb behind the "secrets" and "household" sections: full-bleed (breaks out
+   of the centered .wrap) with the section content lifted above it. The
+   position:relative is what anchors the absolute .comb to ITS section — a
+   comb dropped into a plain .wrap without it would resolve against the page
+   and paint over the hero. */
+#household,#secrets{position:relative;}
+#household>.comb,#secrets>.comb{inset:0 auto 0 50%;width:100vw;transform:translateX(-50%);}
+#household>.section,#secrets>.section{position:relative;z-index:1;}
 
 /* ── hero comb animation (desktop, motion-safe only) ─────────────────────────
    Three layers of life, all scoped to the hero:
