@@ -11,7 +11,7 @@ import { resolve, join } from 'path'
 
 // ─── Permission id validation (replicated from mini-app-capabilities.ts) ─────
 
-const STATIC_PERMISSIONS = ['llm', 'agent:inform', 'agent:task'] as const
+const STATIC_PERMISSIONS = ['llm', 'agent:inform', 'agent:task', 'channels:send'] as const
 const SECRET_PERMISSION_RE = /^secrets:[A-Za-z0-9_.-]{1,128}$/
 
 function isKnownPermission(permission: string): boolean {
@@ -41,6 +41,12 @@ describe('Permission id validation', () => {
     expect(isKnownPermission('llm')).toBe(true)
     expect(isKnownPermission('agent:inform')).toBe(true)
     expect(isKnownPermission('agent:task')).toBe(true)
+    expect(isKnownPermission('channels:send')).toBe(true)
+  })
+
+  it('channel permission is global, not parameterized', () => {
+    expect(isKnownPermission('channels:telegram')).toBe(false)
+    expect(isKnownPermission('channels:')).toBe(false)
   })
 
   it('accepts well-formed secret permissions', () => {

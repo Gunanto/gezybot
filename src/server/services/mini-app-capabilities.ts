@@ -22,7 +22,7 @@ const log = createLogger('mini-app-capabilities')
 // ─── Permission model ────────────────────────────────────────────────────────
 
 /** Static permission ids a mini-app may request (plus dynamic `secrets:<KEY>`). */
-export const MINI_APP_STATIC_PERMISSIONS = ['llm', 'agent:inform', 'agent:task'] as const
+export const MINI_APP_STATIC_PERMISSIONS = ['llm', 'agent:inform', 'agent:task', 'channels:send'] as const
 
 const SECRET_PERMISSION_RE = /^secrets:[A-Za-z0-9_.-]{1,128}$/
 
@@ -130,6 +130,7 @@ const RATE_LIMITS: Record<string, { max: number; windowMs: number }> = {
   llm: { max: 30, windowMs: 3_600_000 },
   'agent:inform': { max: 10, windowMs: 3_600_000 },
   'agent:task': { max: 5, windowMs: 3_600_000 },
+  'channels:send': { max: 20, windowMs: 3_600_000 },
 }
 
 const rateBuckets = new Map<string, number[]>() // `${appId}:${kind}` → timestamps
@@ -352,6 +353,132 @@ export function buildAgentApi(params: BuildCapabilitiesParams): MiniAppAgentApi 
       })
       log.info({ appId: params.appId, agentId: params.agentId, taskId }, 'Mini-app spawned a task')
       return { taskId }
+    },
+  }
+}
+
+// ─── Channels (platform messaging) ───────────────────────────────────────────
+
+const CHANNEL_TEXT_MAX_LENGTH = 2_000
+
+export interface MiniAppChannelsApi {
+  /** List the platform's messaging channels (id, name, platform, status, owner). */
+  list: () => Promise<{
+    id: string
+    name: string
+    platform: string
+    status: string
+    ownerAgentName: string | null
+    ownedByMaintainer: boolean
+  }[]>
+  /** Send a message through a channel to a known platform chat/user id. */
+  send: (channelId: string, chatId: string, text: string) => Promise<{ platformMessageId: string }>
+  /**
+   * Send to a contact on a platform: resolves the contact (id or name), its
+   * platform identifier, and an active channel of that platform automatically.
+   */
+  sendToContact: (contact: string, platform: string, text: string) => Promise<{
+    platformMessageId: string
+    sentTo: { contactId: string; displayName: string; chatId: string }
+  }>
+}
+
+/**
+ * ctx.channels — gated by the "channels:send" permission. Sends go through the
+ * shared sendToChannelAs path (audit trail via sentByAgentId = the maintainer
+ * Agent, cross-Agent prefixing, channel stats), exactly like Agent tools do.
+ */
+export function buildChannelsApi(params: BuildCapabilitiesParams): MiniAppChannelsApi {
+  const grantedSet = new Set(params.granted)
+  const requireGrant = () => {
+    if (!grantedSet.has('channels:send')) throw permissionError('channels:send')
+  }
+  const validText = (text: string, member: string): string => {
+    if (typeof text !== 'string' || !text.trim()) throw new Error(`${member}: text is required`)
+    if (text.length > CHANNEL_TEXT_MAX_LENGTH) throw new Error(`${member}: text exceeds ${CHANNEL_TEXT_MAX_LENGTH} characters`)
+    return text.trim()
+  }
+
+  return {
+    list: async () => {
+      requireGrant()
+      const { listChannelsWithOwners } = await import('@/server/services/channels')
+      const rows = await listChannelsWithOwners()
+      return rows.map((c) => ({
+        id: c.id,
+        name: c.name,
+        platform: c.platform,
+        status: c.status,
+        ownerAgentName: c.ownerAgentName ?? null,
+        ownedByMaintainer: c.agentId === params.agentId,
+      }))
+    },
+
+    send: async (channelId: string, chatId: string, text: string) => {
+      requireGrant()
+      if (typeof channelId !== 'string' || !channelId.trim()) throw new Error('channels.send: channelId is required')
+      if (typeof chatId !== 'string' || !chatId.trim()) throw new Error('channels.send: chatId is required')
+      const content = validText(text, 'channels.send')
+      checkRateLimit(params.appId, 'channels:send')
+
+      const { sendToChannelAs } = await import('@/server/services/channels')
+      const sent = await sendToChannelAs({
+        channelId,
+        senderAgentId: params.agentId,
+        chatId,
+        content,
+      })
+      if (!sent.ok) throw new Error(`channels.send: ${sent.error}`)
+      log.info({ appId: params.appId, channelId }, 'Mini-app sent a channel message')
+      return { platformMessageId: sent.result.platformMessageId }
+    },
+
+    sendToContact: async (contact: string, platform: string, text: string) => {
+      requireGrant()
+      if (typeof contact !== 'string' || !contact.trim()) throw new Error('channels.sendToContact: contact is required')
+      if (typeof platform !== 'string' || !platform.trim()) throw new Error('channels.sendToContact: platform is required')
+      const content = validText(text, 'channels.sendToContact')
+      checkRateLimit(params.appId, 'channels:send')
+
+      const { getContactWithDetails, searchContacts } = await import('@/server/services/contacts')
+      const { listChannels, sendToChannelAs } = await import('@/server/services/channels')
+
+      // 1) Resolve the contact: id first, then unambiguous fuzzy match.
+      let contactRecord = await getContactWithDetails(contact)
+      if (!contactRecord) {
+        const matches = await searchContacts(contact)
+        if (matches.length === 0) throw new Error(`channels.sendToContact: no contact matches "${contact}"`)
+        if (matches.length > 1) {
+          throw new Error(`channels.sendToContact: ambiguous contact "${contact}" (${matches.length} matches) — use a contact id`)
+        }
+        contactRecord = matches[0]!
+      }
+
+      // 2) The contact's identifier on that platform.
+      const platformLink = contactRecord.platformIds.find((p) => p.platform === platform)
+      if (!platformLink) {
+        const available = contactRecord.platformIds.map((p) => p.platform).join(', ') || '(none)'
+        throw new Error(`channels.sendToContact: contact "${contactRecord.displayName}" has no identifier for platform "${platform}". Available: ${available}`)
+      }
+
+      // 3) An active channel for the platform — prefer the maintainer Agent's own.
+      const allChannels = await listChannels()
+      const candidates = allChannels.filter((c) => c.platform === platform && c.status === 'active')
+      const channel = candidates.find((c) => c.agentId === params.agentId) ?? candidates[0]
+      if (!channel) throw new Error(`channels.sendToContact: no active channel for platform "${platform}"`)
+
+      const sent = await sendToChannelAs({
+        channelId: channel.id,
+        senderAgentId: params.agentId,
+        chatId: platformLink.platformId,
+        content,
+      })
+      if (!sent.ok) throw new Error(`channels.sendToContact: ${sent.error}`)
+      log.info({ appId: params.appId, channelId: channel.id, contactId: contactRecord.id, platform }, 'Mini-app sent a message to a contact')
+      return {
+        platformMessageId: sent.result.platformMessageId,
+        sentTo: { contactId: contactRecord.id, displayName: contactRecord.displayName, chatId: platformLink.platformId },
+      }
     },
   }
 }

@@ -1801,7 +1801,7 @@ Canal montant UI → backend (`Hivekeep.events.send()`). Délivré à l'export `
 
 ### `GET /api/mini-apps/:id/permissions`
 
-État des permissions de capacités : demandées dans `app.json` (`"permissions": ["llm", "agent:inform", "agent:task", "secrets:<NAME>"]`) vs accordées par l'utilisateur.
+État des permissions de capacités : demandées dans `app.json` (`"permissions": ["llm", "agent:inform", "agent:task", "channels:send", "secrets:<NAME>"]`) vs accordées par l'utilisateur.
 
 ```typescript
 // Réponse 200

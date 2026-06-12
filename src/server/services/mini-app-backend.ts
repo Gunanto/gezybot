@@ -45,6 +45,7 @@ import {
   buildSecretsApi,
   buildLlmApi,
   buildAgentApi,
+  buildChannelsApi,
   guardedFetch,
   parseGrantedPermissions,
   parseRequestedPermissions,
@@ -52,6 +53,7 @@ import {
   type MiniAppSecretsApi,
   type MiniAppLlmApi,
   type MiniAppAgentApi,
+  type MiniAppChannelsApi,
 } from '@/server/services/mini-app-capabilities'
 
 const log = createLogger('mini-app-backend')
@@ -175,6 +177,8 @@ export interface MiniAppBackendContext {
   llm: MiniAppLlmApi
   /** Bridge to the maintainer Agent — gated by "agent:inform" / "agent:task" */
   agent: MiniAppAgentApi
+  /** Platform messaging channels (SMS, Telegram, Discord…) — gated by "channels:send" */
+  channels: MiniAppChannelsApi
   /** SSRF-guarded fetch (http/https only, private hosts blocked, 30s timeout) */
   fetch: (url: string, options?: RequestInit) => Promise<Response>
   /** Scoped file storage under the app's `_data/` dir (excluded from snapshots) */
@@ -428,6 +432,7 @@ function buildContext(params: {
     secrets: buildSecretsApi(capabilityParams),
     llm: buildLlmApi(capabilityParams),
     agent: buildAgentApi(capabilityParams),
+    channels: buildChannelsApi(capabilityParams),
     fetch: (url: string, options?: RequestInit) => guardedFetch(url, options),
     files: buildFilesApi(appDir),
     log: {

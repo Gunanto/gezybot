@@ -243,12 +243,17 @@ automatically after every edit. Use \`onStart\` to launch live work (jobs, watch
 - \`ctx.log.info/warn/error\` — also lands in the app console (readable via get_mini_app_console)
 
 ## Gated capabilities (need user-approved permissions)
-Declare what you need in \`app.json\`: \`"permissions": ["llm", "agent:inform", "agent:task", "secrets:MY_KEY"]\`.
+Declare what you need in \`app.json\`: \`"permissions": ["llm", "agent:inform", "agent:task", "channels:send", "secrets:MY_KEY"]\`.
 The user approves from the banner in the app panel. Until granted, these throw:
 - \`ctx.secrets.get(name)\` — vault secret (needs \`secrets:<NAME>\`) — NEVER store API keys in code or storage
 - \`ctx.llm.complete(prompt, {model?, maxTokens?})\` — one-shot LLM completion (needs \`llm\`, 30/hour)
 - \`ctx.agent.inform(text)\` — drop a message into the maintainer Agent's queue (needs \`agent:inform\`, 10/hour)
 - \`ctx.agent.task(description, {title?})\` — spawn an async sub-task on the maintainer Agent (needs \`agent:task\`, 5/hour)
+- \`ctx.channels\` — send through the platform's EXISTING messaging channels (needs \`channels:send\`, 20/hour):
+  - \`ctx.channels.list()\` — channels with id/name/platform/status
+  - \`ctx.channels.send(channelId, chatId, text)\` — send to a known platform chat id
+  - \`ctx.channels.sendToContact(contact, platform, text)\` — resolves the contact's platform id + an active channel automatically (e.g. \`sendToContact("Nicolas", "twilio-sms", "...")\`)
+  PREFER this over re-implementing a provider API with raw secrets: an SMS through an existing Twilio channel needs ONE permission instead of three secrets, and every send is audited.
 - \`ctx.permissions.has("llm")\` / \`.requested\` / \`.granted\` — introspection
 
 ## Example: background watcher

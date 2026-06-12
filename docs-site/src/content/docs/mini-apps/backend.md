@@ -124,6 +124,7 @@ When the app panel is open and permissions are missing, Hivekeep shows an approv
 | `ctx.llm.complete(prompt, opts?)` | `llm` | 30/hour | One-shot LLM completion via the platform's providers (defaults to the maintainer Agent's model). `opts`: `{ model, providerId, maxTokens }`. |
 | `ctx.agent.inform(text)` | `agent:inform` | 10/hour | Drop an informational message into the maintainer Agent's queue. |
 | `ctx.agent.task(description, opts?)` | `agent:task` | 5/hour | Spawn an async sub-task on the maintainer Agent. Returns `{ taskId }`. |
+| `ctx.channels.list()` / `.send(channelId, chatId, text)` / `.sendToContact(contact, platform, text)` | `channels:send` | 20/hour | Send through the platform's existing messaging channels (Telegram, Discord, Twilio SMS, plugin platforms…). `sendToContact` resolves the contact's platform identifier and an active channel automatically. Prefer this over re-implementing a provider API with raw secrets: one permission, audited sends, no credentials in the app. |
 
 `ctx.permissions` exposes `{ requested, granted, has(permission) }` for introspection.
 
