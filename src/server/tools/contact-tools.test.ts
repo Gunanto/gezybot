@@ -115,6 +115,10 @@ describe('contact-tools', () => {
         displayName: 'Alice Dupont',
         nicknames: [{ id: 'nk1', nickname: 'ali' }, { id: 'nk2', nickname: 'lily' }],
         identifiers: [{ label: 'email', value: 'alice@example.com' }],
+        platformIds: [
+          { id: 'pid1', contactId: 'c-1', platform: 'twilio-sms', platformId: '+33612345678', createdAt: 1735689600000 },
+          { id: 'pid2', contactId: 'c-1', platform: 'telegram', platformId: '424242', createdAt: 1735689600000 },
+        ],
         notes: [
           { agentId: 'agent-test', scope: 'private', content: 'My friend' },
           { agentId: 'agent-other', scope: 'global', content: 'VIP customer' },
@@ -133,6 +137,12 @@ describe('contact-tools', () => {
       expect(result.nicknames).toEqual(['ali', 'lily'])
       expect(result.identifiers).toHaveLength(1)
       expect(result.identifiers[0].value).toBe('alice@example.com')
+      // Platform identifiers (channel reachability) must be exposed — this was
+      // the real-world bug: the UI showed them while the tool returned nothing.
+      expect(result.platformIds).toEqual([
+        { platform: 'twilio-sms', platformId: '+33612345678' },
+        { platform: 'telegram', platformId: '424242' },
+      ])
       expect(result.notes).toHaveLength(2)
       expect(result.notes[0].scope).toBe('private')
       expect(result.notes[1].content).toBe('VIP customer')
@@ -147,6 +157,7 @@ describe('contact-tools', () => {
         displayName: 'Bob',
         nicknames: [],
         identifiers: [],
+        platformIds: [],
         notes: [],
         linkedUserId: 'u-1',
         createdAt: new Date('2026-01-01'),
@@ -156,6 +167,7 @@ describe('contact-tools', () => {
       const result = await execute(getContactTool, { contact_id: 'c-2' })
       expect(result.nicknames).toEqual([])
       expect(result.identifiers).toEqual([])
+      expect(result.platformIds).toEqual([])
       expect(result.notes).toEqual([])
       expect(result.linkedUserId).toBe('u-1')
     })
@@ -180,6 +192,7 @@ describe('contact-tools', () => {
           displayName: 'Alice',
           nicknames: [{ id: 'nk1', nickname: 'ali' }],
           identifiers: [{ label: 'phone', value: '+33612345678' }],
+          platformIds: [{ id: 'pid1', contactId: 'c-1', platform: 'discord', platformId: 'alice#1234', createdAt: 1735689600000 }],
           notes: [{ agentId: 'agent-test', scope: 'global', content: 'Friend' }],
         },
         {
@@ -189,6 +202,7 @@ describe('contact-tools', () => {
           displayName: 'Alice Corp',
           nicknames: [],
           identifiers: [],
+          platformIds: [],
           notes: [],
         },
       ])
@@ -198,6 +212,8 @@ describe('contact-tools', () => {
       expect(result.contacts[0].displayName).toBe('Alice')
       expect(result.contacts[0].nicknames).toEqual(['ali'])
       expect(result.contacts[0].identifiers[0].value).toBe('+33612345678')
+      expect(result.contacts[0].platformIds).toEqual([{ platform: 'discord', platformId: 'alice#1234' }])
+      expect(result.contacts[1].platformIds).toEqual([])
       expect(result.contacts[1].notes).toEqual([])
     })
   })

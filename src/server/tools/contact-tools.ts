@@ -27,7 +27,10 @@ export const getContactTool: ToolRegistration = {
   create: (ctx) =>
     tool({
       description:
-        'Retrieve full details of a contact including identifiers, nicknames, and notes.',
+        'Retrieve full details of a contact: identifiers, platform identifiers (the chat/user ids ' +
+        'this contact is reachable at on connected channels — telegram, discord, twilio-sms, plugin ' +
+        'platforms…), nicknames, and notes. Use a platformIds entry with send_to_contact / ' +
+        'send_channel_message to message the contact on that platform.',
       inputSchema: z.object({
         contact_id: z.string(),
       }),
@@ -43,6 +46,10 @@ export const getContactTool: ToolRegistration = {
           displayName: contact.displayName,
           nicknames: contact.nicknames.map((n) => n.nickname),
           identifiers: contact.identifiers,
+          platformIds: contact.platformIds.map((p) => ({
+            platform: p.platform,
+            platformId: p.platformId,
+          })),
           notes: contact.notes.map((n) => ({
             source: n.userId ? 'user' : 'agent',
             agentId: n.agentId,
@@ -68,7 +75,8 @@ export const searchContactsTool: ToolRegistration = {
   create: (ctx) =>
     tool({
       description:
-        'Search contacts by first/last name, nickname, identifier value, or keywords in notes.',
+        'Search contacts by first/last name, nickname, identifier value, or keywords in notes. ' +
+        'Results include platform identifiers (chat/user ids on connected channels).',
       inputSchema: z.object({
         query: z.string(),
       }),
@@ -82,6 +90,10 @@ export const searchContactsTool: ToolRegistration = {
             lastName: c.lastName,
             nicknames: c.nicknames.map((n) => n.nickname),
             identifiers: c.identifiers,
+            platformIds: c.platformIds.map((p) => ({
+              platform: p.platform,
+              platformId: p.platformId,
+            })),
             notes: c.notes.map((n) => ({
               source: n.userId ? 'user' : 'agent',
               agentId: n.agentId,
