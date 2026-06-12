@@ -292,9 +292,39 @@ const fxCount = fxCategories.reduce((n, c) => n + c.cards.length, 0);
       </div>
     </div>
   </section></div>
-  <!-- ===== 03 self-improving ===== -->
+  <!-- ===== 03 secrets (vault placeholders) — dict key s3vault; the later sN
+       dict keys keep their historical names, only the displayed numbers shift ===== -->
+  <div class="wrap" id="secrets"><div class="comb" style="--comb-lit:radial-gradient(560px 380px at 80% 20%,#000 0%,transparent 62%),radial-gradient(520px 360px at 14% 80%,#000 0%,transparent 62%)" aria-hidden="true"><span class="comb-dim"></span><span class="comb-lit-clip"><span class="comb-lit"></span></span></div><section class="section reveal">
+    <div class="num"><div class="hexnum"><span class="n">03</span></div><small>{t.home.s3vault.stage}</small><span class="spine" aria-hidden="true"></span></div>
+    <div class="body">
+      <h2 class="display">{t.home.s3vault.heading}</h2>
+      <div class="split2">
+        <div>
+          <p set:html={t.home.s3vault.p1} />
+          <p set:html={t.home.s3vault.p2} />
+          <div class="taglist">
+            <span class="t"><Icon name="lucide:crosshair" /> {t.home.s3vault.tagScoped}</span>
+            <span class="t"><Icon name="lucide:eye" /> {t.home.s3vault.tagReveal}</span>
+            <span class="t"><Icon name="lucide:eraser" /> {t.home.s3vault.tagScrub}</span>
+          </div>
+        </div>
+        <div class="figure glass vaultfig">
+          <div class="cap"><span>{t.home.s3vault.figCap}</span><span class="amb">{t.home.s3vault.figTag}</span></div>
+          <div class="vf-body mono">
+            <div class="vf-lab">{t.home.s3vault.figModel}</div>
+            <div class="vf-code">POST api.github.com/repos<br /><span class="vf-dim">Authorization:</span> Bearer <span class="vf-ph">&#123;&#123;secret:GITHUB_TOKEN&#125;&#125;</span></div>
+            <div class="vf-boundary"><span>{t.home.s3vault.figBoundary}</span></div>
+            <div class="vf-lab">{t.home.s3vault.figWire}</div>
+            <div class="vf-code"><span class="vf-dim">Authorization:</span> Bearer <span class="vf-real">ghp_••••••••••••••••</span></div>
+            <div class="vf-guard"><Icon name="lucide:shield-check" /> <span set:html={t.home.s3vault.figGuard} /></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section></div>
+  <!-- ===== 04 self-improving ===== -->
   <div class="wrap" id="extensible"><section class="section reveal">
-    <div class="num"><div class="hexnum"><span class="n">03</span></div><small>{t.home.s3extensible.stage}</small><span class="spine" aria-hidden="true"></span></div>
+    <div class="num"><div class="hexnum"><span class="n">04</span></div><small>{t.home.s3extensible.stage}</small><span class="spine" aria-hidden="true"></span></div>
     <div class="body">
       <h2 class="display">{t.home.s3extensible.heading}</h2>
       <div class="split2">
@@ -323,7 +353,7 @@ const fxCount = fxCategories.reduce((n, c) => n + c.cards.length, 0);
 
   <!-- ===== 04 everywhere ===== -->
   <div class="wrap band" id="channels"><section class="section reveal">
-    <div class="num"><div class="hexnum"><span class="n">04</span></div><small>{t.home.s4channels.stage}</small><span class="spine" aria-hidden="true"></span></div>
+    <div class="num"><div class="hexnum"><span class="n">05</span></div><small>{t.home.s4channels.stage}</small><span class="spine" aria-hidden="true"></span></div>
     <div class="body">
       <h2 class="display">{t.home.s4channels.heading}</h2>
       <div class="split2">
@@ -345,7 +375,7 @@ const fxCount = fxCategories.reduce((n, c) => n + c.cards.length, 0);
   </section></div>
   <!-- ===== 05 in your pocket (PWA) ===== -->
   <div class="wrap" id="pocket"><section class="section reveal">
-    <div class="num"><div class="hexnum"><span class="n">05</span></div><small>{t.home.s5pocket.stage}</small><span class="spine" aria-hidden="true"></span></div>
+    <div class="num"><div class="hexnum"><span class="n">06</span></div><small>{t.home.s5pocket.stage}</small><span class="spine" aria-hidden="true"></span></div>
     <div class="body">
       <h2 class="display">{t.home.s5pocket.heading}</h2>
       <div class="split2">
@@ -405,7 +435,7 @@ const fxCount = fxCategories.reduce((n, c) => n + c.cards.length, 0);
   </div></section>
   <!-- ===== 06 transparent ===== -->
   <div class="wrap band" id="transparency"><section class="section reveal">
-    <div class="num"><div class="hexnum"><span class="n">06</span></div><small>{t.home.s6transparency.stage}</small><span class="spine" aria-hidden="true"></span></div>
+    <div class="num"><div class="hexnum"><span class="n">07</span></div><small>{t.home.s6transparency.stage}</small><span class="spine" aria-hidden="true"></span></div>
     <div class="body">
       <h2 class="display">{t.home.s6transparency.heading}</h2>
       <div class="split2">
@@ -442,7 +472,7 @@ const fxCount = fxCategories.reduce((n, c) => n + c.cards.length, 0);
   </section></div>
   <!-- ===== 07 setup / queenie ===== -->
   <div class="wrap" id="setup"><section class="section reveal">
-    <div class="num"><div class="hexnum"><span class="n">07</span></div><small>{t.home.s7setup.stage}</small><span class="spine" aria-hidden="true"></span></div>
+    <div class="num"><div class="hexnum"><span class="n">08</span></div><small>{t.home.s7setup.stage}</small><span class="spine" aria-hidden="true"></span></div>
     <div class="body">
       <h2 class="display">{t.home.s7setup.heading}</h2>
       <div class="split2">
@@ -456,7 +486,7 @@ const fxCount = fxCategories.reduce((n, c) => n + c.cards.length, 0);
   </section></div>
   <!-- ===== 08 the household ===== -->
   <div class="wrap" id="household"><div class="comb" style="--comb-lit:radial-gradient(520px 360px at 16% 22%,#000 0%,transparent 62%),radial-gradient(600px 400px at 78% 82%,#000 0%,transparent 62%)" aria-hidden="true"><span class="comb-dim"></span><span class="comb-lit-clip"><span class="comb-lit"></span></span></div><section class="section reveal">
-    <div class="num"><div class="hexnum"><span class="n">08</span></div><small>{t.home.s8household.stage}</small><span class="spine" aria-hidden="true"></span></div>
+    <div class="num"><div class="hexnum"><span class="n">09</span></div><small>{t.home.s8household.stage}</small><span class="spine" aria-hidden="true"></span></div>
     <div class="body">
       <h2 class="display">{t.home.s8household.heading}</h2>
       <p set:html={t.home.s8household.p1} />
@@ -575,6 +605,18 @@ const fxCount = fxCategories.reduce((n, c) => n + c.cards.length, 0);
 </script>
 
 <style>
+  /* ── 03 secrets: the placeholder figure (model side vs wire side) ── */
+  .vaultfig .vf-body{padding:16px 18px;display:flex;flex-direction:column;gap:9px;font-size:.78rem;}
+  .vaultfig .vf-lab{font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);}
+  .vaultfig .vf-code{background:oklch(0.10 0.018 312);border:1px solid var(--line);border-radius:8px;padding:10px 12px;line-height:1.6;overflow-x:auto;white-space:nowrap;}
+  .vaultfig .vf-dim{color:var(--ink-soft);}
+  .vaultfig .vf-ph{color:var(--primary);}
+  .vaultfig .vf-real{color:var(--peach);}
+  .vaultfig .vf-boundary{display:flex;align-items:center;gap:10px;color:var(--ink-soft);font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;margin:1px 0;}
+  .vaultfig .vf-boundary::before,.vaultfig .vf-boundary::after{content:"";flex:1;height:1px;background:var(--line-strong);}
+  .vaultfig .vf-guard{display:flex;align-items:center;gap:8px;font-size:.72rem;color:var(--ink);}
+  .vaultfig .vf-guard svg{width:1em;height:1em;flex-shrink:0;color:oklch(0.78 0.15 150);}
+
   /* project health strip: live GitHub signals under the hero.
      Reuses the global design tokens (aurora gradient, glass, lines). */
   .health{border-bottom:1px solid var(--line);background:oklch(0.125 0.026 312);}

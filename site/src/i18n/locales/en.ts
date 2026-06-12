@@ -126,10 +126,26 @@ export default {
         infraK: 'External infra',
         infraV: 'none',
         secretsK: 'Secrets',
-        secretsV: 'AES-256-GCM vault, by reference only',
+        secretsV: 'AES-256-GCM vault, placeholders only',
         dataK: 'Data & keys',
         dataV: 'yours, on your hardware',
       },
+    },
+
+    s3vault: {
+      stage: 'Secrets',
+      heading: 'Your keys never meet the model.',
+      p1: 'Agents use your credentials without ever seeing them. They write a placeholder like <code>{{secret:GITHUB_TOKEN}}</code>; the real value is substituted at the very last moment, inside the tool call, and scrubbed from whatever comes back. The model reads placeholders, your history stores placeholders: the value never leaves the encrypted vault.',
+      p2: 'Pin a secret to its destination: restrict <b>which tools</b> may use it and <b>which hosts</b> it may travel to, and a hijacked agent cannot exfiltrate it anywhere else. If an agent truly needs to see a value, it must ask first: <b>your approval</b>, one turn, then it is wiped from the history.',
+      tagScoped: 'host & tool allowlists',
+      tagReveal: 'reveal needs your approval',
+      tagScrub: 'one-call leak scrubbing',
+      figCap: 'tool call',
+      figTag: 'execution boundary',
+      figModel: 'what the model writes',
+      figWire: 'what the request carries',
+      figBoundary: 'substituted at execution',
+      figGuard: 'allowed: api.github.com · anywhere else: refused',
     },
 
     s3extensible: {
@@ -347,12 +363,12 @@ export default {
           cards: [
             {
               title: 'Encrypted vault',
-              blurb: 'Secrets stored with <b>AES-256-GCM</b>, never injected into prompts: agents fetch them only through a scoped tool.',
+              blurb: 'Secrets stored with <b>AES-256-GCM</b>, never injected into prompts: agents only ever handle <code>{{secret:KEY}}</code> placeholders.',
               icon: 'key-round',
             },
             {
               title: 'Secrets skip the LLM',
-              blurb: 'Keys are typed into <b>secure popups</b> that bypass the model entirely, and leaked values can be redacted after the fact.',
+              blurb: 'Keys are typed into <b>secure popups</b> that bypass the model entirely; seeing a raw value requires <b>your approval</b>, and a leaked value is scrubbed from the whole history in one call.',
               icon: 'shield-check',
             },
             {

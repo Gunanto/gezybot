@@ -116,10 +116,26 @@ const dict: typeof en = {
         infraK: 'Externe Infrastruktur',
         infraV: 'keine',
         secretsK: 'Secrets',
-        secretsV: 'AES-256-GCM-Vault, nur per Referenz',
+        secretsV: "AES-256-GCM-Tresor, nur Platzhalter",
         dataK: 'Daten & Schlüssel',
         dataV: 'deine, auf deiner Hardware',
       },
+    },
+
+    s3vault: {
+      stage: "Secrets",
+      heading: "Deine Schlüssel erreichen das Modell nie.",
+      p1: "Agents nutzen deine Zugangsdaten, ohne sie je zu sehen. Sie schreiben einen Platzhalter wie <code>{{secret:GITHUB_TOKEN}}</code>; der echte Wert wird im letzten Moment im Tool-Aufruf eingesetzt und aus allem, was zurückkommt, wieder entfernt. Das Modell liest Platzhalter, dein Verlauf speichert Platzhalter: der Wert verlässt den verschlüsselten Tresor nie.",
+      p2: "Binde ein Secret an sein Ziel: beschränke, <b>welche Tools</b> es nutzen dürfen und <b>zu welchen Hosts</b> es reisen darf, und ein gekaperter Agent kann es nirgendwo sonst exfiltrieren. Braucht ein Agent wirklich den Klartext, muss er erst fragen: <b>deine Freigabe</b>, ein Zug, danach wird er aus dem Verlauf gelöscht.",
+      tagScoped: "Host- & Tool-Allowlists",
+      tagReveal: "Offenlegung nur mit Freigabe",
+      tagScrub: "Leak-Bereinigung in einem Aufruf",
+      figCap: "Tool-Aufruf",
+      figTag: "Ausführungsgrenze",
+      figModel: "was das Modell schreibt",
+      figWire: "was die Anfrage trägt",
+      figBoundary: "bei der Ausführung ersetzt",
+      figGuard: "erlaubt: api.github.com · überall sonst: abgelehnt",
     },
 
     s3extensible: {
@@ -337,12 +353,12 @@ const dict: typeof en = {
           cards: [
             {
               title: 'Verschlüsselter Vault',
-              blurb: 'Secrets liegen <b>AES-256-GCM</b>-verschlüsselt und landen nie in Prompts: Agenten holen sie nur über ein begrenztes Tool.',
+              blurb: "Secrets mit <b>AES-256-GCM</b> gespeichert, nie in Prompts injiziert: Agents hantieren nur mit <code>{{secret:KEY}}</code>-Platzhaltern.",
               icon: 'key-round',
             },
             {
               title: 'Secrets umgehen das LLM',
-              blurb: 'Schlüssel werden in <b>sichere Popups</b> getippt, die das Modell komplett umgehen, und geleakte Werte lassen sich nachträglich schwärzen.',
+              blurb: "Schlüssel werden in <b>sichere Popups</b> getippt, die das Modell komplett umgehen; den Klartext zu sehen erfordert <b>deine Freigabe</b>, und ein geleakter Wert wird mit einem Aufruf aus dem gesamten Verlauf entfernt.",
               icon: 'shield-check',
             },
             {

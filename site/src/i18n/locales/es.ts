@@ -116,10 +116,26 @@ const dict: typeof en = {
         infraK: 'Infra externa',
         infraV: 'ninguna',
         secretsK: 'Secretos',
-        secretsV: 'vault AES-256-GCM, solo por referencia',
+        secretsV: "cofre AES-256-GCM, solo placeholders",
         dataK: 'Datos y claves',
         dataV: 'tuyos, en tu hardware',
       },
+    },
+
+    s3vault: {
+      stage: "Secretos",
+      heading: "Tus claves nunca tocan el modelo.",
+      p1: "Los agentes usan tus credenciales sin verlas jamás. Escriben un placeholder como <code>{{secret:GITHUB_TOKEN}}</code>; el valor real se sustituye en el último momento, dentro de la llamada a la herramienta, y se borra de todo lo que vuelve. El modelo lee placeholders, tu historial guarda placeholders: el valor nunca sale del cofre cifrado.",
+      p2: "Fija un secreto a su destino: limita <b>qué herramientas</b> pueden usarlo y <b>a qué hosts</b> puede viajar, y un agente secuestrado no puede exfiltrarlo a ningún otro sitio. Si un agente de verdad necesita ver un valor, debe pedirlo antes: <b>tu aprobación</b>, un turno, y después se borra del historial.",
+      tagScoped: "listas blancas de hosts y herramientas",
+      tagReveal: "revelar exige tu aprobación",
+      tagScrub: "purga de fugas en una llamada",
+      figCap: "llamada a herramienta",
+      figTag: "frontera de ejecución",
+      figModel: "lo que escribe el modelo",
+      figWire: "lo que lleva la petición",
+      figBoundary: "sustituido al ejecutar",
+      figGuard: "permitido: api.github.com · en cualquier otro sitio: rechazado",
     },
 
     s3extensible: {
@@ -337,12 +353,12 @@ const dict: typeof en = {
           cards: [
             {
               title: 'Vault cifrado',
-              blurb: 'Secretos guardados con <b>AES-256-GCM</b>, nunca inyectados en los prompts: los agentes los obtienen solo a través de una herramienta acotada.',
+              blurb: "Secretos guardados con <b>AES-256-GCM</b>, nunca inyectados en los prompts: los agentes solo manejan placeholders <code>{{secret:KEY}}</code>.",
               icon: 'key-round',
             },
             {
               title: 'Los secretos esquivan al LLM',
-              blurb: 'Las claves se escriben en <b>popups seguros</b> que se saltan el modelo por completo, y los valores filtrados pueden censurarse a posteriori.',
+              blurb: "Las claves se escriben en <b>popups seguros</b> que evitan el modelo por completo; ver un valor en claro exige <b>tu aprobación</b>, y un valor filtrado se purga de todo el historial en una llamada.",
               icon: 'shield-check',
             },
             {

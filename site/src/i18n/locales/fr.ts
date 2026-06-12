@@ -116,10 +116,26 @@ const dict: typeof en = {
         infraK: 'Infra externe',
         infraV: 'aucune',
         secretsK: 'Secrets',
-        secretsV: 'coffre AES-256-GCM, par référence uniquement',
+        secretsV: "coffre AES-256-GCM, placeholders uniquement",
         dataK: 'Données & clés',
         dataV: 'à toi, sur ton matériel',
       },
+    },
+
+    s3vault: {
+      stage: "Secrets",
+      heading: "Vos clés ne rencontrent jamais le modèle.",
+      p1: "Les agents utilisent vos identifiants sans jamais les voir. Ils écrivent un placeholder comme <code>{{secret:GITHUB_TOKEN}}</code> ; la vraie valeur est substituée au tout dernier moment, dans l'appel d'outil, puis effacée de tout ce qui en revient. Le modèle lit des placeholders, votre historique stocke des placeholders : la valeur ne quitte jamais le coffre chiffré.",
+      p2: "Épinglez un secret à sa destination : limitez <b>les outils</b> qui peuvent l'utiliser et <b>les hôtes</b> vers lesquels il peut voyager, et un agent détourné ne peut l'exfiltrer nulle part ailleurs. Si un agent a vraiment besoin de voir une valeur, il doit d'abord demander : <b>votre approbation</b>, un tour, puis elle est effacée de l'historique.",
+      tagScoped: "listes blanches hôtes & outils",
+      tagReveal: "révélation sur approbation",
+      tagScrub: "purge de fuite en un appel",
+      figCap: "appel d'outil",
+      figTag: "frontière d'exécution",
+      figModel: "ce que le modèle écrit",
+      figWire: "ce que la requête transporte",
+      figBoundary: "substitué à l'exécution",
+      figGuard: "autorisé : api.github.com · partout ailleurs : refusé",
     },
 
     s3extensible: {
@@ -337,12 +353,12 @@ const dict: typeof en = {
           cards: [
             {
               title: 'Coffre chiffré',
-              blurb: "Les secrets sont stockés en <b>AES-256-GCM</b>, jamais injectés dans les prompts : les agents n'y accèdent que par un outil à portée limitée.",
+              blurb: "Les secrets sont stockés en <b>AES-256-GCM</b>, jamais injectés dans les prompts : les agents ne manipulent que des placeholders <code>{{secret:KEY}}</code>.",
               icon: 'key-round',
             },
             {
               title: 'Les secrets évitent le LLM',
-              blurb: "Les clés se saisissent dans des <b>popups sécurisées</b> qui contournent entièrement le modèle, et une valeur qui fuite peut être caviardée après coup.",
+              blurb: "Les clés se saisissent dans des <b>popups sécurisées</b> qui contournent entièrement le modèle ; voir une valeur brute exige <b>votre approbation</b>, et une valeur fuitée est purgée de tout l'historique en un appel.",
               icon: 'shield-check',
             },
             {

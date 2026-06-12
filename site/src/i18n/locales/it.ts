@@ -116,10 +116,26 @@ const dict: typeof en = {
         infraK: 'Infrastruttura esterna',
         infraV: 'nessuna',
         secretsK: 'Segreti',
-        secretsV: 'vault AES-256-GCM, solo per riferimento',
+        secretsV: "vault AES-256-GCM, solo placeholder",
         dataK: 'Dati e chiavi',
         dataV: 'tuoi, sul tuo hardware',
       },
+    },
+
+    s3vault: {
+      stage: "Segreti",
+      heading: "Le tue chiavi non incontrano mai il modello.",
+      p1: "Gli agenti usano le tue credenziali senza vederle mai. Scrivono un placeholder come <code>{{secret:GITHUB_TOKEN}}</code>; il valore reale viene sostituito all'ultimo momento, dentro la chiamata allo strumento, e ripulito da tutto ciò che torna indietro. Il modello legge placeholder, la cronologia salva placeholder: il valore non lascia mai il vault cifrato.",
+      p2: "Vincola un segreto alla sua destinazione: limita <b>quali strumenti</b> possono usarlo e <b>verso quali host</b> può viaggiare, e un agente compromesso non può esfiltrarlo da nessun'altra parte. Se un agente ha davvero bisogno di vedere un valore, deve prima chiedere: <b>la tua approvazione</b>, un turno, poi viene cancellato dalla cronologia.",
+      tagScoped: "allowlist di host e strumenti",
+      tagReveal: "rivelare richiede la tua approvazione",
+      tagScrub: "pulizia delle fughe in una chiamata",
+      figCap: "chiamata strumento",
+      figTag: "confine di esecuzione",
+      figModel: "ciò che scrive il modello",
+      figWire: "ciò che porta la richiesta",
+      figBoundary: "sostituito all'esecuzione",
+      figGuard: "consentito: api.github.com · ovunque altro: rifiutato",
     },
 
     s3extensible: {
@@ -337,12 +353,12 @@ const dict: typeof en = {
           cards: [
             {
               title: 'Vault cifrato',
-              blurb: 'Segreti conservati con <b>AES-256-GCM</b>, mai iniettati nei prompt: gli agenti li recuperano solo tramite uno strumento dedicato.',
+              blurb: "Segreti salvati con <b>AES-256-GCM</b>, mai iniettati nei prompt: gli agenti maneggiano solo placeholder <code>{{secret:KEY}}</code>.",
               icon: 'key-round',
             },
             {
               title: "I segreti saltano l'LLM",
-              blurb: 'Le chiavi si digitano in <b>popup sicuri</b> che bypassano del tutto il modello, e i valori trapelati si possono oscurare a posteriori.',
+              blurb: "Le chiavi si digitano in <b>popup sicuri</b> che aggirano completamente il modello; vedere un valore in chiaro richiede <b>la tua approvazione</b>, e un valore trapelato viene ripulito da tutta la cronologia in una chiamata.",
               icon: 'shield-check',
             },
             {

@@ -118,10 +118,26 @@ const dict: typeof en = {
         infraK: '外部依赖',
         infraV: '零',
         secretsK: '密钥',
-        secretsV: 'AES-256-GCM 保险库，仅按引用访问',
+        secretsV: "AES-256-GCM 保险库，仅占位符",
         dataK: '数据与密钥',
         dataV: '属于你，存在你的硬件上',
       },
+    },
+
+    s3vault: {
+      stage: "密钥",
+      heading: "你的密钥永远不会接触模型。",
+      p1: "智能体在从不看到凭据的情况下使用它们。它们写下形如 <code>{{secret:GITHUB_TOKEN}}</code> 的占位符；真实值在最后一刻、在工具调用内部才被替换，并从返回的内容中被清除。模型读到的是占位符，历史记录保存的是占位符：真实值从未离开加密保险库。",
+      p2: "把密钥固定到它的目的地：限制<b>哪些工具</b>可以使用它、它可以发送到<b>哪些主机</b>，被劫持的智能体也无法把它外泄到别处。如果智能体确实需要看到明文，必须先请求：<b>你的批准</b>，一个回合，之后它会从历史记录中抹除。",
+      tagScoped: "主机与工具白名单",
+      tagReveal: "查看明文需你批准",
+      tagScrub: "一次调用清除泄露",
+      figCap: "工具调用",
+      figTag: "执行边界",
+      figModel: "模型写下的内容",
+      figWire: "请求实际携带的内容",
+      figBoundary: "执行时替换",
+      figGuard: "允许：api.github.com · 其他任何地方：拒绝",
     },
 
     s3extensible: {
@@ -339,12 +355,12 @@ const dict: typeof en = {
           cards: [
             {
               title: '加密保险库',
-              blurb: '密钥以 <b>AES-256-GCM</b> 加密存储，从不注入提示词：智能体只能通过受限工具按需获取。',
+              blurb: "密钥以 <b>AES-256-GCM</b> 加密存储，绝不注入提示词：智能体只接触 <code>{{secret:KEY}}</code> 占位符。",
               icon: 'key-round',
             },
             {
               title: '密钥绕过 LLM',
-              blurb: '密钥通过<b>安全弹窗</b>输入，完全绕开模型；万一泄露的值还能事后脱敏。',
+              blurb: "密钥通过完全绕过模型的<b>安全弹窗</b>输入；查看明文需要<b>你的批准</b>，泄露的值一次调用即可从全部历史中清除。",
               icon: 'shield-check',
             },
             {

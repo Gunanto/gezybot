@@ -116,10 +116,26 @@ const dict: typeof en = {
         infraK: 'Zewnętrzna infrastruktura',
         infraV: 'brak',
         secretsK: 'Sekrety',
-        secretsV: 'sejf AES-256-GCM, tylko przez referencję',
+        secretsV: "sejf AES-256-GCM, wyłącznie placeholdery",
         dataK: 'Dane i klucze',
         dataV: 'twoje, na twoim sprzęcie',
       },
+    },
+
+    s3vault: {
+      stage: "Sekrety",
+      heading: "Twoje klucze nigdy nie spotykają modelu.",
+      p1: "Agenci używają twoich danych dostępowych, nigdy ich nie widząc. Piszą placeholder taki jak <code>{{secret:GITHUB_TOKEN}}</code>; prawdziwa wartość jest podstawiana w ostatniej chwili, wewnątrz wywołania narzędzia, i wymazywana ze wszystkiego, co wraca. Model czyta placeholdery, historia przechowuje placeholdery: wartość nigdy nie opuszcza zaszyfrowanego sejfu.",
+      p2: "Przypnij sekret do jego celu: ogranicz, <b>które narzędzia</b> mogą go używać i <b>do jakich hostów</b> może trafiać, a przejęty agent nie wyprowadzi go nigdzie indziej. Jeśli agent naprawdę musi zobaczyć wartość, najpierw musi poprosić: <b>twoja zgoda</b>, jedna tura, potem wartość znika z historii.",
+      tagScoped: "listy dozwolonych hostów i narzędzi",
+      tagReveal: "ujawnienie wymaga twojej zgody",
+      tagScrub: "czyszczenie wycieku jednym wywołaniem",
+      figCap: "wywołanie narzędzia",
+      figTag: "granica wykonania",
+      figModel: "co pisze model",
+      figWire: "co niesie żądanie",
+      figBoundary: "podstawiane przy wykonaniu",
+      figGuard: "dozwolone: api.github.com · wszędzie indziej: odmowa",
     },
 
     s3extensible: {
@@ -337,12 +353,12 @@ const dict: typeof en = {
           cards: [
             {
               title: 'Zaszyfrowany sejf',
-              blurb: 'Sekrety przechowywane z <b>AES-256-GCM</b>, nigdy nie wstrzykiwane do promptów: agenci pobierają je wyłącznie przez narzędzie o ograniczonym zasięgu.',
+              blurb: "Sekrety przechowywane z <b>AES-256-GCM</b>, nigdy nie wstrzykiwane do promptów: agenci operują wyłącznie placeholderami <code>{{secret:KEY}}</code>.",
               icon: 'key-round',
             },
             {
               title: 'Sekrety omijają LLM',
-              blurb: 'Klucze wpisujesz w <b>bezpiecznych okienkach</b>, które całkowicie omijają model, a wartości, które wyciekły, można wymazać nawet po fakcie.',
+              blurb: "Klucze wpisuje się w <b>bezpieczne okna</b>, które całkowicie omijają model; zobaczenie jawnej wartości wymaga <b>twojej zgody</b>, a wartość, która wyciekła, jest czyszczona z całej historii jednym wywołaniem.",
               icon: 'shield-check',
             },
             {
