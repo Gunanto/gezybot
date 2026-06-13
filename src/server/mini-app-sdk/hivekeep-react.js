@@ -1322,9 +1322,7 @@ export function useLocalStorage(key, defaultValue) {
   }, [prefixedKey])
 
   const remove = useCallback(() => {
-    // localStorage access THROWS in an opaque-origin iframe (hardened sandbox),
-    // so guard it like get/set above — persistence degrades to in-session only.
-    try { localStorage.removeItem(prefixedKey) } catch { /* opaque origin / unavailable */ }
+    localStorage.removeItem(prefixedKey)
     setValue(defaultValue)
   }, [prefixedKey, defaultValue])
 
