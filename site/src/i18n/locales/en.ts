@@ -39,6 +39,17 @@ export default {
   },
 
   footer: {
+    tagline: 'A self-hosted hive of AI agents that remember, collaborate, and build their own tools.',
+    product: 'Product',
+    resources: 'Resources',
+    project: 'Project',
+    install: 'Install',
+    releases: 'Releases',
+    contributing: 'Contributing',
+    security: 'Security',
+    license: 'License',
+    privacy: 'Cookie-free analytics',
+    privacyTitle: 'We use privacy-friendly, cookieless analytics. No personal data, no cross-site tracking.',
     line: 'Open-source · MIT · Built with Bun · © 2026',
   },
 

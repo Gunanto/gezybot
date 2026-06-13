@@ -31,6 +31,17 @@ const dict: typeof en = {
   },
 
   footer: {
+    tagline: "Une ruche auto-hébergée d'agents IA qui se souviennent, collaborent et fabriquent leurs propres outils.",
+    product: 'Produit',
+    resources: 'Ressources',
+    project: 'Projet',
+    install: 'Installation',
+    releases: 'Versions',
+    contributing: 'Contribuer',
+    security: 'Sécurité',
+    license: 'Licence',
+    privacy: 'Analytics sans cookie',
+    privacyTitle: 'Nous utilisons des analytics respectueux de la vie privée, sans cookie. Aucune donnée personnelle, aucun suivi entre sites.',
     line: 'Open-source · MIT · Construit avec Bun · © 2026',
   },
 

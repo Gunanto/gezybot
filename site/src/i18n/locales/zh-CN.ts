@@ -31,6 +31,17 @@ const dict: typeof en = {
   },
 
   footer: {
+    tagline: '自托管的 AI 智能体蜂巢，它们会记忆、协作，并打造自己的工具。',
+    product: '产品',
+    resources: '资源',
+    project: '项目',
+    install: '安装',
+    releases: '版本发布',
+    contributing: '参与贡献',
+    security: '安全',
+    license: '许可证',
+    privacy: '无 Cookie 分析',
+    privacyTitle: '我们使用尊重隐私、无 Cookie 的分析工具。不收集个人数据，不跨站点追踪。',
     line: '开源 · MIT · 基于 Bun 构建 · © 2026',
   },
 

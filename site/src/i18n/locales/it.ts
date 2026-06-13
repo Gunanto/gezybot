@@ -31,6 +31,17 @@ const dict: typeof en = {
   },
 
   footer: {
+    tagline: 'Un alveare auto-ospitato di agenti IA che ricordano, collaborano e costruiscono i propri strumenti.',
+    product: 'Prodotto',
+    resources: 'Risorse',
+    project: 'Progetto',
+    install: 'Installazione',
+    releases: 'Rilasci',
+    contributing: 'Contribuire',
+    security: 'Sicurezza',
+    license: 'Licenza',
+    privacy: 'Analitica senza cookie',
+    privacyTitle: 'Usiamo analitica rispettosa della privacy, senza cookie. Nessun dato personale, nessun tracciamento tra siti.',
     line: 'Open source · MIT · Creato con Bun · © 2026',
   },
 

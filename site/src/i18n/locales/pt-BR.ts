@@ -31,6 +31,17 @@ const dict: typeof en = {
   },
 
   footer: {
+    tagline: 'Uma colmeia auto-hospedada de agentes de IA que lembram, colaboram e criam suas próprias ferramentas.',
+    product: 'Produto',
+    resources: 'Recursos',
+    project: 'Projeto',
+    install: 'Instalação',
+    releases: 'Versões',
+    contributing: 'Contribuir',
+    security: 'Segurança',
+    license: 'Licença',
+    privacy: 'Analytics sem cookies',
+    privacyTitle: 'Usamos analytics que respeita a privacidade, sem cookies. Sem dados pessoais nem rastreamento entre sites.',
     line: 'Open-source · MIT · Feito com Bun · © 2026',
   },
 

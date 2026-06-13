@@ -31,6 +31,17 @@ const dict: typeof en = {
   },
 
   footer: {
+    tagline: 'Ein selbst gehosteter Schwarm von KI-Agenten, die sich erinnern, zusammenarbeiten und eigene Werkzeuge bauen.',
+    product: 'Produkt',
+    resources: 'Ressourcen',
+    project: 'Projekt',
+    install: 'Installation',
+    releases: 'Releases',
+    contributing: 'Mitwirken',
+    security: 'Sicherheit',
+    license: 'Lizenz',
+    privacy: 'Cookiefreie Analyse',
+    privacyTitle: 'Wir nutzen datenschutzfreundliche Analyse ohne Cookies. Keine personenbezogenen Daten, kein seitenübergreifendes Tracking.',
     line: 'Open Source · MIT · Gebaut mit Bun · © 2026',
   },
 

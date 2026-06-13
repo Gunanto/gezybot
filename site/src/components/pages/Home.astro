@@ -8,6 +8,7 @@ import AgentDemo from '../AgentDemo.tsx';
 import QueenieOnboarding from '../QueenieOnboarding.tsx';
 import MiniAppsMarquee from '../MiniAppsMarquee.astro';
 import LangSwitcher from '../LangSwitcher.astro';
+import Footer from '../Footer.astro';
 import { Icon } from 'astro-icon/components';
 import agents from '../../agents.json';
 import stats from '../../data/stats.json';
@@ -593,10 +594,7 @@ const fxCount = fxCategories.reduce((n, c) => n + c.cards.length, 0);
   </section>
 
   <!-- ===== footer ===== -->
-  <footer class="footer"><div class="wrap in">
-    <div class="brand"><img class="brand-logo" src={`${base}/logo.svg`} width="26" height="26" alt="" /> Hivekeep</div>
-    <span class="m">{t.footer.line}</span>
-  </div></footer>
+  <Footer lang={lang} path="/" />
 
 <script>
   // Wire up click-to-copy on command blocks (`.cmd`). The command text is the
@@ -615,6 +613,9 @@ const fxCount = fxCategories.reduce((n, c) => n + c.cards.length, 0);
       } catch {
         return
       }
+      // Conversion signal: copying the install one-liner. Lets campaign
+      // referrers be measured against real install intent, not just visits.
+      try { (window as any).plausible?.('Install Copy', { props: { source: 'home' } }) } catch { /* analytics absent */ }
       btn.classList.add('copied')
       setTimeout(() => btn.classList.remove('copied'), 1500)
     })

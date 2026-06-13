@@ -475,11 +475,47 @@ html.js .reveal.in{opacity:1;transform:none;}
 
 @media(max-width:860px){.prov-groups{grid-template-columns:1fr;} .plug-grid{grid-template-columns:1fr;}}
 
-/* footer */
-.footer{padding:40px 0 60px;}
-.footer .in{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:14px;}
-.footer .brand{font-size:1rem;}
-.footer .m{font-family:"JetBrains Mono",monospace;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);}
+/* ── footer ───────────────────────────────────────────────────────────────
+   Editorial multi-column footer, shared across every page (Footer.astro).
+   Top hairline + a faint honeycomb backdrop (comb-dim, no glow) to carry the
+   brand texture; columns of mono-labelled links; a bottom bar with the
+   copyright line, a cookie-free analytics note, and the language switcher. */
+.site-footer{position:relative;margin-top:40px;border-top:1px solid var(--line);background:oklch(0.125 0.026 312);overflow:hidden;}
+.site-footer>.comb{opacity:.55;}
+.site-footer .wrap{position:relative;z-index:1;}
+
+.foot-top{display:grid;grid-template-columns:1.7fr 1fr 1fr 1fr;gap:40px;padding:56px 0 44px;}
+.foot-brand{display:flex;flex-direction:column;align-items:flex-start;gap:14px;max-width:320px;}
+.foot-brand .fb-id{display:inline-flex;align-items:center;gap:10px;font-weight:700;font-size:1.06rem;color:var(--ink);text-decoration:none;}
+.foot-brand .fb-id img{display:block;}
+.foot-tag{margin:0;color:var(--ink-soft);font-size:.9rem;line-height:1.55;}
+.foot-gh{display:inline-flex;align-items:center;gap:7px;font-family:"JetBrains Mono",monospace;font-size:.68rem;font-weight:600;letter-spacing:.06em;color:var(--ink-soft);text-decoration:none;border:1px solid var(--line-strong);border-radius:var(--r-pill);padding:.4rem .7rem;transition:color .15s ease,border-color .15s ease;}
+.foot-gh:hover{color:var(--ink);border-color:var(--primary);}
+.foot-gh svg{width:14px;height:14px;}
+
+.foot-col h4{margin:0 0 15px;font-family:"JetBrains Mono",monospace;font-size:.66rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);}
+.foot-col ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:11px;}
+.foot-col a{display:inline-flex;align-items:center;gap:5px;color:var(--ink-soft);font-size:.92rem;text-decoration:none;transition:color .15s ease;}
+.foot-col a:hover{color:var(--ink);}
+.foot-col a .ext{width:12px;height:12px;opacity:.6;}
+.foot-col a:hover .ext{opacity:1;}
+
+.foot-bottom{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;padding:18px 0 56px;border-top:1px solid var(--line);}
+.foot-bottom .m{font-family:"JetBrains Mono",monospace;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);}
+.foot-meta{display:inline-flex;align-items:center;gap:18px;flex-wrap:wrap;}
+.foot-privacy{display:inline-flex;align-items:center;gap:6px;font-family:"JetBrains Mono",monospace;font-size:.68rem;letter-spacing:.04em;color:var(--ink-soft);cursor:default;}
+.foot-privacy svg{width:13px;height:13px;color:var(--green);}
+/* In the footer the switcher sits at the very bottom: open its menu upward. */
+.site-footer .lang-switcher ul{top:auto;bottom:calc(100% + 8px);}
+
+@media(max-width:860px){
+  .foot-top{grid-template-columns:1fr 1fr;gap:32px 24px;padding:44px 0 36px;}
+  .foot-brand{grid-column:1 / -1;max-width:none;}
+}
+@media(max-width:520px){
+  .foot-top{grid-template-columns:1fr;}
+  .foot-bottom{flex-direction:column;align-items:flex-start;gap:14px;}
+}
 
 @media(max-width:860px){
   /* hero readability: on narrow screens the text column spans the full width,

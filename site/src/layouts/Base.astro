@@ -147,6 +147,22 @@ const xDefaultHref = new URL(localePath(DEFAULT_LOCALE, basePath), Astro.site).h
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  {/* Privacy-friendly, cookieless analytics (Plausible). Production build only,
+       so `astro dev` never tracks. The per-site `pa-…` script identifies the
+       site; measurement options (UTM/referrers, outbound links, custom events)
+       are toggled in the Plausible dashboard. The inline init also queues manual
+       goal events (e.g. `Install Copy`) fired before the async script loads. No
+       cookies, no personal data, no consent banner required. */}
+  {import.meta.env.PROD && (
+    <Fragment>
+      <script is:inline async src="https://plausible.io/js/pa-HUgRYNVl7nfFKFnWzCErF.js"></script>
+      <script is:inline>
+        window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
+        plausible.init()
+      </script>
+    </Fragment>
+  )}
 </head>
 <body>
   <slot />

@@ -31,6 +31,17 @@ const dict: typeof en = {
   },
 
   footer: {
+    tagline: 'Samodzielnie hostowany rój agentów AI, które pamiętają, współpracują i tworzą własne narzędzia.',
+    product: 'Produkt',
+    resources: 'Zasoby',
+    project: 'Projekt',
+    install: 'Instalacja',
+    releases: 'Wydania',
+    contributing: 'Współtworzenie',
+    security: 'Bezpieczeństwo',
+    license: 'Licencja',
+    privacy: 'Analityka bez cookies',
+    privacyTitle: 'Używamy analityki przyjaznej prywatności, bez cookies. Bez danych osobowych i śledzenia między witrynami.',
     line: 'Open source · MIT · Zbudowano na Bun · © 2026',
   },
 

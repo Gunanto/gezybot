@@ -1,0 +1,106 @@
+---
+// Shared site footer. One source of truth for every marketing page (home,
+// install, plugins, tour) so the footer looks and reads the same everywhere.
+// Anchor links target the home page (`/#id`) so they work from any page.
+import { Icon } from 'astro-icon/components';
+import LangSwitcher from './LangSwitcher.astro';
+import { getDict, localePath, type Locale } from '../i18n';
+
+interface Props {
+  /** Current page locale. */
+  lang: Locale;
+  /** Locale-free path of the current page ('/', '/install') for the lang switcher. */
+  path: string;
+}
+
+const { lang, path } = Astro.props;
+const t = getDict(lang);
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const homeHref = `${base}${localePath(lang, '/')}`;
+const installHref = `${base}${localePath(lang, '/install')}`;
+const pluginsHref = `${base}${localePath(lang, '/plugins')}`;
+const tourHref = `${base}${localePath(lang, '/tour')}`;
+const docsHref = `${base}/docs/`;
+
+const REPO = 'https://github.com/MarlBurroW/hivekeep';
+const file = (name: string) => `${REPO}/blob/main/${name}`;
+
+// Column model. Internal links carry no rel; external ones are flagged so we
+// add rel="noopener" + an external-arrow affordance.
+const columns = [
+  {
+    title: t.footer.product,
+    links: [
+      { label: t.nav.features, href: `${homeHref}#memory` },
+      { label: t.nav.household, href: `${homeHref}#household` },
+      { label: t.nav.why, href: `${homeHref}#why` },
+      { label: t.nav.tour, href: tourHref },
+    ],
+  },
+  {
+    title: t.footer.resources,
+    links: [
+      { label: t.nav.docs, href: docsHref },
+      { label: t.nav.plugins, href: pluginsHref },
+      { label: t.footer.install, href: installHref },
+      { label: t.footer.releases, href: `${REPO}/releases`, external: true },
+    ],
+  },
+  {
+    title: t.footer.project,
+    links: [
+      { label: 'GitHub', href: REPO, external: true },
+      { label: t.footer.contributing, href: file('CONTRIBUTING.md'), external: true },
+      { label: t.footer.security, href: file('SECURITY.md'), external: true },
+      { label: t.footer.license, href: file('LICENSE'), external: true },
+    ],
+  },
+];
+---
+<footer class="site-footer">
+  <div class="comb" aria-hidden="true"><span class="comb-dim"></span></div>
+  <div class="wrap">
+    <div class="foot-top">
+      <div class="foot-brand">
+        <a class="fb-id" href={homeHref}>
+          <img src={`${base}/logo.svg`} width="26" height="26" alt="" /> Hivekeep
+        </a>
+        <p class="foot-tag">{t.footer.tagline}</p>
+        <a class="foot-gh" href={REPO} rel="noopener" target="_blank">
+          <Icon name="lucide:github" /> {t.nav.github}
+        </a>
+      </div>
+
+      {columns.map((col) => (
+        <nav class="foot-col" aria-label={col.title}>
+          <h4>{col.title}</h4>
+          <ul>
+            {col.links.map((link) => (
+              <li>
+                <a
+                  href={link.href}
+                  rel={link.external ? 'noopener' : undefined}
+                  target={link.external ? '_blank' : undefined}
+                >
+                  {link.label}
+                  {link.external && <Icon name="lucide:arrow-up-right" class="ext" />}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ))}
+    </div>
+
+    <div class="foot-bottom">
+      <span class="m">{t.footer.line}</span>
+      <div class="foot-meta">
+        <span class="foot-privacy" title={t.footer.privacyTitle}>
+          <Icon name="lucide:shield-check" /> {t.footer.privacy}
+        </span>
+        <LangSwitcher lang={lang} path={path} />
+      </div>
+    </div>
+  </div>
+</footer>

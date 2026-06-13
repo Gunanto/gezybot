@@ -43,6 +43,8 @@ function CopyButton({ text, labels }: { text: string; labels: Labels }) {
           await navigator.clipboard.writeText(text)
           setDone(true)
           setTimeout(() => setDone(false), 1500)
+          // Conversion signal: copying a configured install command.
+          try { (window as any).plausible?.('Install Copy', { props: { source: 'configurator' } }) } catch { /* analytics absent */ }
         } catch {
           /* clipboard blocked: no-op */
         }

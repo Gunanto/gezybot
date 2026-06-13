@@ -5,6 +5,7 @@ import Base from '../../layouts/Base.astro';
 import { Icon } from 'astro-icon/components';
 import InstallConfigurator from '../InstallConfigurator.tsx';
 import LangSwitcher from '../LangSwitcher.astro';
+import Footer from '../Footer.astro';
 import { getDict, localePath, type Locale } from '../../i18n';
 
 interface Props {
@@ -138,10 +139,7 @@ const prereqs = t.install.prereqs.items;
   </div>
 
   <!-- ===== footer ===== -->
-  <footer class="footer"><div class="wrap in">
-    <a class="brand" href={homeHref}><img class="brand-logo" src={`${base}/logo.svg`} width="26" height="26" alt="" /> Hivekeep</a>
-    <span class="m">{t.footer.line}</span>
-  </div></footer>
+  <Footer lang={lang} path="/install" />
 
 <script>
   // Click-to-copy for the recommended one-liner card ([data-copy]). The
@@ -157,6 +155,8 @@ const prereqs = t.install.prereqs.items;
       } catch {
         return
       }
+      // Conversion signal: copying the recommended install one-liner.
+      try { (window as any).plausible?.('Install Copy', { props: { source: 'install' } }) } catch { /* analytics absent */ }
       btn.classList.add('done')
       if (label) label.textContent = copiedLabel
       setTimeout(() => {

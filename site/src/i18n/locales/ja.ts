@@ -31,6 +31,17 @@ const dict: typeof en = {
   },
 
   footer: {
+    tagline: '自分でホストする AI エージェントの群れ。記憶し、協力し、自らツールを作ります。',
+    product: '製品',
+    resources: 'リソース',
+    project: 'プロジェクト',
+    install: 'インストール',
+    releases: 'リリース',
+    contributing: 'コントリビュート',
+    security: 'セキュリティ',
+    license: 'ライセンス',
+    privacy: 'クッキー不使用の分析',
+    privacyTitle: 'プライバシーに配慮したクッキー不使用の分析を利用しています。個人データの収集やサイト間追跡はありません。',
     line: 'オープンソース · MIT · Bunで構築 · © 2026',
   },
 

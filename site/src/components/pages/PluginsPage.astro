@@ -6,6 +6,7 @@
 import Base from '../../layouts/Base.astro';
 import { Icon } from 'astro-icon/components';
 import LangSwitcher from '../LangSwitcher.astro';
+import Footer from '../Footer.astro';
 import { getDict, localePath, type Locale } from '../../i18n';
 import pluginsData from '../../data/plugins.json';
 
@@ -120,10 +121,7 @@ const prettyName = (name: string) => name.replace(/^hivekeep-plugin-/, '').repla
   </div>
 
   <!-- ===== footer ===== -->
-  <footer class="footer"><div class="wrap in">
-    <a class="brand" href={homeHref}><img class="brand-logo" src={`${base}/logo.svg`} width="26" height="26" alt="" /> Hivekeep</a>
-    <span class="m">{t.footer.line}</span>
-  </div></footer>
+  <Footer lang={lang} path="/plugins" />
 </Base>
 
 <style>
