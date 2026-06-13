@@ -246,10 +246,27 @@ if (process.env.NODE_ENV === 'production') {
 // WebSocket handler for the admin terminal (hono/bun upgrade glue)
 import { terminalWebSocket } from '@/server/routes/terminal'
 
+// Edge guard: strip in-process-only trust headers from every INBOUND request so
+// they can never be spoofed from the network. Server-side re-dispatch (the
+// mini-app platform gateway calling app.fetch) sets them AFTER this boundary.
+const STRIPPED_INBOUND_HEADERS = ['x-hivekeep-internal-actor']
+const fetchWithEdgeGuard = (req: Request, server: unknown) => {
+  let stripped = false
+  for (const h of STRIPPED_INBOUND_HEADERS) {
+    if (req.headers.has(h)) stripped = true
+  }
+  if (stripped) {
+    const headers = new Headers(req.headers)
+    for (const h of STRIPPED_INBOUND_HEADERS) headers.delete(h)
+    req = new Request(req, { headers })
+  }
+  return (app.fetch as (r: Request, s?: unknown) => Response | Promise<Response>)(req, server)
+}
+
 Bun.serve({
   port: config.port,
   hostname: process.env.HOST ?? '127.0.0.1',
-  fetch: app.fetch,
+  fetch: fetchWithEdgeGuard,
   websocket: terminalWebSocket,
   idleTimeout: 255, // seconds — keep SSE connections alive (Bun default is 10s)
   // Lift Bun's ~128 MB default body cap so large file-storage uploads succeed.

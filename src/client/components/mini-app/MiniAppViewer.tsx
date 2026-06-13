@@ -197,6 +197,30 @@ export function MiniAppViewer() {
     }, '*')
   }, [app, isFullPage, i18n.language, user])
 
+  // Push the current theme to the iframe. The iframe runs at an opaque origin
+  // (no allow-same-origin) so it CAN'T read parent.document — we read our own
+  // documentElement (legit) and postMessage it. Sent on 'ready' and on change.
+  const sendTheme = useCallback(() => {
+    if (!iframeRef.current?.contentWindow) return
+    const r = document.documentElement
+    iframeRef.current.contentWindow.postMessage({
+      source: 'hivekeep-parent',
+      type: 'theme',
+      data: {
+        dark: r.classList.contains('dark'),
+        palette: r.getAttribute('data-palette'),
+        contrast: r.getAttribute('data-contrast'),
+      },
+    }, '*')
+  }, [])
+
+  // Re-push theme whenever the app's theme/palette/contrast changes.
+  useEffect(() => {
+    const obs = new MutationObserver(() => sendTheme())
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-palette', 'data-contrast'] })
+    return () => obs.disconnect()
+  }, [sendTheme])
+
   // Notify iframe when full-page mode changes
   useEffect(() => {
     if (!iframeRef.current?.contentWindow) return
@@ -265,6 +289,7 @@ export function MiniAppViewer() {
         }
         case 'ready': {
           sendAppMeta()
+          sendTheme()
           // Forward any pending shared data from another mini-app
           if (pendingShareData.current && iframeRef.current?.contentWindow) {
             iframeRef.current.contentWindow.postMessage({
@@ -754,7 +779,7 @@ export function MiniAppViewer() {
           ref={iframeRef}
           key={iframeKey}
           src={iframeSrc}
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
+          sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
           allow="microphone; camera; clipboard-read; clipboard-write; autoplay"
           className="min-h-0 flex-1 w-full border-0"
           title={app?.name ?? 'Mini App'}
@@ -912,7 +937,7 @@ export function MiniAppViewer() {
                 ref={iframeRef}
                 key={iframeKey}
                 src={iframeSrc}
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
+                sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
                 allow="microphone; camera; clipboard-read; clipboard-write; autoplay"
                 className="min-h-0 flex-1 w-full border-0"
                 title={app?.name ?? 'Mini App'}

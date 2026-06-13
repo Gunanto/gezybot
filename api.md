@@ -1796,7 +1796,7 @@ POST /api/mini-apps/:id/platform/contacts        -> proxy POST /api/contacts    
 
 Erreurs : `403 PERMISSION_REQUIRED` (permission non accordée), `403 RESOURCE_FORBIDDEN` (ressource interdite via le gateway : `auth`, `onboarding`, `vault`, `database`, `users`, `mini-apps`, `sse`, `health`, `uploads`), `400 INVALID_PATH`.
 
-> Sécurité : l'iframe est same-origin (cookie de session). Le **mini-app origin guard** (`auth/mini-app-origin-guard.ts`) sandboxe les iframes à leur propre namespace `/api/mini-apps/<id>/*` via le `Referer` (couche 1, non-cassante), donc le gateway est le chemin pour atteindre les ressources. C'est de la défense en profondeur (une app hostile peut supprimer son Referer) ; le barrage complet (token scoped au lieu du cookie + retrait d'`allow-same-origin`) reste un durcissement prévu (couche 2).
+> Sécurité (durci) : l'iframe tourne en **origine opaque** (sandbox sans `allow-same-origin`) — le cookie de session n'y parvient JAMAIS, donc son JS ne peut pas appeler `/api/*` avec l'identité de l'utilisateur. Pour atteindre son propre namespace `/api/mini-apps/<id>/*`, le SDK utilise un **token** scopé (header `x-hivekeep-app-token`, injecté au `/serve`, `?_t=` pour le SSE). Le gateway re-dispatch côté serveur via un header internal-actor (strippé en bordure, non spoofable). Le mini-app origin guard (Referer) reste en défense en profondeur. Vérifié au navigateur (le trou referer-supprimé est passé de 200 à bloqué).
 
 ### `POST /api/mini-apps/:id/client-event`
 

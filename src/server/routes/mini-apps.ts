@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { cors } from 'hono/cors'
 import { join } from 'path'
 import { existsSync } from 'fs'
 import type { AppVariables } from '@/server/app'
@@ -47,6 +48,17 @@ import { formatMiniAppImproveRequest } from '@/server/services/mini-app-improve'
 import { MAX_MESSAGE_LENGTH } from '@/shared/constants'
 
 export const miniAppRoutes = new Hono<{ Variables: AppVariables }>()
+
+// The hardened iframe runs at an opaque origin (Origin: null) and authenticates
+// with the app token (header), not cookies — so its calls to its own namespace
+// are cross-origin and need CORS. No credentials are used, so a permissive
+// origin is safe; the app-token + namespace scoping is what authorizes the call.
+miniAppRoutes.use('*', cors({
+  origin: '*',
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'x-hivekeep-app-token'],
+  maxAge: 600,
+}))
 
 // ─── Lookup by slug ─────────────────────────────────────────────────────────
 
@@ -777,12 +789,10 @@ miniAppRoutes.post('/:id/permissions', async (c) => {
 // to the real /api/<resource> route carrying the user's session, after checking
 // the app's granted `platform:<resource>:<read|write>` permission.
 //
-// SECURITY: the iframe is same-origin, so its JS carries the session cookie. The
-// mini-app origin guard (auth/mini-app-origin-guard.ts) now sandboxes well-behaved
-// iframes to their own namespace via Referer, so this gateway is the path apps
-// take to reach platform resources. That guard is defense-in-depth (a hostile app
-// can suppress its Referer); the complete barrier — a scoped token instead of the
-// cookie + dropping allow-same-origin — is still a tracked hardening step.
+// The platform gateway: the iframe (opaque origin, app-token auth) calls this
+// route, which re-dispatches to the real REST API server-side AS the user. The
+// iframe never reaches /api/<resource> itself: with allow-same-origin dropped it
+// has no cookie, and the app token is scoped to /api/mini-apps/<id>/* only.
 miniAppRoutes.all('/:id/platform/*', async (c) => {
   const appId = c.req.param('id')
   const app = await getMiniAppRow(appId)
@@ -800,14 +810,18 @@ miniAppRoutes.all('/:id/platform/*', async (c) => {
     return c.json({ error: denial }, 403)
   }
 
-  // Re-dispatch to the real REST route, carrying the original session + body.
-  // Strip the iframe Referer/Sec-Fetch so the trusted, permission-checked
-  // re-dispatch isn't rejected by the mini-app origin guard (which would see a
-  // mini-app Referer on a non-mini-app path).
+  const actor = c.get('user') as { id: string } | undefined
+  if (!actor?.id) return c.json({ error: { code: 'UNAUTHORIZED', message: 'No actor for gateway' } }, 401)
+
+  // Re-dispatch to the real REST route AS the user, via the in-process internal
+  // actor header (the iframe has no cookie). Strip the app token + iframe
+  // Referer/Sec-Fetch so the inner request authenticates purely as the actor.
   const url = new URL(c.req.url)
   url.pathname = `/api/${subPath.replace(/^\/+/, '')}`
   const isBodyless = c.req.method === 'GET' || c.req.method === 'HEAD'
   const innerHeaders = new Headers(c.req.raw.headers)
+  innerHeaders.set('x-hivekeep-internal-actor', actor.id)
+  innerHeaders.delete('x-hivekeep-app-token')
   innerHeaders.delete('referer')
   innerHeaders.delete('sec-fetch-site')
   innerHeaders.delete('sec-fetch-dest')
@@ -878,26 +892,23 @@ miniAppRoutes.all('/:id/api/*', async (c) => {
 
 // ─── Serve (for iframe) ────────────────────────────────────────────────────
 
-// Theme sync script injected into served HTML
+// Theme sync script injected into served HTML. The iframe runs at an opaque
+// origin (no allow-same-origin), so it CANNOT read parent.document — the parent
+// (MiniAppViewer) pushes the theme via postMessage on load and on change.
 const THEME_SYNC_SCRIPT = `<script>
 (function(){
-  function t(){
+  function apply(t){
     try{
-      var p=parent.document.documentElement;
-      var d=p.classList.contains('dark');
-      document.documentElement.classList.toggle('dark',d);
-      var pl=p.getAttribute('data-palette');
-      if(pl)document.documentElement.setAttribute('data-palette',pl);
-      else document.documentElement.removeAttribute('data-palette');
-      var ct=p.getAttribute('data-contrast');
-      if(ct)document.documentElement.setAttribute('data-contrast',ct);
-      else document.documentElement.removeAttribute('data-contrast');
+      var r=document.documentElement;
+      r.classList.toggle('dark',!!t.dark);
+      if(t.palette)r.setAttribute('data-palette',t.palette);else r.removeAttribute('data-palette');
+      if(t.contrast)r.setAttribute('data-contrast',t.contrast);else r.removeAttribute('data-contrast');
     }catch(e){}
   }
-  t();
-  try{
-    new MutationObserver(t).observe(parent.document.documentElement,{attributes:true,attributeFilter:['class','data-palette','data-contrast']});
-  }catch(e){}
+  window.addEventListener('message',function(ev){
+    var m=ev.data;
+    if(m&&m.source==='hivekeep-parent'&&m.type==='theme'&&m.data)apply(m.data);
+  });
 })();
 </script>`
 
@@ -910,21 +921,25 @@ function baseTag(appId: string): string {
 }
 
 // Content-Security-Policy for mini-app iframes.
-// Allows inline scripts/styles (needed for SDK injection and app code),
-// same-origin fetches (for storage API and static assets),
-// popular CDN hosts for external libraries, and data:/blob: for images.
-const MINI_APP_CSP = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://esm.sh https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com",
-  "img-src 'self' data: blob: https:",
-  "font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net",
-  "connect-src 'self' https://esm.sh https://cdn.jsdelivr.net https://unpkg.com",
-  "media-src 'self' blob: data:",
-  "frame-src 'none'",
-  "object-src 'none'",
-  "base-uri 'self'",
-].join('; ')
+// The iframe runs at an OPAQUE origin (sandbox without allow-same-origin), so
+// `'self'` no longer designates the app host — every directive that must reach
+// the app host (loading the SDK + static assets, fetching its own /api namespace)
+// gets the concrete origin instead. Allows inline scripts/styles (SDK injection
+// + app code), the app origin, popular CDNs, and data:/blob:.
+function buildMiniAppCsp(origin: string): string {
+  return [
+    `default-src 'self' ${origin}`,
+    `script-src 'self' ${origin} 'unsafe-inline' 'unsafe-eval' https://esm.sh https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com`,
+    `style-src 'self' ${origin} 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com`,
+    `img-src 'self' ${origin} data: blob: https:`,
+    `font-src 'self' ${origin} data: https://fonts.gstatic.com https://cdn.jsdelivr.net`,
+    `connect-src 'self' ${origin} https://esm.sh https://cdn.jsdelivr.net https://unpkg.com`,
+    `media-src 'self' ${origin} blob: data:`,
+    "frame-src 'none'",
+    "object-src 'none'",
+    `base-uri 'self' ${origin}`,
+  ].join('; ')
+}
 
 /** Try to read and parse app.json manifest from the app directory */
 async function readAppManifest(dir: string): Promise<Record<string, unknown> | null> {
@@ -1032,8 +1047,20 @@ miniAppRoutes.get('/:id/serve', async (c) => {
   // Track the (re)load so tools can tell whether the iframe picked up recent changes.
   markServed(app.id)
 
-  // Build injection: base tag first (for relative path resolution), then importmap before module scripts
-  const headInjection = [baseTag(app.id), SDK_LINK, importMapTag, moduleHelpTag, SDK_SCRIPT, THEME_SYNC_SCRIPT].filter(Boolean).join('\n')
+  // Mint a per-load iframe token bound to (appId, user). The iframe is served
+  // with the cookie (navigation), but its opaque-origin JS has none — the SDK
+  // uses this token to reach the app's own /api/mini-apps/<id>/* namespace.
+  const serveUser = c.get('user') as { id: string } | undefined
+  let tokenScript = ''
+  if (serveUser?.id) {
+    const { mintAppToken } = await import('@/server/services/mini-app-token')
+    const token = mintAppToken(app.id, serveUser.id)
+    tokenScript = `<script>window.__HK_APP_TOKEN__=${JSON.stringify(token)};</script>`
+  }
+
+  // Build injection: base tag first (for relative path resolution), token before
+  // the SDK (so it can read it), then importmap before module scripts.
+  const headInjection = [baseTag(app.id), tokenScript, SDK_LINK, importMapTag, moduleHelpTag, SDK_SCRIPT, THEME_SYNC_SCRIPT].filter(Boolean).join('\n')
 
   // Inject SDK CSS and theme sync script into <head>
   if (html.includes('<head>')) {
@@ -1045,11 +1072,14 @@ miniAppRoutes.get('/:id/serve', async (c) => {
     html = `<!DOCTYPE html>\n<html>\n<head>\n${headInjection}\n</head>\n<body>\n${html}\n</body>\n</html>`
   }
 
+  const proto = c.req.header('x-forwarded-proto') ?? new URL(c.req.url).protocol.replace(':', '')
+  const selfOrigin = `${proto}://${c.req.header('host') ?? 'localhost'}`
+
   return new Response(html, {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'no-store',
-      'Content-Security-Policy': MINI_APP_CSP,
+      'Content-Security-Policy': buildMiniAppCsp(selfOrigin),
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'strict-origin-when-cross-origin',
       'Permissions-Policy': 'camera=(self), microphone=(self), geolocation=(), payment=(), clipboard-read=(self), clipboard-write=(self), autoplay=(self)',
