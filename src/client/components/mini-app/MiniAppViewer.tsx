@@ -573,7 +573,11 @@ export function MiniAppViewer() {
 
   const handleIframeLoad = useCallback(() => {
     sendAppMeta()
-  }, [sendAppMeta])
+    // Push the theme on load too (not only on the app's 'ready') so the initial
+    // theme applies even if the app never calls Hivekeep.ready(). The iframe is
+    // opaque-origin and can't read parent.document, so this push is the only way.
+    sendTheme()
+  }, [sendAppMeta, sendTheme])
 
   const errorBadge = errorCount > 0 ? (
     <div className="flex items-center gap-1 rounded-md bg-destructive/10 px-1.5 py-0.5 text-xs text-destructive" title={`${errorCount} error${errorCount > 1 ? 's' : ''} in console`}>
