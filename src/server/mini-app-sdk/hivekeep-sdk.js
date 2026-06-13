@@ -19,6 +19,9 @@
  *     .put(path, data) — shorthand: PUT JSON
  *     .patch(path, data) — shorthand: PATCH JSON
  *     .delete(path) — shorthand: DELETE and parse response
+ *   Hivekeep.platform(path, options) — call Hivekeep's own REST API (manage contacts, crons, projects…)
+ *     .get/.post/.put/.patch/.delete/.json — same shorthands as api.*
+ *     gated by platform:<resource>:<read|write> permissions declared in app.json
  *   Hivekeep.confirm(message, options) — show a confirmation dialog in the parent UI (returns Promise<boolean>)
  *   Hivekeep.prompt(message, options) — show a prompt dialog in the parent UI (returns Promise<string|null>)
  *   Hivekeep.setTitle(title) — dynamically update the panel header title
@@ -480,6 +483,50 @@
     return api(path, { method: 'DELETE' }).then(function (r) {
       if (r.status === 204) return null
       if (!r.ok) return r.json().then(function (d) { throw new Error(d.error?.message || 'API error ' + r.status) })
+      return r.json()
+    })
+  }
+
+  // ─── Platform API (gated proxy to Hivekeep's own REST API) ────────────────
+
+  /**
+   * Call a Hivekeep platform REST route (the same API the settings UI uses), so
+   * an app can manage any resource (contacts, crons, projects…). Gated by the
+   * app's `platform:<resource>:<read|write>` permissions (declare them in
+   * app.json, the user approves them). `path` is the platform path, e.g.
+   * "/contacts" → proxied to /api/contacts.
+   * @param {string} path
+   * @param {RequestInit} [options]
+   * @returns {Promise<Response>} — the raw fetch Response
+   */
+  function platform(path, options) {
+    if (!_appMeta || !_appMeta.id) return Promise.reject(new Error('App not ready — call Hivekeep.ready() first'))
+    var url = '/api/mini-apps/' + _appMeta.id + '/platform' + (path.startsWith('/') ? path : '/' + path)
+    return fetch(url, options)
+  }
+
+  platform.json = function (path, options) {
+    return platform(path, options).then(function (r) {
+      if (!r.ok) return r.json().then(function (d) { throw new Error(d.error?.message || 'Platform API error ' + r.status) })
+      return r.json()
+    })
+  }
+  platform.get = function (path, headers) {
+    return platform.json(path, headers ? { headers: headers } : undefined)
+  }
+  platform.post = function (path, data) {
+    return platform.json(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+  }
+  platform.put = function (path, data) {
+    return platform.json(path, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+  }
+  platform.patch = function (path, data) {
+    return platform.json(path, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+  }
+  platform.delete = function (path) {
+    return platform(path, { method: 'DELETE' }).then(function (r) {
+      if (r.status === 204) return null
+      if (!r.ok) return r.json().then(function (d) { throw new Error(d.error?.message || 'Platform API error ' + r.status) })
       return r.json()
     })
   }
@@ -1204,6 +1251,7 @@
     fullpage: fullpage,
     storage: storage,
     api: api,
+    platform: platform,
     confirm: confirm,
     prompt: prompt,
     setTitle: setTitle,
@@ -1221,6 +1269,6 @@
     conversation: conversation,
     share: share,
     download: download,
-    version: '1.17.0',
+    version: '1.18.0',
   }
 })()

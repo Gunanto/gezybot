@@ -13,9 +13,33 @@ import { resolve, join } from 'path'
 
 const STATIC_PERMISSIONS = ['llm', 'agent:inform', 'agent:task', 'channels:send'] as const
 const SECRET_PERMISSION_RE = /^secrets:[A-Za-z0-9_.-]{1,128}$/
+const PLATFORM_PERMISSION_RE = /^platform:[a-z][a-z0-9-]*:(read|write)$/
+
+const PLATFORM_GATEWAY_DENIED_RESOURCES = new Set([
+  'auth', 'onboarding', 'vault', 'database', 'mini-apps', 'users', 'sse', 'health', 'uploads',
+])
 
 function isKnownPermission(permission: string): boolean {
-  return (STATIC_PERMISSIONS as readonly string[]).includes(permission) || SECRET_PERMISSION_RE.test(permission)
+  return (
+    (STATIC_PERMISSIONS as readonly string[]).includes(permission) ||
+    SECRET_PERMISSION_RE.test(permission) ||
+    PLATFORM_PERMISSION_RE.test(permission)
+  )
+}
+
+function resolvePlatformResource(subPath: string, method: string): { resource: string; mode: 'read' | 'write' } | null {
+  const resource = subPath.replace(/^\/+/, '').split('/')[0]?.split('?')[0] ?? ''
+  if (!resource) return null
+  const mode = method === 'GET' || method === 'HEAD' ? 'read' : 'write'
+  return { resource, mode }
+}
+
+function checkPlatformAccess(granted: string[], resource: string, mode: 'read' | 'write'): { code: string } | null {
+  if (PLATFORM_GATEWAY_DENIED_RESOURCES.has(resource)) return { code: 'RESOURCE_FORBIDDEN' }
+  const allowed = mode === 'read'
+    ? granted.includes(`platform:${resource}:read`) || granted.includes(`platform:${resource}:write`)
+    : granted.includes(`platform:${resource}:write`)
+  return allowed ? null : { code: 'PERMISSION_REQUIRED' }
 }
 
 function parseRequestedPermissions(manifest: { permissions?: unknown }): string[] {
@@ -47,6 +71,68 @@ describe('Permission id validation', () => {
   it('channel permission is global, not parameterized', () => {
     expect(isKnownPermission('channels:telegram')).toBe(false)
     expect(isKnownPermission('channels:')).toBe(false)
+  })
+
+  it('accepts platform gateway permissions', () => {
+    expect(isKnownPermission('platform:contacts:read')).toBe(true)
+    expect(isKnownPermission('platform:contacts:write')).toBe(true)
+    expect(isKnownPermission('platform:crons:read')).toBe(true)
+  })
+
+  it('rejects malformed platform permissions', () => {
+    expect(isKnownPermission('platform:contacts')).toBe(false)
+    expect(isKnownPermission('platform:contacts:delete')).toBe(false)
+    expect(isKnownPermission('platform::read')).toBe(false)
+    expect(isKnownPermission('platform:Contacts:read')).toBe(false)
+  })
+})
+
+describe('Platform gateway: resource + mode resolution', () => {
+  it('maps GET/HEAD to read, mutations to write', () => {
+    expect(resolvePlatformResource('/contacts', 'GET')).toEqual({ resource: 'contacts', mode: 'read' })
+    expect(resolvePlatformResource('/contacts/c-1', 'HEAD')).toEqual({ resource: 'contacts', mode: 'read' })
+    expect(resolvePlatformResource('/contacts', 'POST')).toEqual({ resource: 'contacts', mode: 'write' })
+    expect(resolvePlatformResource('/contacts/c-1', 'DELETE')).toEqual({ resource: 'contacts', mode: 'write' })
+    expect(resolvePlatformResource('/contacts/c-1', 'PATCH')).toEqual({ resource: 'contacts', mode: 'write' })
+  })
+
+  it('takes the first path segment as the resource, ignoring sub-path and query', () => {
+    expect(resolvePlatformResource('/crons/c-1/approve', 'POST')?.resource).toBe('crons')
+    expect(resolvePlatformResource('/contacts?q=alice', 'GET')?.resource).toBe('contacts')
+    expect(resolvePlatformResource('contacts', 'GET')?.resource).toBe('contacts')
+  })
+
+  it('returns null for an empty path', () => {
+    expect(resolvePlatformResource('/', 'GET')).toBeNull()
+    expect(resolvePlatformResource('', 'GET')).toBeNull()
+  })
+})
+
+describe('Platform gateway: access decision', () => {
+  it('allows a read with a read grant', () => {
+    expect(checkPlatformAccess(['platform:contacts:read'], 'contacts', 'read')).toBeNull()
+  })
+
+  it('a write grant implies read', () => {
+    expect(checkPlatformAccess(['platform:contacts:write'], 'contacts', 'read')).toBeNull()
+    expect(checkPlatformAccess(['platform:contacts:write'], 'contacts', 'write')).toBeNull()
+  })
+
+  it('a read grant does NOT allow writes', () => {
+    expect(checkPlatformAccess(['platform:contacts:read'], 'contacts', 'write')?.code).toBe('PERMISSION_REQUIRED')
+  })
+
+  it('denies when no matching grant', () => {
+    expect(checkPlatformAccess([], 'contacts', 'read')?.code).toBe('PERMISSION_REQUIRED')
+    expect(checkPlatformAccess(['platform:crons:read'], 'contacts', 'read')?.code).toBe('PERMISSION_REQUIRED')
+  })
+
+  it('hard-blocks denied resources even with a (bogus) grant', () => {
+    // mini-apps is the critical one: an app must not grant ITSELF permissions.
+    expect(checkPlatformAccess(['platform:mini-apps:write'], 'mini-apps', 'write')?.code).toBe('RESOURCE_FORBIDDEN')
+    expect(checkPlatformAccess(['platform:vault:read'], 'vault', 'read')?.code).toBe('RESOURCE_FORBIDDEN')
+    expect(checkPlatformAccess(['platform:database:write'], 'database', 'write')?.code).toBe('RESOURCE_FORBIDDEN')
+    expect(checkPlatformAccess(['platform:users:read'], 'users', 'read')?.code).toBe('RESOURCE_FORBIDDEN')
   })
 
   it('accepts well-formed secret permissions', () => {

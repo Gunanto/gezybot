@@ -213,6 +213,38 @@ const data = await Hivekeep.api.json("/path", headers?) // GET + JSON parse
 const res = await Hivekeep.api("/path", opts?)          // Raw Response
 ```
 
+## Platform API Client
+
+Call Hivekeep's **own** REST API — the same endpoints the settings pages use — to build a mini-app that manages a platform resource (a contacts manager, a crons board, a projects dashboard) instead of sending the user into settings.
+
+```javascript
+const { contacts } = await Hivekeep.platform.get("/contacts")
+await Hivekeep.platform.post("/contacts", { firstName: "Ada", lastName: "Lovelace" })
+await Hivekeep.platform.patch("/contacts/" + id, { lastName: "King" })
+await Hivekeep.platform.delete("/contacts/" + id)
+const res = await Hivekeep.platform("/contacts", opts?)  // Raw Response
+```
+
+Same shorthands as `Hivekeep.api` (`get/post/put/patch/delete/json`), but proxied to `/api/<resource>` instead of your backend.
+
+**Permissions.** Each call is gated by a `platform:<resource>:<read|write>` permission you declare in `app.json`; the user approves them in the app's permission banner. The resource is the first path segment, and a `write` grant implies `read`:
+
+```json
+{ "permissions": ["platform:contacts:read", "platform:contacts:write"] }
+```
+
+| Call | Needs |
+|------|-------|
+| `platform.get("/contacts")` | `platform:contacts:read` |
+| `platform.post("/contacts", …)` | `platform:contacts:write` |
+| `platform.delete("/crons/123")` | `platform:crons:write` |
+
+Discover each resource's routes and payload shapes in [the API reference](https://github.com/MarlBurroW/hivekeep/blob/main/api.md). A few resources are never reachable through the gateway: `auth`, `vault` (secret values), `database`, `users`, and `mini-apps` (so an app can't grant itself permissions).
+
+:::caution
+The platform API runs with **your** privileges. Only install mini-apps you trust with the resources they request, and review the permission banner before approving.
+:::
+
 ## Server-Sent Events
 
 Subscribe to real-time events from the backend (`_server.js` using `ctx.events.emit()`).

@@ -1785,6 +1785,19 @@ event: app-event   data: { event: string, data: unknown, timestamp: number }
 : ping             (keep-alive toutes les 30s)
 ```
 
+### `ALL /api/mini-apps/:id/platform/*`
+
+Gateway permissionné vers l'API REST de la plateforme : permet à une mini-app (front) de gérer n'importe quelle ressource comme le font les pages de settings. Le sous-chemin est rejoué sur la vraie route `/api/<resource>` en portant la session de l'utilisateur, après vérification de la permission `platform:<resource>:<read|write>` accordée à l'app (GET/HEAD = read, le reste = write ; un grant `write` implique `read`).
+
+```
+GET  /api/mini-apps/:id/platform/contacts        -> proxy GET  /api/contacts        (platform:contacts:read)
+POST /api/mini-apps/:id/platform/contacts        -> proxy POST /api/contacts        (platform:contacts:write)
+```
+
+Erreurs : `403 PERMISSION_REQUIRED` (permission non accordée), `403 RESOURCE_FORBIDDEN` (ressource interdite via le gateway : `auth`, `onboarding`, `vault`, `database`, `users`, `mini-apps`, `sse`, `health`, `uploads`), `400 INVALID_PATH`.
+
+> Sécurité : l'iframe étant same-origin, une app pourrait aussi appeler `/api/<resource>` en direct avec le cookie de session (le gateway est le chemin béni/permissionné ; le rendre obligatoire via tokenisation de l'iframe est un durcissement prévu).
+
 ### `POST /api/mini-apps/:id/client-event`
 
 Canal montant UI → backend (`Hivekeep.events.send()`). Délivré à l'export `onClientEvent(ctx, event, data, meta)` du `_server.js` (`meta = { userId, userName }`, exécution bornée à 10s).
@@ -1801,7 +1814,7 @@ Canal montant UI → backend (`Hivekeep.events.send()`). Délivré à l'export `
 
 ### `GET /api/mini-apps/:id/permissions`
 
-État des permissions de capacités : demandées dans `app.json` (`"permissions": ["llm", "agent:inform", "agent:task", "channels:send", "secrets:<NAME>"]`) vs accordées par l'utilisateur.
+État des permissions de capacités : demandées dans `app.json` (`"permissions": ["llm", "agent:inform", "agent:task", "channels:send", "secrets:<NAME>", "platform:<resource>:<read|write>"]`) vs accordées par l'utilisateur.
 
 ```typescript
 // Réponse 200

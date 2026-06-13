@@ -1,6 +1,6 @@
 /**
  * Hivekeep Mini-App SDK — TypeScript Definitions
- * @version 1.17.0
+ * @version 1.18.0
  *
  * These types describe the global `Hivekeep` object auto-injected into mini-app iframes.
  * Import type reference: `/// <reference path="hivekeep-sdk.d.ts" />`
@@ -124,6 +124,25 @@ export interface HivekeepApi {
   delete<T = unknown>(path: string): Promise<T>;
 }
 
+// ─── Platform API (gated proxy to Hivekeep's own REST API) ───────────────────
+
+export interface HivekeepPlatform {
+  /** Call a platform REST route (same API as the settings UI). Returns raw Response. */
+  (path: string, options?: RequestInit): Promise<Response>;
+  /** Call and parse JSON. */
+  json<T = unknown>(path: string, options?: RequestInit): Promise<T>;
+  /** GET JSON shorthand. */
+  get<T = unknown>(path: string, headers?: Record<string, string>): Promise<T>;
+  /** POST JSON and parse response. */
+  post<T = unknown>(path: string, data?: unknown): Promise<T>;
+  /** PUT JSON and parse response. */
+  put<T = unknown>(path: string, data?: unknown): Promise<T>;
+  /** PATCH JSON and parse response. */
+  patch<T = unknown>(path: string, data?: unknown): Promise<T>;
+  /** DELETE and parse response (null for 204). */
+  delete<T = unknown>(path: string): Promise<T>;
+}
+
 // ─── HTTP Proxy ─────────────────────────────────────────────────────────────
 
 export interface HivekeepHttp {
@@ -243,6 +262,8 @@ export interface Hivekeep {
   storage: HivekeepStorage;
   /** Call backend API routes (_server.js). */
   api: HivekeepApi;
+  /** Call Hivekeep's own REST API (manage contacts, crons, projects…), gated by platform:<resource>:<read|write> permissions. */
+  platform: HivekeepPlatform;
   /** Fetch external URLs through server proxy (bypasses CORS). */
   http: HivekeepHttp;
   /** System clipboard access. */

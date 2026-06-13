@@ -2969,6 +2969,131 @@ export default function (ctx) {
 </html>`,
     },
   },
+  {
+    id: 'contacts-manager',
+    name: 'Contacts Manager',
+    description: 'A UI-extension example: manages the platform contacts registry through Hivekeep.platform (the same REST API the settings pages use). Lists, creates and deletes contacts, no backend. Shows the platform:<resource>:<read|write> permission pattern — copy it to build a manager for any resource (crons, projects, channels…).',
+    icon: '👤',
+    tags: ['platform', 'crud', 'contacts', 'ui-extension', 'components', 'permissions'],
+    suggestedSlug: 'contacts',
+    files: {
+      'app.json': JSON.stringify({
+        permissions: ['platform:contacts:read', 'platform:contacts:write'],
+        dependencies: {
+          'react': 'https://esm.sh/react@19',
+          'react-dom/client': 'https://esm.sh/react-dom@19/client',
+          '@hivekeep/react': '/api/mini-apps/sdk/hivekeep-react.js',
+          '@hivekeep/components': '/api/mini-apps/sdk/hivekeep-components.js',
+        },
+      }, null, 2),
+      'index.html': `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contacts</title>
+  <style>body { padding: 1.25rem; }</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/jsx">
+    import { useState, useEffect, useCallback } from 'react'
+    import { createRoot } from 'react-dom/client'
+    import { useHivekeep } from '@hivekeep/react'
+    import { Stack, Heading, Text, Card, Table, Button, Input, Spinner, EmptyState, Badge } from '@hivekeep/components'
+
+    function App() {
+      const { ready } = useHivekeep()
+      if (!ready) return <Spinner />
+      return <Contacts />
+    }
+
+    function Contacts() {
+      const [contacts, setContacts] = useState(null)
+      const [first, setFirst] = useState('')
+      const [last, setLast] = useState('')
+      const [busy, setBusy] = useState(false)
+
+      const load = useCallback(async () => {
+        // GET /api/contacts via the gated platform gateway (needs platform:contacts:read)
+        const data = await Hivekeep.platform.get('/contacts')
+        setContacts(data.contacts || [])
+      }, [])
+
+      useEffect(() => { load().catch((e) => Hivekeep.toast(e.message, 'error')) }, [load])
+
+      const add = async () => {
+        if (!first.trim() && !last.trim()) return
+        setBusy(true)
+        try {
+          // POST /api/contacts (needs platform:contacts:write)
+          await Hivekeep.platform.post('/contacts', { firstName: first.trim() || undefined, lastName: last.trim() || undefined })
+          setFirst(''); setLast('')
+          await load()
+          Hivekeep.toast('Contact added', 'success')
+        } catch (e) {
+          Hivekeep.toast(e.message, 'error')
+        } finally {
+          setBusy(false)
+        }
+      }
+
+      const remove = async (c) => {
+        if (!(await Hivekeep.confirm('Delete ' + c.displayName + '?'))) return
+        try {
+          await Hivekeep.platform.delete('/contacts/' + c.id)
+          await load()
+        } catch (e) {
+          Hivekeep.toast(e.message, 'error')
+        }
+      }
+
+      if (contacts === null) return <Spinner />
+
+      return (
+        <Stack gap={4}>
+          <Heading as="h2">Contacts</Heading>
+
+          <Card>
+            <Card.Content>
+              <Stack direction="row" gap={2} align="end" wrap>
+                <Input label="First name" value={first} onChange={(e) => setFirst(e.target.value)} placeholder="Ada" />
+                <Input label="Last name" value={last} onChange={(e) => setLast(e.target.value)} placeholder="Lovelace" />
+                <Button onClick={add} disabled={busy}>Add contact</Button>
+              </Stack>
+            </Card.Content>
+          </Card>
+
+          {contacts.length === 0 ? (
+            <EmptyState icon="👤" title="No contacts yet" description="Add your first contact above." />
+          ) : (
+            <Card>
+              <Table
+                columns={[
+                  { key: 'displayName', header: 'Name' },
+                  { key: 'platforms', header: 'Reachable on', render: (c) =>
+                    (c.platformIds || []).length
+                      ? <Stack direction="row" gap={1} wrap>{c.platformIds.map((p) => <Badge key={p.platform} variant="muted">{p.platform}</Badge>)}</Stack>
+                      : <Text muted size="sm">—</Text> },
+                  { key: 'actions', header: '', render: (c) =>
+                    <Button variant="ghost" size="sm" onClick={() => remove(c)}>Delete</Button> },
+                ]}
+                data={contacts}
+              />
+            </Card>
+          )}
+
+          <Text muted size="sm">Powered by Hivekeep.platform — this app talks to the same contacts API the settings page uses.</Text>
+        </Stack>
+      )
+    }
+
+    createRoot(document.getElementById('root')).render(<App />)
+  </script>
+</body>
+</html>`,
+    },
+  },
 ]
 
 export function getTemplateById(id: string): MiniAppTemplate | undefined {

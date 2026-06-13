@@ -331,6 +331,6 @@ Hivekeep includes built-in templates for common patterns. Ask an Agent:
 
 > "Create a mini-app using the kanban template"
 
-Available templates: `dashboard`, `todo-list`, `form`, `data-viewer`, `kanban`, `responsive`, `background-service`.
+Available templates: `dashboard`, `todo-list`, `form`, `data-viewer`, `kanban`, `responsive`, `background-service`, `contacts-manager`.
 
 Use `get_mini_app_templates` to see all templates with descriptions and full source code.

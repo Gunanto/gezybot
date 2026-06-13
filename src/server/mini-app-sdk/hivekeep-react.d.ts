@@ -320,6 +320,7 @@ export const openApp: Hivekeep['openApp'];
 export const clipboard: Hivekeep['clipboard'];
 export const storage: Hivekeep['storage'];
 export const api: Hivekeep['api'];
+export const platform: Hivekeep['platform'];
 export const http: Hivekeep['http'];
 export const events: Hivekeep['events'];
 export const agent: Hivekeep['agent'];

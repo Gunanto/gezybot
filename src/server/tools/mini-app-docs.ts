@@ -186,8 +186,21 @@ Direct SDK exports from @hivekeep/react (use hooks when possible):
 - \`storage.get/set/delete/list/clear\` — direct KV storage access
 
 ## Network
-- \`api.get/post/put/patch/delete(path)\` — backend API calls
+- \`api.get/post/put/patch/delete(path)\` — backend API calls (your _server.js)
 - \`http(url, opts?)\`, \`http.json(url)\`, \`http.post(url, data)\` — external HTTP proxy (60 req/min, 5MB max)
+
+## Platform API (manage Hivekeep resources — build UI extensions)
+- \`platform.get/post/put/patch/delete(path)\` — call Hivekeep's OWN REST API, the same one the settings pages use. This is how you build a mini-app that manages a resource (a contacts manager, a crons board, a projects dashboard) instead of making the user dig through settings.
+- Gated by \`platform:<resource>:<read|write>\` permissions declared in app.json (e.g. \`"platform:contacts:read"\`, \`"platform:contacts:write"\`). The user approves them in the app's permission banner. A \`:write\` grant implies \`:read\`.
+- The resource is the first path segment: \`platform.get("/contacts")\` needs \`platform:contacts:read\`; \`platform.post("/contacts", {...})\` needs \`platform:contacts:write\`.
+- Discover the exact routes/shapes for a resource with get_mini_app_docs or by reading api.md. Forbidden through the gateway: auth, vault (secret values), database, users, and mini-apps (an app can't grant itself permissions).
+- Example — a contacts manager:
+\`\`\`js
+// app.json: { "permissions": ["platform:contacts:read", "platform:contacts:write"] }
+const { contacts } = await Hivekeep.platform.get("/contacts")
+await Hivekeep.platform.post("/contacts", { firstName: "Ada", lastName: "Lovelace" })
+await Hivekeep.platform.delete("/contacts/" + id)
+\`\`\`
 
 ## Events
 - \`events.on(event, cb)\`, \`events.subscribe(cb)\`, \`events.close()\` — SSE from backend

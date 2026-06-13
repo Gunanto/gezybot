@@ -1279,6 +1279,7 @@ export const openApp = window.Hivekeep.openApp
 export const clipboard = window.Hivekeep.clipboard
 export const storage = window.Hivekeep.storage
 export const api = window.Hivekeep.api
+export const platform = window.Hivekeep.platform
 export const http = window.Hivekeep.http
 export const events = window.Hivekeep.events
 export const agent = window.Hivekeep.agent

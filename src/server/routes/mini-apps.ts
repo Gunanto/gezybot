@@ -31,7 +31,7 @@ import {
 } from '@/server/services/mini-apps'
 import { ImageGenerationError } from '@/server/services/image-generation'
 import { handleBackendRequest, handleClientEvent, getAppEmitter } from '@/server/services/mini-app-backend'
-import { isBlockedHost } from '@/server/services/mini-app-capabilities'
+import { isBlockedHost, resolvePlatformResource, checkPlatformAccess } from '@/server/services/mini-app-capabilities'
 import { pushConsoleEntry, getConsoleEntries, clearConsoleEntries, markServed } from '@/server/services/mini-app-console'
 import {
   buildDefaultManifest,
@@ -767,6 +767,51 @@ miniAppRoutes.post('/:id/permissions', async (c) => {
   }
 
   return c.json(result)
+})
+
+// ─── Platform API gateway ────────────────────────────────────────────────────
+//
+// Permission-gated proxy to Hivekeep's OWN REST API, so a mini-app UI can manage
+// any platform resource the way the settings pages do (a contacts manager, a
+// crons board…) without us hand-wrapping each resource. The call is re-dispatched
+// to the real /api/<resource> route carrying the user's session, after checking
+// the app's granted `platform:<resource>:<read|write>` permission.
+//
+// NOTE (security follow-up): the iframe is same-origin, so today an app could
+// also hit /api/<resource> directly with the session cookie, bypassing this gate.
+// This gateway is the blessed, documented, permissioned path; making it the ONLY
+// path (tokenized iframe instead of cookie) is a tracked hardening step.
+miniAppRoutes.all('/:id/platform/*', async (c) => {
+  const appId = c.req.param('id')
+  const app = await getMiniAppRow(appId)
+  if (!app) return c.json({ error: { code: 'NOT_FOUND', message: 'App not found' } }, 404)
+
+  const subPath = c.req.path.replace(`/api/mini-apps/${appId}/platform`, '') || '/'
+  const resolved = resolvePlatformResource(subPath, c.req.method)
+  if (!resolved) {
+    return c.json({ error: { code: 'INVALID_PATH', message: 'A platform resource path is required, e.g. /contacts' } }, 400)
+  }
+
+  const perms = await getMiniAppPermissions(appId)
+  const denial = checkPlatformAccess(perms?.granted ?? [], resolved.resource, resolved.mode)
+  if (denial) {
+    return c.json({ error: denial }, 403)
+  }
+
+  // Re-dispatch to the real REST route, carrying the original session + body.
+  const url = new URL(c.req.url)
+  url.pathname = `/api/${subPath.replace(/^\/+/, '')}`
+  const isBodyless = c.req.method === 'GET' || c.req.method === 'HEAD'
+  const innerReq = new Request(url.toString(), {
+    method: c.req.method,
+    headers: c.req.raw.headers,
+    body: isBodyless ? undefined : c.req.raw.body,
+    // @ts-ignore - duplex needed for streaming bodies in Bun
+    duplex: 'half',
+  })
+
+  const { app: honoApp } = await import('@/server/app')
+  return honoApp.fetch(innerReq)
 })
 
 // Upstream client events: frontend Hivekeep.events.send() → backend onClientEvent()

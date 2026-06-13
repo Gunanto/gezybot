@@ -26,12 +26,78 @@ export const MINI_APP_STATIC_PERMISSIONS = ['llm', 'agent:inform', 'agent:task',
 
 const SECRET_PERMISSION_RE = /^secrets:[A-Za-z0-9_.-]{1,128}$/
 
+/** `platform:<resource>:<read|write>` — gates the platform REST API gateway. */
+const PLATFORM_PERMISSION_RE = /^platform:[a-z][a-z0-9-]*:(read|write)$/
+
+/**
+ * Resources that must NEVER be reachable through the generic platform gateway,
+ * regardless of granted permissions. Covers auth/account internals, secret
+ * VALUES, raw SQL, user/admin management, and — critically — `mini-apps` itself
+ * (so an app can't grant ITSELF permissions or rewrite apps via the gateway).
+ */
+export const PLATFORM_GATEWAY_DENIED_RESOURCES = new Set([
+  'auth',
+  'onboarding',
+  'vault',
+  'database',
+  'mini-apps',
+  'users',
+  'sse',
+  'health',
+  'uploads',
+])
+
 /** True when the string is a well-formed permission id. */
 export function isKnownPermission(permission: string): boolean {
   return (
     (MINI_APP_STATIC_PERMISSIONS as readonly string[]).includes(permission) ||
-    SECRET_PERMISSION_RE.test(permission)
+    SECRET_PERMISSION_RE.test(permission) ||
+    PLATFORM_PERMISSION_RE.test(permission)
   )
+}
+
+/**
+ * Map an incoming platform-gateway sub-path + method to its (resource, mode).
+ * The resource is the first path segment; GET/HEAD are reads, everything else
+ * is a write. Returns null when no resource can be derived.
+ */
+export function resolvePlatformResource(
+  subPath: string,
+  method: string,
+): { resource: string; mode: 'read' | 'write' } | null {
+  const resource = subPath.replace(/^\/+/, '').split('/')[0]?.split('?')[0] ?? ''
+  if (!resource) return null
+  const mode = method === 'GET' || method === 'HEAD' ? 'read' : 'write'
+  return { resource, mode }
+}
+
+/**
+ * Decide whether a set of granted permissions allows a gateway call.
+ * A `:write` grant implies `:read` (if you can edit contacts, you can list them).
+ * Returns the denial reason, or null when allowed.
+ */
+export function checkPlatformAccess(
+  granted: string[],
+  resource: string,
+  mode: 'read' | 'write',
+): { code: string; message: string } | null {
+  if (PLATFORM_GATEWAY_DENIED_RESOURCES.has(resource)) {
+    return {
+      code: 'RESOURCE_FORBIDDEN',
+      message: `The "${resource}" API is not accessible through the mini-app platform gateway.`,
+    }
+  }
+  const allowed =
+    mode === 'read'
+      ? granted.includes(`platform:${resource}:read`) || granted.includes(`platform:${resource}:write`)
+      : granted.includes(`platform:${resource}:write`)
+  if (!allowed) {
+    return {
+      code: 'PERMISSION_REQUIRED',
+      message: `This app needs the "platform:${resource}:${mode}" permission. Declare it in app.json under "permissions" and have the user approve it.`,
+    }
+  }
+  return null
 }
 
 /** Parse the `permissions` array of an app.json manifest: well-formed entries only. */
