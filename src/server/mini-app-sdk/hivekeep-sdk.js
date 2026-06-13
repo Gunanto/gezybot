@@ -61,6 +61,26 @@
   var listeners = {} // event name → Set<callback>
   var _appMeta = null
   var _isFullPage = false
+
+  // ─── App token ────────────────────────────────────────────────────────────
+  // The iframe runs at an opaque origin (no cookie), so all calls to the app's
+  // own /api/mini-apps/<id>/* namespace authenticate with this per-load token
+  // injected by the /serve route. _hkFetch attaches it as a header; the SSE
+  // EventSource (which can't set headers) gets it as a ?_t= query param.
+  var _appToken = (typeof window !== 'undefined' && window.__HK_APP_TOKEN__) || null
+  function _hkFetch(url, options) {
+    options = options || {}
+    if (_appToken) {
+      var h = new Headers(options.headers || {})
+      h.set('x-hivekeep-app-token', _appToken)
+      options.headers = h
+    }
+    return fetch(url, options)
+  }
+  function _withToken(url) {
+    if (!_appToken) return url
+    return url + (url.indexOf('?') === -1 ? '?' : '&') + '_t=' + encodeURIComponent(_appToken)
+  }
   var _locale = 'en'
   var _pendingDialogs = {} // callbackId → {resolve}
   var _dialogCounter = 0
@@ -341,7 +361,7 @@
     /** Get a value by key. Returns parsed value or null if not found. */
     get: function (key) {
       if (!_appMeta || !_appMeta.id) return Promise.reject(new Error('App not ready — call Hivekeep.ready() first'))
-      return fetch('/api/mini-apps/' + _appMeta.id + '/storage/' + encodeURIComponent(key))
+      return _hkFetch('/api/mini-apps/' + _appMeta.id + '/storage/' + encodeURIComponent(key))
         .then(function (r) {
           if (r.status === 404) return null
           if (!r.ok) return r.json().then(function (d) { throw new Error(d.error?.message || 'Storage error') })
@@ -352,7 +372,7 @@
     /** Set a value for a key. Value must be JSON-serializable. */
     set: function (key, value) {
       if (!_appMeta || !_appMeta.id) return Promise.reject(new Error('App not ready — call Hivekeep.ready() first'))
-      return fetch('/api/mini-apps/' + _appMeta.id + '/storage/' + encodeURIComponent(key), {
+      return _hkFetch('/api/mini-apps/' + _appMeta.id + '/storage/' + encodeURIComponent(key), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ value: value }),
@@ -364,7 +384,7 @@
     /** Delete a key. Returns true if deleted, false if not found. */
     delete: function (key) {
       if (!_appMeta || !_appMeta.id) return Promise.reject(new Error('App not ready — call Hivekeep.ready() first'))
-      return fetch('/api/mini-apps/' + _appMeta.id + '/storage/' + encodeURIComponent(key), {
+      return _hkFetch('/api/mini-apps/' + _appMeta.id + '/storage/' + encodeURIComponent(key), {
         method: 'DELETE',
       }).then(function (r) {
         if (r.status === 404) return false
@@ -376,7 +396,7 @@
     /** List all keys with their sizes. Returns [{key, size}]. */
     list: function () {
       if (!_appMeta || !_appMeta.id) return Promise.reject(new Error('App not ready — call Hivekeep.ready() first'))
-      return fetch('/api/mini-apps/' + _appMeta.id + '/storage')
+      return _hkFetch('/api/mini-apps/' + _appMeta.id + '/storage')
         .then(function (r) {
           if (!r.ok) return r.json().then(function (d) { throw new Error(d.error?.message || 'Storage error') })
           return r.json().then(function (d) { return d.keys })
@@ -386,7 +406,7 @@
     /** Clear all storage for this app. Returns number of keys cleared. */
     clear: function () {
       if (!_appMeta || !_appMeta.id) return Promise.reject(new Error('App not ready — call Hivekeep.ready() first'))
-      return fetch('/api/mini-apps/' + _appMeta.id + '/storage', {
+      return _hkFetch('/api/mini-apps/' + _appMeta.id + '/storage', {
         method: 'DELETE',
       }).then(function (r) {
         if (!r.ok) return r.json().then(function (d) { throw new Error(d.error?.message || 'Storage error') })
@@ -406,7 +426,7 @@
   function api(path, options) {
     if (!_appMeta || !_appMeta.id) return Promise.reject(new Error('App not ready — call Hivekeep.ready() first'))
     var url = '/api/mini-apps/' + _appMeta.id + '/api' + (path.startsWith('/') ? path : '/' + path)
-    return fetch(url, options)
+    return _hkFetch(url, options)
   }
 
   /**
@@ -502,7 +522,7 @@
   function platform(path, options) {
     if (!_appMeta || !_appMeta.id) return Promise.reject(new Error('App not ready — call Hivekeep.ready() first'))
     var url = '/api/mini-apps/' + _appMeta.id + '/platform' + (path.startsWith('/') ? path : '/' + path)
-    return fetch(url, options)
+    return _hkFetch(url, options)
   }
 
   platform.json = function (path, options) {
@@ -716,7 +736,7 @@
   function _connectEvents() {
     if (_eventSource || !_appMeta || !_appMeta.id) return
     try {
-      _eventSource = new EventSource('/api/mini-apps/' + _appMeta.id + '/events')
+      _eventSource = new EventSource(_withToken('/api/mini-apps/' + _appMeta.id + '/events'))
 
       _eventSource.addEventListener('connected', function () {
         _eventsConnected = true
@@ -794,7 +814,7 @@
      */
     send: function (eventName, data) {
       if (!_appMeta || !_appMeta.id) return Promise.reject(new Error('App not ready — call Hivekeep.ready() first'))
-      return fetch('/api/mini-apps/' + _appMeta.id + '/client-event', {
+      return _hkFetch('/api/mini-apps/' + _appMeta.id + '/client-event', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ event: eventName, data: data }),
@@ -841,7 +861,7 @@
       reqBody = JSON.stringify(reqBody)
     }
 
-    return fetch('/api/mini-apps/' + _appMeta.id + '/http', {
+    return _hkFetch('/api/mini-apps/' + _appMeta.id + '/http', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1108,7 +1128,7 @@
      * @returns {Promise<object>}
      */
     get: function (appId) {
-      return fetch('/api/mini-apps/' + encodeURIComponent(appId))
+      return _hkFetch('/api/mini-apps/' + encodeURIComponent(appId))
         .then(function (r) {
           if (!r.ok) return r.json().then(function (d) { throw new Error(d.error?.message || 'App not found') })
           return r.json()
@@ -1130,7 +1150,7 @@
       if (!_appMeta || !_appMeta.id) return Promise.reject(new Error('App not ready — call Hivekeep.ready() first'))
       if (!query || typeof query !== 'string') return Promise.reject(new Error('query (string) is required'))
       var n = Math.min(Math.max(1, limit || 20), 50)
-      return fetch('/api/mini-apps/' + encodeURIComponent(_appMeta.id) + '/memories/search?q=' + encodeURIComponent(query) + '&limit=' + n)
+      return _hkFetch('/api/mini-apps/' + encodeURIComponent(_appMeta.id) + '/memories/search?q=' + encodeURIComponent(query) + '&limit=' + n)
         .then(function (r) {
           if (!r.ok) return r.json().then(function (d) { throw new Error(d.error?.message || 'Memory search failed') })
           return r.json()
@@ -1150,7 +1170,7 @@
       var body = { content: content }
       if (options && options.category) body.category = options.category
       if (options && options.subject) body.subject = options.subject
-      return fetch('/api/mini-apps/' + encodeURIComponent(_appMeta.id) + '/memories', {
+      return _hkFetch('/api/mini-apps/' + encodeURIComponent(_appMeta.id) + '/memories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -1269,6 +1289,6 @@
     conversation: conversation,
     share: share,
     download: download,
-    version: '1.18.0',
+    version: '1.19.0',
   }
 })()

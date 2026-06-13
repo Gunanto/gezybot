@@ -20,14 +20,47 @@ const log = createLogger('auth')
 export async function authMiddleware(c: Context, next: Next) {
   const path = c.req.path
 
-  // Skip auth for Better Auth routes, onboarding, and health check
-  if (path.startsWith('/api/auth/') || path.startsWith('/api/onboarding') || path === '/api/health' || path.startsWith('/s/') || path.startsWith('/api/webhooks/incoming/') || path.startsWith('/api/channels/telegram/') || path.startsWith('/api/channels/slack/') || path.startsWith('/api/channels/whatsapp/') || path.startsWith('/api/channels/signal/') || path.startsWith('/api/channels/plugin/') || /^\/api\/invitations\/[^/]+\/validate$/.test(path)) {
+  // CORS preflight is never authenticated (no credentials are sent on it).
+  if (c.req.method === 'OPTIONS') return next()
+
+  // Skip auth for Better Auth routes, onboarding, health check, and the public
+  // mini-app SDK assets (loaded by the opaque-origin iframe without credentials).
+  if (path.startsWith('/api/auth/') || path.startsWith('/api/onboarding') || path === '/api/health' || path.startsWith('/api/mini-apps/sdk/') || path.startsWith('/s/') || path.startsWith('/api/webhooks/incoming/') || path.startsWith('/api/channels/telegram/') || path.startsWith('/api/channels/slack/') || path.startsWith('/api/channels/whatsapp/') || path.startsWith('/api/channels/signal/') || path.startsWith('/api/channels/plugin/') || /^\/api\/invitations\/[^/]+\/validate$/.test(path)) {
     return next()
   }
 
   // Skip auth for non-API routes
   if (!path.startsWith('/api/')) {
     return next()
+  }
+
+  // Internal re-dispatch actor (e.g. the platform gateway calling a REST route
+  // server-side). This header is stripped from ALL inbound network requests at
+  // the Bun.serve edge (see main.ts), so it can only be set in-process.
+  const internalActor = c.req.header('x-hivekeep-internal-actor')
+  if (internalActor) {
+    c.set('user', { id: internalActor, name: '', email: '' } as never)
+    c.set('session', { id: 'internal', userId: internalActor, token: 'internal' } as never)
+    return next()
+  }
+
+  // Mini-app iframe token: authorizes ONLY that app's own namespace. The opaque
+  // iframe has no cookie, so this is how its SDK reaches /api/mini-apps/<id>/*.
+  const miniAppMatch = /^\/api\/mini-apps\/([^/]+)(\/|$)/.exec(path)
+  if (miniAppMatch) {
+    const token = c.req.header('x-hivekeep-app-token') ?? c.req.query('_t')
+    if (token) {
+      const { resolveAppToken } = await import('@/server/services/mini-app-token')
+      const resolved = resolveAppToken(token)
+      if (resolved && resolved.appId === miniAppMatch[1]) {
+        c.set('user', { id: resolved.userId, name: '', email: '' } as never)
+        c.set('session', { id: 'mini-app', userId: resolved.userId, token: 'mini-app' } as never)
+        return next()
+      }
+      return c.json({ error: { code: 'UNAUTHORIZED', message: 'Invalid or expired mini-app token' } }, 401)
+    }
+    // No token: fall through to cookie auth (covers the parent app's own calls
+    // to /api/mini-apps/* and the /serve navigation, which still carry the cookie).
   }
 
   const session = await auth.api.getSession({

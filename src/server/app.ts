@@ -69,8 +69,11 @@ export type AppVariables = {
 const app = new Hono<{ Variables: AppVariables }>()
 const log = createLogger('http')
 
-// Global middleware
-app.use('*', cors({
+// Global middleware. Mini-app routes are EXCLUDED here — the hardened iframe is
+// an opaque origin (Origin: null) authenticating with a token (no credentials),
+// so those routes carry their own permissive cors (see routes/mini-apps.ts). The
+// credentialed global policy below can't emit ACAO for a 'null' origin.
+const globalCors = cors({
   origin: [
     'http://localhost:5173',
     'http://localhost:3000',
@@ -78,7 +81,8 @@ app.use('*', cors({
     ...(config.publicUrl ? [config.publicUrl] : []),
   ],
   credentials: true,
-}))
+})
+app.use('*', (c, next) => (c.req.path.startsWith('/api/mini-apps/') ? next() : globalCors(c, next)))
 // HTTP request logging
 app.use('*', async (c, next) => {
   const start = Date.now()
