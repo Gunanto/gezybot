@@ -52,6 +52,45 @@ Most AI tools treat every conversation as disposable. You explain yourself on Mo
 
 ---
 
+## A peek inside
+
+<table align="center">
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <img src="docs/assets/screenshots/chat-briefing.webp" alt="An agent answering with its calendar, backup check and reminders, every tool call shown inline" /><br />
+      <sub><b>One continuous conversation</b><br />Every tool call rendered inline, never a black box.</sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <img src="docs/assets/screenshots/secret-popup.webp" alt="An agent requesting a credential through a secure popup that stores it in the vault" /><br />
+      <sub><b>Agents ask, never see</b><br />Secrets go straight to the encrypted vault. The model never sees the value.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <img src="docs/assets/screenshots/miniapp-timer.webp" alt="A focus-timer mini-app an agent built, running in the workspace next to the chat" /><br />
+      <sub><b>Your agents build apps</b><br />Real mini-apps, hosted right inside Hivekeep.</sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <img src="docs/assets/screenshots/kanban.webp" alt="A shared kanban board with tickets across backlog, to do and in progress" /><br />
+      <sub><b>A shared kanban</b><br />Projects and tickets your agents work alongside you.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <img src="docs/assets/screenshots/files.webp" alt="A file browser and code editor for an agent's workspace" /><br />
+      <sub><b>A real workspace</b><br />Browse and edit every agent's files, with a proper editor.</sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <img src="docs/assets/screenshots/token-usage.webp" alt="A token-usage dashboard with cost per agent, model and day" /><br />
+      <sub><b>Every token on record</b><br />Cost per agent, per model, per day. No surprises.</sub>
+    </td>
+  </tr>
+</table>
+
+<p align="center"><a href="https://hivekeep.app/tour/"><b>Take the full tour →</b></a> &nbsp;·&nbsp; 30+ screenshots from a running hive</p>
+
+---
+
 ## They never forget you
 
 Every Agent has a persistent identity (name, role, character, expertise, model, avatar) shared across everyone on your instance, and **one continuous session** that never resets. Underneath sits a dual-channel long-term memory: automatic extraction during compaction, plus explicit tools (`recall`, `memorize`, `update_memory`, `forget`). Recall is hybrid, sqlite-vec KNN fused with FTS5 keyword search via Reciprocal Rank Fusion, then re-ranked by importance, temporal decay, and category intent. Compaction summarizes old context to stay within token limits and **never deletes the originals**, so anything can be recovered later with `search_history`.
@@ -73,13 +112,19 @@ This is the surprising part. Hivekeep is not a fixed feature set, it is a base y
 
 Six native channels: **Telegram, Discord, Slack, WhatsApp, Signal, Matrix**, plus the PWA as a seventh surface. The standout is **real-time channel handoff**: `transfer_channel` reassigns a channel from one Agent to another mid-conversation. The address does not change, the Agent does. The new Agent receives handoff context and the causal chain, with async delivery statuses throughout.
 
+<p align="center"><img src="docs/assets/screenshots/chat-channel.webp" width="760" alt="A smart-home request sent from Telegram: the agent runs the actions and reports back" /></p>
+
 ## No black box. No cost surprises
 
 Transparency is a first-class feature, framed as "you control your costs," never "here is the bill." A **Context Viewer** breaks the prompt into a stacked, color-coded bar by section. Cache observability shows hit rate and TTL. Per-Agent EMA calibration compares estimated to actual token counts, and every call is tracked. The vault is AES-256-GCM, never printed in prompts or logs. Connected accounts (mail, calendar, contacts) use OAuth or encrypted credentials, and their tokens are never seen by Agents.
 
+<p align="center"><img src="docs/assets/screenshots/context-viewer.webp" width="760" alt="The Context Viewer breaking a prompt into a color-coded, per-section breakdown with cache hit rates" /></p>
+
 ## Setup is a conversation, not a YAML file
 
 Onboarding is three quick screens (identity, language, one LLM key). Then **Queenie**, a permanent configurator Agent with 45+ tools, takes over **by conversation**: she connects providers, secures secrets in the vault, and creates your first Agents. No YAML, no CLI. Secure input means secrets go UI to vault and **never to the LLM** (only a non-sensitive confirmation comes back). One OpenAI key becomes several auto-detected capabilities. Queenie stays accessible for life.
+
+<p align="center"><img src="docs/assets/screenshots/chat-onboarding.webp" width="760" alt="Queenie connecting an AI provider through a secure popup during onboarding" /></p>
 
 ## Build a household for your life
 
