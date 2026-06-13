@@ -143,6 +143,10 @@ export const CONFIGURATOR_MODEL_PREFERENCES: Record<string, readonly string[]> =
   deepseek: ['pro', 'flash', 'deepseek'],
   minimax: ['m3', 'minimax'],
   moonshot: ['k2.6', 'kimi-k2', 'kimi', 'moonshot'],
+  // Generic endpoint: model ids are unknown ahead of time, so list strong
+  // open-model families as hints. No match -> resolveConfiguratorModel falls
+  // back to the first available model.
+  'openai-compatible': ['qwen', 'llama', 'mistral', 'deepseek', 'gpt'],
 }
 
 /** Avatar appearance is two independent global axes the prompt-writer agent is
