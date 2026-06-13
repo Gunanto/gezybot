@@ -14,11 +14,11 @@ const log = createLogger('mini-app-guard')
  * namespace (`/api/mini-apps/<id>/*`) or the shared SDK assets — anything else
  * is rejected.
  *
- * LIMITATION (documented): a hostile app can suppress its Referer
- * (`referrerPolicy: no-referrer`) and evade this. The complete barrier is to
- * stop relying on the session cookie inside the iframe (scoped token + dropping
- * `allow-same-origin`); this guard is the non-breaking first layer that closes
- * the accidental/naive path and sandboxes well-behaved apps.
+ * This is now DEFENSE-IN-DEPTH behind the real barrier: the iframe runs at an
+ * opaque origin (sandbox without `allow-same-origin`) and authenticates with a
+ * scoped token instead of the session cookie, so its JS cannot reach `/api/*`
+ * with the user's identity at all (see mini-app-token.ts + routes/mini-apps.ts).
+ * This Referer guard stays as a cheap extra layer; the closure does not rely on it.
  */
 
 /** Match the iframe entry/asset paths that identify a mini-app origin. */
