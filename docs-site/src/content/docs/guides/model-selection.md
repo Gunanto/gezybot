@@ -133,14 +133,16 @@ Anthropic models are the most thoroughly tested with Hivekeep's tool system. The
 OpenAI models occasionally fall into "text mode" on complex multi-step tool chains. If this happens, add stronger execution instructions to your system prompt (see the EXEC pattern above).
 :::
 
-### Ollama (self-hosted)
+### Self-hosted & OpenAI-compatible (Ollama, vLLM, llama.cpp, LM Studio, NewAPI, LiteLLM)
 
-1. Install [Ollama](https://ollama.ai) and pull a model: `ollama pull llama3.3:70b`
-2. In Hivekeep, add Ollama as a provider with base URL `http://localhost:11434`
-3. From Docker, use `http://host.docker.internal:11434`
+Use the built-in **OpenAI-compatible** provider to point Hivekeep at any OpenAI-style endpoint:
+
+1. Add an **OpenAI-compatible** provider in Hivekeep
+2. Set the **Base URL** to your endpoint, including the version path. For Ollama: `http://localhost:11434/v1` (from Docker: `http://host.docker.internal:11434/v1`). After `ollama pull llama3.3:70b`, the model appears in the list.
+3. Set the API key only if your server requires one (local servers usually don't)
 
 :::caution
-Local models through Ollama are great for conversational use but often struggle with reliable tool calling. For autonomous Agents, prefer a cloud provider with a strong model.
+Local models are great for conversational use but often struggle with reliable tool calling. For autonomous Agents, prefer a cloud provider with a strong model.
 :::
 
 ### OpenRouter (access to many models)

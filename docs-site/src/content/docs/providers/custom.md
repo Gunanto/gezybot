@@ -12,9 +12,9 @@ This page is a quick orientation. The full author guide is on the [Developing Pl
 - **Proprietary or internal endpoints** — your own model server, an internal RAG service.
 - **Specialized search APIs** not shipped as a built-in (Kagi, You.com, Exa, …).
 - **Embedding or image services** not in the built-in set.
-- **OpenAI-compatible endpoints with custom auth** that the built-in OpenAI provider's base-URL override can't cover.
+- **OpenAI-compatible endpoints with non-standard auth or wire quirks** that the built-in **OpenAI-compatible** provider can't express.
 
-If your endpoint is plainly OpenAI-compatible (vLLM, llama.cpp server, LocalAI, …), point the built-in OpenAI provider at it with a custom Base URL instead — no plugin needed.
+If your endpoint is plainly OpenAI-compatible (NewAPI, LiteLLM, vLLM, llama.cpp server, LM Studio, LocalAI, Ollama, …), use the built-in **OpenAI-compatible** provider instead: just set its Base URL (and an optional API key). No plugin needed. See [Supported Providers](/docs/providers/supported/).
 
 ## Provider shape
 
@@ -54,10 +54,12 @@ Once your plugin is enabled, the provider appears in **Settings > Providers** an
 
 ## OpenAI-Compatible Endpoints
 
-Many self-hosted solutions expose an OpenAI-compatible API. For these, you can often use the built-in **OpenAI** provider with a custom base URL, without needing a plugin:
+Many gateways and self-hosted runtimes expose an OpenAI-compatible API. You do **not** need a plugin for these: use the built-in **OpenAI-compatible** provider:
 
-1. Go to **Settings > Providers > OpenAI**
-2. Set the **Base URL** to your endpoint (e.g., `http://localhost:8000/v1`)
-3. Set the API key if required
+1. Go to **Settings > Providers > Add provider** and pick **OpenAI-compatible**
+2. Set the **Base URL** to your endpoint, including the version path (e.g. `http://localhost:8000/v1`)
+3. Set the API key only if your server requires one (leave it empty for key-less local servers)
 
-This works with vLLM, llama.cpp server, LocalAI, and other OpenAI-compatible services.
+The same connector serves **both LLM and embeddings**: enable the LLM and/or Embeddings capability when adding it. For embeddings it calls `/embeddings` and accepts free-form model names (e.g. Ollama's `nomic-embed-text` or `qwen3-embedding`), so your agents and your semantic memory can both run locally.
+
+Its model list comes from the endpoint's `/models`. This works with NewAPI, LiteLLM, vLLM, llama.cpp server, LM Studio, LocalAI, Ollama (`/v1`), and similar services. Reach for a plugin only when the endpoint needs custom authentication or has non-standard wire behavior the generic connector can't express.

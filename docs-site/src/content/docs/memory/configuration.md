@@ -103,20 +103,12 @@ Large tool results are automatically spilled to temporary files instead of being
 
 ## Embedding Provider
 
-Memory requires an **embedding provider** to be configured in **Settings > Providers**. Supported embedding providers:
+Memory requires an **embedding provider** to be configured in **Settings > Providers**. Built-in embedding providers:
 
-- **OpenAI** — `text-embedding-3-small`, `text-embedding-3-large`, `text-embedding-ada-002`
-- **Voyage** — Specialized embedding models
-- **Jina AI** — Multilingual embeddings
-- **Nomic** — Open-source embeddings
-- **Mistral** — Built-in embedding support
-- **DeepSeek** — Embedding support
-- **Cohere** — `embed-english-v3.0`, `embed-multilingual-v3.0`
-- **Together AI** — Various embedding models
-- **Fireworks AI** — Embedding support
-- **Ollama** — Local embedding models
-- **OpenRouter** — Access to multiple embedding providers
-- **xAI** — Embedding support
+- **OpenAI**: `text-embedding-3-small`, `text-embedding-3-large`, `text-embedding-ada-002`
+- **OpenAI-compatible**: any endpoint exposing `/v1/embeddings`, via a custom base URL and an optional API key. This is how you run **fully local embeddings**: point it at Ollama (`nomic-embed-text`, `qwen3-embedding`, `embeddinggemma`, …), llama.cpp, LM Studio, vLLM, LiteLLM, or NewAPI. Model names are free-form (no `text-embedding-*` restriction) and the vector dimension is detected automatically.
+
+Other embedding sources (Voyage, Jina, Cohere, Mistral, …) ship as **plugins**.
 
 :::caution
 Without an embedding provider, memory storage and retrieval will not work. The Agent will still function but won't remember anything across sessions.

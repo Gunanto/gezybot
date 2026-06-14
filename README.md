@@ -147,7 +147,7 @@ The same building blocks cover a DevOps copilot, a home brain, a personal knowle
 
 ## Providers and plugins
 
-Bring one config per provider and Hivekeep auto-detects its capabilities (`llm`, `embedding`, `image`, `search`, `stt`, `tts`). **Built in today:** Anthropic (API key and Claude Max OAuth), OpenAI (API key and Codex CLI), Google Gemini, OpenRouter, xAI, DeepSeek, MiniMax, and Kimi (Moonshot) for LLMs; OpenAI and Gemini for images; OpenAI for embeddings; OpenAI and ElevenLabs for speech-to-text and text-to-speech; Brave Search, SerpAPI, Tavily, and Perplexity Sonar for web search. Need more? Add any provider as a **plugin** through the typed SDK, no fork required.
+Bring one config per provider and Hivekeep auto-detects its capabilities (`llm`, `embedding`, `image`, `search`, `stt`, `tts`). **Built in today:** Anthropic (API key and Claude Max OAuth), OpenAI (API key and Codex CLI), Google Gemini, OpenRouter, xAI, DeepSeek, MiniMax, Kimi (Moonshot), and a generic **OpenAI-compatible** connector (your own base URL, for NewAPI / LiteLLM / llama.cpp / LM Studio / vLLM / Ollama) for LLMs; OpenAI and Gemini for images; OpenAI and the OpenAI-compatible connector (local models via Ollama, llama.cpp, etc.) for embeddings; OpenAI and ElevenLabs for speech-to-text and text-to-speech; Brave Search, SerpAPI, Tavily, and Perplexity Sonar for web search. Need more? Add any provider as a **plugin** through the typed SDK, no fork required.
 
 ---
 
@@ -342,7 +342,7 @@ Full details in the [technical docs](https://marlburrow.github.io/hivekeep/docs/
 | **Runtime** | [Bun](https://bun.sh) |
 | **Backend** | [Hono](https://hono.dev), [Drizzle ORM](https://orm.drizzle.team), bun:sqlite, [sqlite-vec](https://github.com/asg017/sqlite-vec), native LLM primitives (`src/server/llm/*`), [Better Auth](https://www.better-auth.com), [croner](https://github.com/Hexagon/croner) |
 | **Frontend** | [React](https://react.dev), [Vite](https://vite.dev), [Tailwind CSS](https://tailwindcss.com), [shadcn/ui](https://ui.shadcn.com), [i18next](https://www.i18next.com) |
-| **LLM providers** | Anthropic, OpenAI, Google Gemini, OpenRouter, xAI, DeepSeek, MiniMax, Kimi (plus image, embedding, search, and speech providers; more via plugins) |
+| **LLM providers** | Anthropic, OpenAI, Google Gemini, OpenRouter, xAI, DeepSeek, MiniMax, Kimi, OpenAI-compatible (any custom base URL) (plus image, embedding, search, and speech providers; more via plugins) |
 | **Database** | SQLite (single file) + FTS5 + sqlite-vec |
 
 ---

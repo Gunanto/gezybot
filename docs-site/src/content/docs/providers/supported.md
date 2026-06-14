@@ -19,7 +19,7 @@ Hivekeep ships with built-in providers across six capability families: language 
 | [DeepSeek](https://platform.deepseek.com/api_keys) | ✅ | | | | | | ✅ |
 | [MiniMax](https://platform.minimax.io/user-center/basic-information/interface-key) | ✅ | | | | | | ✅ |
 | [Kimi (Moonshot)](https://platform.moonshot.ai/console/api-keys) | ✅ | | | | | | ✅ |
-| OpenAI-compatible (custom base URL) | ✅ | | | | | | ⚪ (optional) |
+| OpenAI-compatible (custom base URL) | ✅ | ✅ | | | | | ⚪ (optional) |
 | [Brave Search](https://brave.com/search/api/) | | | | ✅ | | | ✅ |
 | [SerpAPI](https://serpapi.com/manage-api-key) | | | | ✅ | | | ✅ |
 | [Tavily](https://app.tavily.com/home) | | | | ✅ | | | ✅ |
@@ -28,11 +28,11 @@ Hivekeep ships with built-in providers across six capability families: language 
 
 This table is the exact set of built-in providers (see `src/shared/provider-metadata.ts`). Notably:
 
-- **Embeddings** are provided only by **OpenAI** out of the box. Other embedding sources come from plugins.
+- **Embeddings** are built in for **OpenAI** and the generic **OpenAI-compatible** connector (point it at Ollama, llama.cpp, LM Studio, vLLM, etc. for fully local embeddings). Other embedding sources come from plugins.
 - **Image generation** is built in for **OpenAI** and **Gemini**.
 - **STT and TTS** are built in for **OpenAI** and **ElevenLabs**.
 - Providers such as **Mistral** and **Replicate** are not built in: they ship as plugins.
-- **OpenAI-compatible** is a generic connector: you supply a **custom base URL** (and an optional API key) to point Hivekeep at any OpenAI-style `/chat/completions` endpoint — NewAPI, LiteLLM, llama.cpp, LM Studio, vLLM, and similar. Its model list comes from the endpoint's `/models`; the API key is optional (local servers often need none).
+- **OpenAI-compatible** is a generic connector: you supply a **custom base URL** (and an optional API key) to point Hivekeep at any OpenAI-style endpoint, NewAPI, LiteLLM, llama.cpp, LM Studio, vLLM, Ollama, and similar. It serves **both LLM and embedding** capabilities (`/chat/completions` and `/embeddings`), so a single connector can run your agents and your semantic memory fully locally. Its model list comes from the endpoint's `/models`; the API key is optional (local servers often need none).
 
 Per-model metadata (context window, image/PDF support, reasoning, pricing, and the display label) is **not configured per provider** — it's auto-filled from [models.dev](https://models.dev) and managed in the [Model Registry](/docs/providers/model-registry/), where you can also enable/disable models, fix a wrong match, or override any value.
 
@@ -83,7 +83,7 @@ Hivekeep exposes several provider management endpoints:
 To use Hivekeep, you need at minimum:
 
 1. **One LLM provider**: For Agent conversations (Anthropic, OpenAI, Gemini, OpenRouter, xAI, or the built-in **OpenAI-compatible** connector pointed at any custom endpoint)
-2. **One embedding provider**: For memory to work. Built in only via **OpenAI** (e.g. `text-embedding-3-small`); other embedding sources come from plugins or an OpenAI-compatible endpoint
+2. **One embedding provider**: For memory to work. Built in via **OpenAI** (e.g. `text-embedding-3-small`) or the **OpenAI-compatible** connector pointed at a local endpoint (e.g. Ollama with `nomic-embed-text` or `qwen3-embedding`); other embedding sources come from plugins
 
 Optional but recommended:
 - A **search provider** for `web_search` (Brave, SerpAPI, Tavily, or Perplexity Sonar)
