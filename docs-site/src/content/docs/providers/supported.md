@@ -24,6 +24,7 @@ Hivekeep ships with built-in providers across six capability families: language 
 | [SerpAPI](https://serpapi.com/manage-api-key) | | | | ✅ | | | ✅ |
 | [Tavily](https://app.tavily.com/home) | | | | ✅ | | | ✅ |
 | [Perplexity Sonar](https://www.perplexity.ai/settings/api) | | | | ✅ | | | ✅ |
+| [SearXNG](https://github.com/searxng/searxng) (self-hosted, custom base URL) | | | | ✅ | | | ⚪ (optional) |
 | [ElevenLabs](https://elevenlabs.io/app/settings/api-keys) | | | | | ✅ | ✅ | ✅ |
 
 This table is the exact set of built-in providers (see `src/shared/provider-metadata.ts`). Notably:
@@ -31,6 +32,7 @@ This table is the exact set of built-in providers (see `src/shared/provider-meta
 - **Embeddings** are built in for **OpenAI** and the generic **OpenAI-compatible** connector (point it at Ollama, llama.cpp, LM Studio, vLLM, etc. for fully local embeddings). Other embedding sources come from plugins.
 - **Image generation** is built in for **OpenAI** and **Gemini**.
 - **STT and TTS** are built in for **OpenAI** and **ElevenLabs**.
+- **SearXNG** is a self-hosted search connector: point it at your own [SearXNG](https://github.com/searxng/searxng) instance (custom base URL) to run web search privately, with no commercial search API. The instance must have the `json` format enabled (`search.formats` in `settings.yml`); the API key is optional and only needed for protected instances (sent via a configurable auth header). Do not configure it through the Tavily provider — SearXNG is not Tavily-compatible and will fail with HTTP 401.
 - Providers such as **Mistral** and **Replicate** are not built in: they ship as plugins.
 - **OpenAI-compatible** is a generic connector: you supply a **custom base URL** (and an optional API key) to point Hivekeep at any OpenAI-style endpoint, NewAPI, LiteLLM, llama.cpp, LM Studio, vLLM, Ollama, and similar. It serves **both LLM and embedding** capabilities (`/chat/completions` and `/embeddings`), so a single connector can run your agents and your semantic memory fully locally. Its model list comes from the endpoint's `/models`; the API key is optional (local servers often need none).
 
@@ -55,6 +57,7 @@ Search providers declare static capability flags so an Agent can pick the right 
 | SerpAPI | ❌ | ✅ | ✅ | ✅ | ✅ | Google as upstream; auth check uses `/account` (free). |
 | Tavily | ✅ | ✅ | ✅ | ❌ | ❌ | Purpose-built for LLM grounding; native answer synthesis. |
 | Perplexity Sonar | ✅ | ✅ | ✅ | ❌ | ❌ | LLM-with-search; recency caps at one month (`year` → `month` with warning). |
+| SearXNG | ❌ | ✅ | ✅ | ✅ | ❌ | Self-hosted metasearch; needs `json` enabled in `search.formats`. Domain filter via `site:` operators. |
 
 ## Configuration
 
@@ -86,6 +89,6 @@ To use Hivekeep, you need at minimum:
 2. **One embedding provider**: For memory to work. Built in via **OpenAI** (e.g. `text-embedding-3-small`) or the **OpenAI-compatible** connector pointed at a local endpoint (e.g. Ollama with `nomic-embed-text` or `qwen3-embedding`); other embedding sources come from plugins
 
 Optional but recommended:
-- A **search provider** for `web_search` (Brave, SerpAPI, Tavily, or Perplexity Sonar)
+- A **search provider** for `web_search` (Brave, SerpAPI, Tavily, Perplexity Sonar, or a self-hosted SearXNG instance)
 - An **image provider** for `generate_image` (OpenAI or Gemini)
 - A **voice provider** for `text_to_speech` / `transcribe_audio` (OpenAI or ElevenLabs)
