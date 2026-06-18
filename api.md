@@ -185,7 +185,7 @@ Tests the connection to the provider.
 ### `POST /api/providers/oauth/:type/start`
 
 Begins the CLI-free OAuth sign-in (PKCE public-client flow) for a subscription
-provider that supports it (`anthropic-oauth`). The server mints a code verifier
+provider that supports it (`anthropic-oauth`, `openai-codex`). The server mints a code verifier
 + challenge, holds the verifier in memory keyed by `state`, and returns the
 browser authorize URL.
 

@@ -53,6 +53,16 @@ import { downgradeEffort } from '@/server/llm/llm/types'
 
 const CONFIG_SCHEMA: readonly ConfigField[] = [
   {
+    // 'signin' = tokens obtained via the in-app PKCE flow, stored in the vault;
+    // 'cli' (default for existing setups) = read ~/.codex/auth.json. Set by the
+    // sign-in route; toggled by the UI. Non-secret, stored inline.
+    key: 'authMode',
+    type: 'text',
+    label: 'Authentication mode',
+    placeholder: 'cli',
+    description: "Either 'signin' (in-app ChatGPT login) or 'cli' (read the Codex CLI auth file).",
+  },
+  {
     key: 'authFilePath',
     type: 'path',
     label: 'Codex auth file (optional)',
@@ -118,11 +128,29 @@ function readCodexModelsFromCache(): CodexModelCacheEntry[] | null {
 }
 
 /**
+ * Static fallback catalog used in CLI-free (sign-in) mode, or whenever the CLI
+ * cache (`~/.codex/models_cache.json`) is absent. Without this, `listModels()`
+ * hard-failed and the provider couldn't list a single model. The slugs are the
+ * stable ids the Codex backend accepts; per-model metadata (context window,
+ * pricing, label) is auto-filled from the model registry / models.dev, so the
+ * coarse values here are only a floor for when enrichment is unavailable.
+ */
+export const STATIC_CODEX_MODELS: CodexModelCacheEntry[] = [
+  { slug: 'gpt-5-codex', display_name: 'GPT-5-Codex', context_window: 400000, max_output_tokens: 128000, supported_in_api: true, visibility: 'list' },
+  { slug: 'gpt-5', display_name: 'GPT-5', context_window: 400000, max_output_tokens: 128000, supported_in_api: true, visibility: 'list' },
+]
+
+/** Catalog entries from the CLI cache when present, else the static fallback. */
+function resolveCodexModels(): CodexModelCacheEntry[] {
+  return readCodexModelsFromCache() ?? STATIC_CODEX_MODELS
+}
+
+/**
  * Codex serves GPT-5 family reasoning models. Every model in the catalog
  * accepts `reasoning_effort` — the cache does not expose the supported
  * levels explicitly, so we assume the standard OpenAI set (no `max`).
  */
-function mapCodexModel(entry: CodexModelCacheEntry): LLMModel {
+export function mapCodexModel(entry: CodexModelCacheEntry): LLMModel {
   const model: LLMModel = {
     id: entry.slug,
     name: entry.display_name && entry.display_name.length > 0 ? entry.display_name : entry.slug,
@@ -445,15 +473,10 @@ export const openaiCodexProvider: LLMProvider = {
 
   async authenticate(config: ProviderConfig): Promise<AuthResult> {
     try {
-      const overridePath = config['authFilePath'] || undefined
-      const { accessToken, accountId } = await getCodexOAuthCredentials(overridePath)
-      const entries = readCodexModelsFromCache()
-      const testModel = entries?.[0]?.slug
+      const { accessToken, accountId } = await getCodexOAuthCredentials(config)
+      const testModel = resolveCodexModels()[0]?.slug
       if (!testModel) {
-        return {
-          valid: false,
-          error: 'Codex model catalog cache is missing — run `codex login` once to seed it.',
-        }
+        return { valid: false, error: 'No Codex models available to test against.' }
       }
       // Lightweight ping with a short instruction; consumed and discarded.
       const response = await fetch(`${CODEX_BASE_URL}/responses`, {
@@ -492,18 +515,12 @@ export const openaiCodexProvider: LLMProvider = {
   },
 
   async listModels(_config: ProviderConfig): Promise<LLMModel[]> {
-    const entries = readCodexModelsFromCache()
-    if (!entries) {
-      throw new ProviderServerError(
-        'Codex model catalog cache missing at ~/.codex/models_cache.json. Run `codex login` once to seed it.',
-      )
-    }
-    return entries.map(mapCodexModel)
+    // CLI cache when present (file mode), else the static fallback so sign-in
+    // (CLI-free) setups still list models without `codex login`.
+    return resolveCodexModels().map(mapCodexModel)
   },
 
   chat(model, request, config) {
-    const overridePath = config['authFilePath'] || undefined
-
     const body: Record<string, unknown> = {
       model: model.id,
       input: messagesToCodexInput(request.messages),
@@ -529,7 +546,7 @@ export const openaiCodexProvider: LLMProvider = {
     // token refresh happens lazily at first iteration rather than at the
     // (possibly long-lived) call site that constructed the iterator.
     return (async function* () {
-      const { accessToken, accountId } = await getCodexOAuthCredentials(overridePath)
+      const { accessToken, accountId } = await getCodexOAuthCredentials(config)
       const headers: Record<string, string> = {
         'Authorization': `Bearer ${accessToken}`,
         'ChatGPT-Account-ID': accountId,

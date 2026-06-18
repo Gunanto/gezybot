@@ -13,6 +13,14 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { createLogger } from '@/server/logger'
+import type { ProviderConfig } from '@/server/llm/core/types'
+import { decodeJwtClaims, type PkceClient, type PkceTokenResponse } from '@/server/llm/llm/_oauth-pkce'
+import {
+  readTokenBundle,
+  writeTokenBundle,
+  vaultKeyFromConfig,
+  type OAuthTokenBundle,
+} from '@/server/llm/llm/_oauth-token-store'
 
 const log = createLogger('provider:openai-codex')
 
@@ -23,6 +31,35 @@ const CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann'
 const TOKEN_URL = 'https://auth.openai.com/oauth/token'
 export const CODEX_BASE_URL = 'https://chatgpt.com/backend-api/codex'
 const BUFFER_MS = 5 * 60 * 1000 // refresh 5 min before expiry
+
+/**
+ * PKCE public-client descriptor for the in-app "Sign in with ChatGPT" flow.
+ * Mirrors the Codex CLI's own OAuth client. The registered redirect is a fixed
+ * loopback URL the headless server can't actually serve — instead the user
+ * copies the `code`/`state` out of the failed-to-load redirect URL and pastes
+ * it back (parsePastedCode handles the full-URL form).
+ */
+export const CODEX_PKCE_CLIENT: PkceClient = {
+  clientId: CLIENT_ID,
+  authorizeUrl: 'https://auth.openai.com/oauth/authorize',
+  tokenUrl: TOKEN_URL,
+  redirectUri: 'http://localhost:1455/auth/callback',
+  scopes: ['openid', 'profile', 'email', 'offline_access'],
+  authorizeParams: { id_token_add_organizations: 'true', codex_cli_simplified_flow: 'true' },
+}
+
+/**
+ * Pull the stable ChatGPT account id out of the OIDC id_token claims — the
+ * value the Codex backend expects in the `ChatGPT-Account-ID` header. Stored in
+ * the vault bundle's `extra` since the refresh grant does not echo it back.
+ */
+export function codexAccountIdFromTokens(tokens: PkceTokenResponse): Record<string, string> | undefined {
+  if (!tokens.idToken) return undefined
+  const claims = decodeJwtClaims(tokens.idToken)
+  const auth = claims?.['https://api.openai.com/auth'] as { chatgpt_account_id?: string } | undefined
+  const accountId = auth?.chatgpt_account_id
+  return accountId ? { accountId } : undefined
+}
 
 /**
  * Resolve the real user home directory.
@@ -127,40 +164,46 @@ async function refreshToken(
 // ---------------------------------------------------------------------------
 // Credential management — single-flight refresh
 // ---------------------------------------------------------------------------
-let cachedToken: { accessToken: string; accountId: string; expiresAt: number } | null = null
-let refreshPromise: Promise<{ accessToken: string; accountId: string }> | null = null
+// Shared in-process cache + single-flight lock, keyed by storage location (the
+// creds file path, or the vault key) so multiple Codex providers don't clobber
+// one another. Expiry is always derived from the access_token JWT.
+interface CodexCreds {
+  accessToken: string
+  accountId: string
+}
+const credsCache = new Map<string, { accessToken: string; accountId: string; expiresAt: number }>()
+const refreshLocks = new Map<string, Promise<CodexCreds>>()
 
-async function ensureFreshToken(credsPath: string): Promise<{ accessToken: string; accountId: string }> {
-  if (cachedToken && cachedToken.expiresAt - Date.now() > BUFFER_MS) {
-    return { accessToken: cachedToken.accessToken, accountId: cachedToken.accountId }
+function ensureFresh(cacheKey: string, refresh: () => Promise<CodexCreds>): Promise<CodexCreds> {
+  const cached = credsCache.get(cacheKey)
+  if (cached && cached.expiresAt - Date.now() > BUFFER_MS) {
+    return Promise.resolve({ accessToken: cached.accessToken, accountId: cached.accountId })
   }
-
-  if (!refreshPromise) {
-    refreshPromise = doRefresh(credsPath).finally(() => {
-      refreshPromise = null
-    })
+  let lock = refreshLocks.get(cacheKey)
+  if (!lock) {
+    lock = refresh().finally(() => refreshLocks.delete(cacheKey))
+    refreshLocks.set(cacheKey, lock)
   }
-  return refreshPromise
+  return lock
 }
 
-async function doRefresh(credsPath: string): Promise<{ accessToken: string; accountId: string }> {
+// ─── CLI credentials-file path (legacy / existing setups) ────────────────────
+
+async function refreshFromFile(credsPath: string): Promise<CodexCreds> {
   const raw = readFileSync(credsPath, 'utf8')
   const creds: CodexAuthFile = JSON.parse(raw)
   const tokens = creds.tokens
   const now = Date.now()
   const accountId = tokens.account_id
 
-  // Check if current token is still fresh
   const expiresAt = decodeJwtExpiry(tokens.access_token)
   if (expiresAt && expiresAt - now > BUFFER_MS) {
-    cachedToken = { accessToken: tokens.access_token, accountId, expiresAt }
+    credsCache.set(credsPath, { accessToken: tokens.access_token, accountId, expiresAt })
     return { accessToken: tokens.access_token, accountId }
   }
 
-  // Refresh the token
   const data = await refreshToken(tokens.refresh_token)
-  log.info('Codex OAuth token refreshed successfully')
-
+  log.info('Codex OAuth token refreshed successfully (file)')
   const newExpiresAt = decodeJwtExpiry(data.access_token)
 
   // Write back to auth.json so the Codex CLI also sees the refreshed token
@@ -171,10 +214,36 @@ async function doRefresh(credsPath: string): Promise<{ accessToken: string; acco
     ...(data.id_token ? { id_token: data.id_token } : {}),
   }
   creds.last_refresh = new Date().toISOString()
-
   writeFileSync(credsPath, JSON.stringify(creds, null, 2))
-  cachedToken = { accessToken: data.access_token, accountId, expiresAt: newExpiresAt }
+  credsCache.set(credsPath, { accessToken: data.access_token, accountId, expiresAt: newExpiresAt })
+  return { accessToken: data.access_token, accountId }
+}
 
+// ─── Vault path (CLI-free "Sign in with ChatGPT") ────────────────────────────
+
+async function refreshFromVault(vaultKey: string, hint?: OAuthTokenBundle): Promise<CodexCreds> {
+  const bundle = (await readTokenBundle(vaultKey)) ?? hint
+  if (!bundle) throw new Error('No stored Codex sign-in tokens found — reconnect the provider.')
+  const accountId = bundle.extra?.accountId ?? ''
+  const now = Date.now()
+
+  const expiresAt = decodeJwtExpiry(bundle.accessToken)
+  if (expiresAt && expiresAt - now > BUFFER_MS && bundle.accessToken) {
+    credsCache.set(vaultKey, { accessToken: bundle.accessToken, accountId, expiresAt })
+    return { accessToken: bundle.accessToken, accountId }
+  }
+
+  const data = await refreshToken(bundle.refreshToken)
+  log.info('Codex OAuth token refreshed successfully (vault)')
+  const newExpiresAt = decodeJwtExpiry(data.access_token)
+  const next: OAuthTokenBundle = {
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token,
+    ...(newExpiresAt ? { expiresAt: newExpiresAt } : {}),
+    ...(accountId ? { extra: { accountId } } : {}),
+  }
+  await writeTokenBundle(vaultKey, next)
+  credsCache.set(vaultKey, { accessToken: data.access_token, accountId, expiresAt: newExpiresAt })
   return { accessToken: data.access_token, accountId }
 }
 
@@ -183,9 +252,23 @@ async function doRefresh(credsPath: string): Promise<{ accessToken: string; acco
 // ---------------------------------------------------------------------------
 
 /**
- * Get a fresh OAuth access token and account ID for the Codex backend.
+ * Get a fresh OAuth access token + ChatGPT account id for the Codex backend.
+ *
+ * Resolution order mirrors the Anthropic OAuth provider:
+ *   1. **Vault** — tokens from the in-app sign-in flow (located via the
+ *      reserved `__providerId` / `__providerType` config keys).
+ *   2. **CLI file** — `~/.codex/auth.json` (or an explicit `authFilePath`).
  */
-export async function getCodexOAuthCredentials(overridePath?: string): Promise<{ accessToken: string; accountId: string }> {
-  const credsPath = resolveCredsPath(overridePath)
-  return ensureFreshToken(credsPath)
+export async function getCodexOAuthCredentials(config: ProviderConfig = {}): Promise<CodexCreds> {
+  const vaultKey = vaultKeyFromConfig(config)
+  if (vaultKey) {
+    const cached = credsCache.get(vaultKey)
+    if (cached && cached.expiresAt - Date.now() > BUFFER_MS) {
+      return { accessToken: cached.accessToken, accountId: cached.accountId }
+    }
+    const bundle = await readTokenBundle(vaultKey)
+    if (bundle) return ensureFresh(vaultKey, () => refreshFromVault(vaultKey, bundle))
+  }
+  const credsPath = resolveCredsPath(config['authFilePath'] || undefined)
+  return ensureFresh(credsPath, () => refreshFromFile(credsPath))
 }

@@ -41,6 +41,7 @@ import {
   type OAuthTokenBundle,
 } from '@/server/llm/llm/_oauth-token-store'
 import { ANTHROPIC_PKCE_CLIENT } from '@/server/llm/llm/_anthropic-oauth-auth'
+import { CODEX_PKCE_CLIENT, codexAccountIdFromTokens } from '@/server/llm/llm/_codex-auth'
 
 const log = createLogger('routes:provider-oauth')
 const providerOAuthRoutes = new Hono()
@@ -57,6 +58,9 @@ interface OAuthProviderEntry {
 
 const OAUTH_PROVIDERS: Partial<Record<string, OAuthProviderEntry>> = {
   'anthropic-oauth': { client: ANTHROPIC_PKCE_CLIENT },
+  // Codex needs the ChatGPT account id (from the id_token) persisted alongside
+  // the tokens — the refresh grant doesn't echo it back.
+  'openai-codex': { client: CODEX_PKCE_CLIENT, buildExtra: codexAccountIdFromTokens },
 }
 
 /** Register a provider's PKCE wiring (used by openai-codex in its own change). */

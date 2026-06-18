@@ -32,7 +32,7 @@ const CREDENTIALS_PATH_PLACEHOLDERS: Record<string, string> = {
  * registry in `routes/provider-oauth.ts` (OAUTH_PROVIDERS). When sign-in is
  * available the Add dialog offers a "Sign in" / "Credentials file" toggle.
  */
-const SIGN_IN_PROVIDER_TYPES = new Set<string>(['anthropic-oauth'])
+const SIGN_IN_PROVIDER_TYPES = new Set<string>(['anthropic-oauth', 'openai-codex'])
 
 /** Control-only config keys driven by the auth-mode toggle, never typed by the
  *  user, so they're filtered out of the dynamic field list. */

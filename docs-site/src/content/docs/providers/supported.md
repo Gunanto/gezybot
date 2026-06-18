@@ -67,12 +67,14 @@ A configured search provider is automatically picked up by the `web_search` tool
 
 ### Subscription providers: sign in without a CLI
 
-The subscription providers bill against your existing Claude or ChatGPT plan instead of a metered API key. **Anthropic (Claude Max)** now supports two connection methods, chosen with a toggle in the **Add provider** dialog:
+The subscription providers, **Anthropic (Claude Max)** and **OpenAI (Codex CLI)**, bill against your existing Claude or ChatGPT plan instead of a metered API key. Both support two connection methods, chosen with a toggle in the **Add provider** dialog:
 
-- **Sign in** (no CLI needed): pick "Sign in", click **Sign in with Claude**, approve in the browser tab that opens, then paste back the authorization code the page shows. Hivekeep completes the OAuth PKCE exchange and stores the resulting tokens in its **encrypted vault**, refreshing them automatically. This is the recommended path and requires nothing installed on the server.
-- **Credentials file**: if you already use the official `claude` CLI on the same machine, leave the toggle on "Credentials file" and Hivekeep reads its OAuth tokens from `~/.claude/.credentials.json` (an explicit path override is available for non-standard environments). Existing setups keep working with no change.
+- **Sign in** (no CLI needed): pick "Sign in", click the sign-in button, approve in the browser tab that opens, then paste back the authorization code the page shows. Hivekeep completes the OAuth PKCE exchange and stores the resulting tokens in its **encrypted vault**, refreshing them automatically. This is the recommended path and requires nothing installed on the server. For Codex, copy the code (or the whole `http://localhost:1455/...` address the page redirects to) and paste it back; Hivekeep pulls the code out.
+- **Credentials file**: if you already use the official CLI on the same machine (`claude` / `codex`), leave the toggle on "Credentials file" and Hivekeep reads its OAuth tokens from `~/.claude/.credentials.json` / `~/.codex/auth.json` (an explicit path override is available for non-standard environments). Existing setups keep working with no change.
 
 Both methods feed the same provider. Tokens obtained via "Sign in" never touch the CLI files: they live only in the vault, and are removed when the provider is deleted.
+
+Codex does not need its CLI model cache (`~/.codex/models_cache.json`) anymore: when the cache is absent (which it always is in sign-in mode), Hivekeep falls back to a built-in GPT-5-family catalog, and per-model metadata is filled in from the [Model Registry](/docs/providers/model-registry/).
 
 ## API Endpoints
 
