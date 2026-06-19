@@ -6,7 +6,14 @@
     "approve": "Ujawnij wartość",
     "deny": "Odmów",
     "saving": "Zapisywanie…",
-    "submit": "Zapisz bezpiecznie"
+    "submit": "Zapisz bezpiecznie",
+    "connect": "Połącz",
+    "oauthSignIn": "Zaloguj się przez {{provider}}",
+    "oauthHint": "Zaloguj się do {{provider}} w otwartej karcie przeglądarki, a następnie wklej poniżej kod autoryzacji.",
+    "oauthLoopbackHint": "Po zatwierdzeniu przeglądarka pokaże błąd localhost. To normalne: skopiuj cały adres z paska adresu i wklej go poniżej.",
+    "oauthCodeLabel": "Kod autoryzacji",
+    "oauthCodePlaceholder": "Wklej kod tutaj",
+    "oauthLoopbackPlaceholder": "Wklej adres localhost (lub kod)"
   },
   "setup": {
     "button": {

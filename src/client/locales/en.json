@@ -6,7 +6,14 @@
     "approve": "Reveal the value",
     "deny": "Deny",
     "saving": "Saving…",
-    "submit": "Save securely"
+    "submit": "Save securely",
+    "connect": "Connect",
+    "oauthSignIn": "Sign in with {{provider}}",
+    "oauthHint": "Sign in to {{provider}} in the browser tab that opens, then paste the authorization code it gives you below.",
+    "oauthLoopbackHint": "After approving, the browser shows a localhost error. That's expected: copy the whole address from the address bar and paste it below.",
+    "oauthCodeLabel": "Authorization code",
+    "oauthCodePlaceholder": "Paste the code here",
+    "oauthLoopbackPlaceholder": "Paste the localhost URL (or the code)"
   },
   "setup": {
     "button": {

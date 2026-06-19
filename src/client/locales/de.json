@@ -6,7 +6,14 @@
     "approve": "Wert offenlegen",
     "deny": "Ablehnen",
     "saving": "Wird gespeichert…",
-    "submit": "Sicher speichern"
+    "submit": "Sicher speichern",
+    "connect": "Verbinden",
+    "oauthSignIn": "Mit {{provider}} anmelden",
+    "oauthHint": "Melden Sie sich im sich öffnenden Browser-Tab bei {{provider}} an und fügen Sie den Autorisierungscode unten ein.",
+    "oauthLoopbackHint": "Nach der Bestätigung zeigt der Browser einen localhost-Fehler. Das ist normal: Kopieren Sie die vollständige Adresse aus der Adressleiste und fügen Sie sie unten ein.",
+    "oauthCodeLabel": "Autorisierungscode",
+    "oauthCodePlaceholder": "Code hier einfügen",
+    "oauthLoopbackPlaceholder": "localhost-URL (oder Code) einfügen"
   },
   "setup": {
     "button": {

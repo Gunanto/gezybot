@@ -6,7 +6,14 @@
     "approve": "显示明文",
     "deny": "拒绝",
     "saving": "保存中…",
-    "submit": "安全保存"
+    "submit": "安全保存",
+    "connect": "连接",
+    "oauthSignIn": "使用 {{provider}} 登录",
+    "oauthHint": "在打开的浏览器标签页中登录 {{provider}}，然后将其提供的授权码粘贴到下方。",
+    "oauthLoopbackHint": "批准后，浏览器会显示一个 localhost 错误，这是正常的。请从地址栏复制完整地址并粘贴到下方。",
+    "oauthCodeLabel": "授权码",
+    "oauthCodePlaceholder": "在此粘贴授权码",
+    "oauthLoopbackPlaceholder": "粘贴 localhost 地址（或授权码）"
   },
   "setup": {
     "button": {

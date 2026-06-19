@@ -40,6 +40,9 @@ export function useSecretPrompts(agentId: string | null) {
         title: data.title as string,
         description: (data.description as string) ?? undefined,
         fields: data.fields as SecretPromptRequest['fields'],
+        kind: (data.kind as SecretPromptRequest['kind']) ?? 'fields',
+        ...(data.oauth ? { oauth: data.oauth as SecretPromptRequest['oauth'] } : {}),
+        ...(data.qr ? { qr: data.qr as SecretPromptRequest['qr'] } : {}),
       }
       setPrompts((prev) => (prev.some((p) => p.promptId === req.promptId) ? prev : [...prev, req]))
     },

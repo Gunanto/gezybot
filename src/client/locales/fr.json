@@ -6,7 +6,14 @@
     "approve": "Révéler la valeur",
     "deny": "Refuser",
     "saving": "Enregistrement…",
-    "submit": "Enregistrer en sécurité"
+    "submit": "Enregistrer en sécurité",
+    "connect": "Connecter",
+    "oauthSignIn": "Se connecter avec {{provider}}",
+    "oauthHint": "Connectez-vous à {{provider}} dans l’onglet qui s’ouvre, puis collez ci-dessous le code d’autorisation fourni.",
+    "oauthLoopbackHint": "Après validation, le navigateur affiche une erreur localhost. C’est normal : copiez l’adresse complète depuis la barre d’adresse et collez-la ci-dessous.",
+    "oauthCodeLabel": "Code d'autorisation",
+    "oauthCodePlaceholder": "Collez le code ici",
+    "oauthLoopbackPlaceholder": "Collez l'URL localhost (ou le code)"
   },
   "setup": {
     "button": {

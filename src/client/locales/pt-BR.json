@@ -6,7 +6,14 @@
     "approve": "Revelar o valor",
     "deny": "Negar",
     "saving": "Salvando…",
-    "submit": "Salvar com segurança"
+    "submit": "Salvar com segurança",
+    "connect": "Conectar",
+    "oauthSignIn": "Entrar com {{provider}}",
+    "oauthHint": "Entre no {{provider}} na aba do navegador que abrir e cole abaixo o código de autorização.",
+    "oauthLoopbackHint": "Após aprovar, o navegador mostra um erro de localhost. Isso é normal: copie o endereço completo da barra de endereços e cole abaixo.",
+    "oauthCodeLabel": "Código de autorização",
+    "oauthCodePlaceholder": "Cole o código aqui",
+    "oauthLoopbackPlaceholder": "Cole a URL do localhost (ou o código)"
   },
   "setup": {
     "button": {

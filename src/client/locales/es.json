@@ -6,7 +6,14 @@
     "approve": "Revelar el valor",
     "deny": "Denegar",
     "saving": "Guardando…",
-    "submit": "Guardar de forma segura"
+    "submit": "Guardar de forma segura",
+    "connect": "Conectar",
+    "oauthSignIn": "Iniciar sesión con {{provider}}",
+    "oauthHint": "Inicia sesión en {{provider}} en la pestaña que se abre y pega abajo el código de autorización.",
+    "oauthLoopbackHint": "Tras aprobarlo, el navegador muestra un error de localhost. Es normal: copia la dirección completa de la barra de direcciones y pégala abajo.",
+    "oauthCodeLabel": "Código de autorización",
+    "oauthCodePlaceholder": "Pega el código aquí",
+    "oauthLoopbackPlaceholder": "Pega la URL de localhost (o el código)"
   },
   "setup": {
     "button": {

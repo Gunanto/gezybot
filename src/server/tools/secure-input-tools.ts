@@ -18,7 +18,9 @@ import {
   getCapabilitiesForType,
 } from '@/server/providers/index'
 import { channelAdapters } from '@/server/channels/index'
+import { getLLMProvider } from '@/server/llm/llm/registry'
 import { createSecretPrompt } from '@/server/services/secret-prompts'
+import { startProviderSignIn } from '@/server/services/provider-signin'
 import { requireAdmin } from '@/server/tools/config-tools'
 import { PROVIDER_API_KEY_URLS } from '@/shared/constants'
 import type { SecretPromptField } from '@/shared/types'
@@ -58,26 +60,43 @@ export const requestProviderSetupTool: ToolRegistration = {
         if (caps.length === 0) {
           return { error: `Unknown provider type "${type}". Use list_provider_types to see valid types.` }
         }
-        const schema = getConfigSchemaForType(type)
-        // Subscription providers that authenticate via an interactive browser
-        // sign-in (Claude Max, Codex) declare an `authMode` field and have no
-        // secret to paste — the secure popup can't drive that flow. Hand back
-        // step-by-step guidance so Queenie points the user at the in-app
-        // "Sign in" flow instead of dead-ending on "nothing to prompt".
-        if (schema.some((f) => f.key === 'authMode')) {
+        // Providers that DECLARE an interactive OAuth sign-in (Claude Max,
+        // Codex, or any plugin provider with `.oauth`) have no key to paste.
+        // Open an in-chat OAuth card instead of a secret popup — generic over
+        // the declaration, never the provider id. See interactive-setup.md.
+        if (getLLMProvider(type)?.oauth) {
+          const started = startProviderSignIn(type)
+          if (!started) {
+            return { error: `Could not start the sign-in for "${type}".` }
+          }
+          const { promptId } = await createSecretPrompt({
+            agentId: ctx.agentId,
+            taskId: ctx.taskId,
+            purpose: 'provider',
+            kind: 'oauth',
+            title: `Sign in to ${name}`,
+            description: `Sign in to your ${started.providerDisplayName} account to connect it. I never see your password — only the result.`,
+            fields: [],
+            spec: { type, name, families, verifier: started.verifier, state: started.state },
+            oauth: {
+              authorizeUrl: started.authorizeUrl,
+              providerDisplayName: started.providerDisplayName,
+              redirectStyle: started.redirectStyle,
+            },
+          })
           return {
-            status: 'manual_setup_required',
+            status: 'pending',
+            promptId,
             message:
-              `${name} (${type}) connects with an interactive browser sign-in (no key to paste), so it can't go through the secure popup. ` +
-              `Tell the user to open Settings → Providers → Add provider, pick "${name}", keep the "Sign in" toggle, click the sign-in button, approve in the browser tab that opens, then paste the authorization code back. ` +
-              `(For Codex the code is in the localhost address bar after approving — they paste the whole URL; Hivekeep extracts it.) ` +
-              `It appears in the providers list once done. If the matching CLI is already installed on the server, they can instead switch the toggle to "Credentials file".`,
+              'An in-chat sign-in card is open: the user signs in to the provider in their browser and pastes the code back. ' +
+              'Your turn ends now; you resume with the result once they finish. Do not narrate manual Settings steps.',
           }
         }
         const secretKeys = getSecretFieldKeys(type)
         if (secretKeys.length === 0) {
           return { error: `Provider type "${type}" has no API-key field (it may use a different auth flow). Nothing to prompt.` }
         }
+        const schema = getConfigSchemaForType(type)
         const keyUrl = PROVIDER_API_KEY_URLS[type]
         const fields: SecretPromptField[] = schema
           .filter((f) => f.type === 'secret')

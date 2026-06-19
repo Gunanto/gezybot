@@ -6,7 +6,14 @@
     "approve": "値を表示",
     "deny": "拒否",
     "saving": "保存中…",
-    "submit": "安全に保存"
+    "submit": "安全に保存",
+    "connect": "接続",
+    "oauthSignIn": "{{provider}} でサインイン",
+    "oauthHint": "開いたブラウザタブで {{provider}} にサインインし、表示された認証コードを下に貼り付けてください。",
+    "oauthLoopbackHint": "承認すると、ブラウザに localhost のエラーが表示されますが、これは正常です。アドレスバーから完全なアドレスをコピーして、下に貼り付けてください。",
+    "oauthCodeLabel": "認証コード",
+    "oauthCodePlaceholder": "ここにコードを貼り付け",
+    "oauthLoopbackPlaceholder": "localhost の URL（またはコード）を貼り付け"
   },
   "setup": {
     "button": {
