@@ -79,6 +79,11 @@ export const CONTRAST_MODES = ['normal', 'soft'] as const
 /** Maximum length (in characters) for a user message. Enforced server-side. */
 export const MAX_MESSAGE_LENGTH = 32_000
 
+/** Below this many items a settings list hides its search/filter bar — a filter
+ *  bar over three rows is just noise. Used by list screens (channels, webhooks,
+ *  contacts, …) to decide when the ListToolbar appears. */
+export const LIST_FILTER_THRESHOLD = 8
+
 /** Default maximum number of concurrency-safe tools that can run in parallel
  *  within a single step batch. Override at runtime with the
  *  HIVEKEEP_MAX_TOOL_USE_CONCURRENCY env var. */
