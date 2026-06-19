@@ -1213,7 +1213,8 @@
       "search": "Icons suchen…",
       "noResults": "Keine Icons entsprechen deiner Suche",
       "truncated": "Die ersten {{count}} werden angezeigt, verfeinere deine Suche"
-    }
+    },
+    "search": "Tools suchen..."
   },
   "toolDomains": {
     "title": "Tool-Domänen",
@@ -1240,7 +1241,8 @@
     "errors": {
       "slug": "Slug muss ^[a-z][a-z0-9-]*$ entsprechen",
       "label": "Label ist erforderlich"
-    }
+    },
+    "search": "Domains suchen..."
   },
   "toolboxes": {
     "title": "Toolboxen",
@@ -1298,7 +1300,8 @@
       "bullet2": "Erstelle eigene Toolboxen für wiederkehrende Arten von Arbeit.",
       "bullet3": "Jede Aufgabe behält immer ein Kern-Set an Tools, unabhängig von den zugewiesenen Toolboxen.",
       "bullet4": "Manche Tools können nie innerhalb einer Aufgabe laufen. Sie werden beim Zusammenstellen einer Toolbox markiert."
-    }
+    },
+    "search": "Toolboxen suchen..."
   },
   "settings": {
     "title": "Einstellungen",
@@ -1458,7 +1461,8 @@
         "bullet2": "Jeder Agent kann je nach Bedarf ein anderes Modell nutzen",
         "bullet3": "OpenAI-kompatible Provider (Groq, Together usw.) funktionieren mit demselben Konfigurationsmuster",
         "bullet4": "Teste die Verbindung nach dem Hinzufügen, um zu prüfen, ob der API-Schlüssel gültig ist"
-      }
+      },
+      "search": "Anbieter suchen..."
     },
     "modelRegistry": {
       "title": "Modellregister",
@@ -1593,7 +1597,8 @@
         "bullet2": "Server starten automatisch, wenn ein Agent sie braucht, und stoppen im Leerlauf",
         "bullet3": "Über Umgebungsvariablen übergibst du API-Schlüssel und Secrets sicher an den Serverprozess",
         "bullet4": "Agenten können MCP-Server auch selbst entdecken und hinzufügen (angezeigt als \"Wartet auf Freigabe\")"
-      }
+      },
+      "search": "Server suchen..."
     },
     "vault": {
       "title": "Vault",
@@ -1717,7 +1722,8 @@
       "publicTip": "Öffentliche Dateien erhalten eine teilbare URL. Private Dateien sind nur für den besitzenden Agenten zugänglich.",
       "passwordTip": "Schütze die Datei mit einem Passwort. Jeder, der auf die Datei zugreift, muss es eingeben.",
       "expiresInTip": "Löscht die Datei automatisch nach so vielen Stunden. Leer lassen, um sie unbegrenzt zu behalten.",
-      "readAndBurnTip": "Die Datei wird nach einem einzigen Download automatisch gelöscht. Nützlich für sensible Daten."
+      "readAndBurnTip": "Die Datei wird nach einem einzigen Download automatisch gelöscht. Nützlich für sensible Daten.",
+      "search": "Dateien suchen..."
     },
     "memories": {
       "title": "Erinnerungen",
@@ -1995,7 +2001,8 @@
         "bullet1": "Erstelle Einladungslinks mit konfigurierbarer Ablaufzeit",
         "bullet2": "Jeder Benutzer hat sein eigenes Konto und eigene Unterhaltungen",
         "bullet3": "Einladungen können jederzeit vor ihrer Nutzung widerrufen werden"
-      }
+      },
+      "search": "Benutzer suchen..."
     },
     "addressBook": {
       "title": "Adressbücher",
@@ -2368,7 +2375,8 @@
       "updateSuccess": "Plugin erfolgreich aktualisiert",
       "sourceLocal": "Lokal",
       "resetHealth": "Zustandsstatistiken zurücksetzen",
-      "healthReset": "Zustandsstatistiken zurückgesetzt"
+      "healthReset": "Zustandsstatistiken zurückgesetzt",
+      "search": "Plugins suchen..."
     },
     "marketplace": {
       "title": "Plugins durchsuchen",

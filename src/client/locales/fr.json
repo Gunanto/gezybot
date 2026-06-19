@@ -1213,7 +1213,8 @@
       "search": "Rechercher des icônes…",
       "noResults": "Aucune icône ne correspond à ta recherche",
       "truncated": "Affichage des {{count}} premières - affine ta recherche"
-    }
+    },
+    "search": "Rechercher des outils..."
   },
   "toolDomains": {
     "title": "Domaines d'outils",
@@ -1240,7 +1241,8 @@
     "errors": {
       "slug": "Le slug doit respecter ^[a-z][a-z0-9-]*$",
       "label": "Le libellé est requis"
-    }
+    },
+    "search": "Rechercher des domaines..."
   },
   "toolboxes": {
     "title": "Boîtes à outils",
@@ -1298,7 +1300,8 @@
       "bullet2": "Crée tes propres boîtes pour coller à tes types de travail récurrents.",
       "bullet3": "Chaque tâche conserve toujours un socle d'outils, quelles que soient les boîtes assignées.",
       "bullet4": "Certains outils ne peuvent jamais s'exécuter dans une tâche. Ils sont signalés quand tu construis une boîte."
-    }
+    },
+    "search": "Rechercher des boîtes à outils..."
   },
   "settings": {
     "title": "Paramètres",
@@ -1458,7 +1461,8 @@
         "bullet2": "Chaque Agent peut utiliser un modèle différent selon vos besoins",
         "bullet3": "Les providers compatibles OpenAI (Groq, Together, etc.) fonctionnent avec la même configuration",
         "bullet4": "Testez la connexion après ajout pour vérifier que la clé API est valide"
-      }
+      },
+      "search": "Rechercher des fournisseurs..."
     },
     "modelRegistry": {
       "title": "Registre de modèles",
@@ -1593,7 +1597,8 @@
         "bullet2": "Les serveurs sont démarrés automatiquement quand un Agent en a besoin et arrêtés quand inactifs",
         "bullet3": "Les variables d'environnement permettent de passer des clés API et secrets au processus serveur",
         "bullet4": "Les Agents peuvent aussi découvrir et ajouter des serveurs MCP eux-mêmes (affichés comme \"En attente d'approbation\")"
-      }
+      },
+      "search": "Rechercher des serveurs..."
     },
     "vault": {
       "title": "Coffre-fort",
@@ -1717,7 +1722,8 @@
       "publicTip": "Les fichiers publics ont une URL partageable. Les fichiers privés ne sont accessibles que par l'Agent propriétaire.",
       "passwordTip": "Protège le fichier par un mot de passe. Toute personne accédant au fichier devra le saisir.",
       "expiresInTip": "Supprime automatiquement le fichier après ce nombre d'heures. Laisser vide pour le garder indéfiniment.",
-      "readAndBurnTip": "Le fichier est automatiquement supprimé après un seul téléchargement. Utile pour les données sensibles."
+      "readAndBurnTip": "Le fichier est automatiquement supprimé après un seul téléchargement. Utile pour les données sensibles.",
+      "search": "Rechercher des fichiers..."
     },
     "memories": {
       "title": "Souvenirs",
@@ -1995,7 +2001,8 @@
         "bullet1": "Créez des liens d'invitation avec une durée de validité configurable",
         "bullet2": "Chaque utilisateur a son propre compte et ses propres conversations",
         "bullet3": "Les invitations peuvent être révoquées à tout moment avant utilisation"
-      }
+      },
+      "search": "Rechercher des utilisateurs..."
     },
     "addressBook": {
       "title": "Carnets d'adresses",
@@ -2368,7 +2375,8 @@
       "updateSuccess": "Plugin mis à jour avec succès",
       "sourceLocal": "Local",
       "resetHealth": "Réinitialiser les stats de santé",
-      "healthReset": "Stats de santé réinitialisées"
+      "healthReset": "Stats de santé réinitialisées",
+      "search": "Rechercher des plugins..."
     },
     "marketplace": {
       "title": "Explorer les plugins",

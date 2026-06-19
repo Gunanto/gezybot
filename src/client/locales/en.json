@@ -1213,7 +1213,8 @@
       "search": "Search icons…",
       "noResults": "No icons match your search",
       "truncated": "Showing first {{count}} - refine your search"
-    }
+    },
+    "search": "Search tools..."
   },
   "toolDomains": {
     "title": "Tool Domains",
@@ -1240,7 +1241,8 @@
     "errors": {
       "slug": "Slug must match ^[a-z][a-z0-9-]*$",
       "label": "Label is required"
-    }
+    },
+    "search": "Search domains..."
   },
   "toolboxes": {
     "title": "Toolboxes",
@@ -1298,7 +1300,8 @@
       "bullet2": "Create your own toolboxes to fit recurring kinds of work.",
       "bullet3": "Every task always keeps a core set of tools, regardless of the toolboxes you assign.",
       "bullet4": "Some tools can never run inside a task. They are flagged when you build a toolbox."
-    }
+    },
+    "search": "Search toolboxes..."
   },
   "settings": {
     "title": "Settings",
@@ -1458,7 +1461,8 @@
         "bullet2": "Each Agent can use a different model depending on your needs",
         "bullet3": "OpenAI-compatible providers (Groq, Together, etc.) work with the same configuration pattern",
         "bullet4": "Test the connection after adding to verify the API key is valid"
-      }
+      },
+      "search": "Search providers..."
     },
     "modelRegistry": {
       "title": "Model registry",
@@ -1593,7 +1597,8 @@
         "bullet2": "Servers are started automatically when an Agent needs them and stopped when idle",
         "bullet3": "Environment variables let you pass API keys and secrets securely to the server process",
         "bullet4": "Agents can also discover and add MCP servers on their own (shown as \"Pending approval\")"
-      }
+      },
+      "search": "Search servers..."
     },
     "vault": {
       "title": "Vault",
@@ -1717,7 +1722,8 @@
       "publicTip": "Public files get a shareable URL. Private files are only accessible by the owning Agent.",
       "passwordTip": "Protect the file with a password. Anyone accessing the file will need to enter it.",
       "expiresInTip": "Auto-delete the file after this many hours. Leave empty to keep it indefinitely.",
-      "readAndBurnTip": "The file is automatically deleted after being downloaded once. Useful for sensitive data."
+      "readAndBurnTip": "The file is automatically deleted after being downloaded once. Useful for sensitive data.",
+      "search": "Search files..."
     },
     "memories": {
       "title": "Memories",
@@ -1995,7 +2001,8 @@
         "bullet1": "Create invitation links with a configurable expiration time",
         "bullet2": "Each user has their own account and conversations",
         "bullet3": "Invitations can be revoked at any time before they are used"
-      }
+      },
+      "search": "Search users..."
     },
     "addressBook": {
       "title": "Address Books",
@@ -2368,7 +2375,8 @@
       "updateSuccess": "Plugin updated successfully",
       "sourceLocal": "Local",
       "resetHealth": "Reset health stats",
-      "healthReset": "Health stats reset"
+      "healthReset": "Health stats reset",
+      "search": "Search plugins..."
     },
     "marketplace": {
       "title": "Browse Plugins",

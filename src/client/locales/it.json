@@ -1213,7 +1213,8 @@
       "search": "Cerca icone…",
       "noResults": "Nessuna icona corrisponde alla ricerca",
       "truncated": "Mostro le prime {{count}}: affina la ricerca"
-    }
+    },
+    "search": "Cerca strumenti..."
   },
   "toolDomains": {
     "title": "Domini degli strumenti",
@@ -1240,7 +1241,8 @@
     "errors": {
       "slug": "Lo slug deve rispettare ^[a-z][a-z0-9-]*$",
       "label": "L'etichetta è obbligatoria"
-    }
+    },
+    "search": "Cerca domini..."
   },
   "toolboxes": {
     "title": "Toolbox",
@@ -1298,7 +1300,8 @@
       "bullet2": "Crea i tuoi toolbox su misura per i tipi di lavoro ricorrenti.",
       "bullet3": "Ogni attività mantiene sempre un set core di strumenti, indipendentemente dai toolbox che assegni.",
       "bullet4": "Alcuni strumenti non possono mai essere eseguiti dentro un'attività. Sono segnalati quando costruisci un toolbox."
-    }
+    },
+    "search": "Cerca toolbox..."
   },
   "settings": {
     "title": "Impostazioni",
@@ -1458,7 +1461,8 @@
         "bullet2": "Ogni Agente può usare un modello diverso a seconda delle tue esigenze",
         "bullet3": "I provider compatibili OpenAI (Groq, Together, ecc.) funzionano con lo stesso schema di configurazione",
         "bullet4": "Testa la connessione dopo l'aggiunta per verificare che la chiave API sia valida"
-      }
+      },
+      "search": "Cerca provider..."
     },
     "modelRegistry": {
       "title": "Registro dei modelli",
@@ -1593,7 +1597,8 @@
         "bullet2": "I server vengono avviati automaticamente quando un Agente ne ha bisogno e fermati quando inattivi",
         "bullet3": "Le variabili d'ambiente permettono di passare chiavi API e segreti in modo sicuro al processo del server",
         "bullet4": "Anche gli Agenti possono scoprire e aggiungere server MCP da soli (mostrati come \"In attesa di approvazione\")"
-      }
+      },
+      "search": "Cerca server..."
     },
     "vault": {
       "title": "Vault",
@@ -1717,7 +1722,8 @@
       "publicTip": "I file pubblici ottengono un URL condivisibile. I file privati sono accessibili solo dall'Agente proprietario.",
       "passwordTip": "Proteggi il file con una password. Chiunque vi acceda dovrà inserirla.",
       "expiresInTip": "Elimina automaticamente il file dopo questo numero di ore. Lascia vuoto per conservarlo a tempo indeterminato.",
-      "readAndBurnTip": "Il file viene eliminato automaticamente dopo essere stato scaricato una volta. Utile per dati sensibili."
+      "readAndBurnTip": "Il file viene eliminato automaticamente dopo essere stato scaricato una volta. Utile per dati sensibili.",
+      "search": "Cerca file..."
     },
     "memories": {
       "title": "Ricordi",
@@ -1995,7 +2001,8 @@
         "bullet1": "Crea link di invito con una scadenza configurabile",
         "bullet2": "Ogni utente ha il proprio account e le proprie conversazioni",
         "bullet3": "Gli inviti possono essere revocati in qualsiasi momento prima dell'uso"
-      }
+      },
+      "search": "Cerca utenti..."
     },
     "addressBook": {
       "title": "Rubriche",
@@ -2368,7 +2375,8 @@
       "updateSuccess": "Plugin aggiornato con successo",
       "sourceLocal": "Locale",
       "resetHealth": "Azzera le statistiche di salute",
-      "healthReset": "Statistiche di salute azzerate"
+      "healthReset": "Statistiche di salute azzerate",
+      "search": "Cerca plugin..."
     },
     "marketplace": {
       "title": "Esplora plugin",

@@ -1213,7 +1213,8 @@
       "search": "搜索图标…",
       "noResults": "没有匹配的图标",
       "truncated": "仅显示前 {{count}} 个，请细化搜索"
-    }
+    },
+    "search": "搜索工具..."
   },
   "toolDomains": {
     "title": "工具领域",
@@ -1240,7 +1241,8 @@
     "errors": {
       "slug": "Slug 必须匹配 ^[a-z][a-z0-9-]*$",
       "label": "标签为必填项"
-    }
+    },
+    "search": "搜索领域..."
   },
   "toolboxes": {
     "title": "工具箱",
@@ -1298,7 +1300,8 @@
       "bullet2": "创建你自己的工具箱来匹配经常出现的工作类型。",
       "bullet3": "无论分配哪些工具箱，每个任务都始终保留一组核心工具。",
       "bullet4": "有些工具永远无法在任务中运行。构建工具箱时它们会被标记出来。"
-    }
+    },
+    "search": "搜索工具箱..."
   },
   "settings": {
     "title": "设置",
@@ -1458,7 +1461,8 @@
         "bullet2": "每个智能体可以根据需要使用不同的模型",
         "bullet3": "OpenAI 兼容的提供商（Groq、Together 等）使用相同的配置方式",
         "bullet4": "添加后请测试连接，确认 API 密钥有效"
-      }
+      },
+      "search": "搜索提供商..."
     },
     "modelRegistry": {
       "title": "模型注册表",
@@ -1593,7 +1597,8 @@
         "bullet2": "服务器在智能体需要时自动启动，空闲时自动停止",
         "bullet3": "环境变量让你安全地向服务器进程传递 API 密钥和机密",
         "bullet4": "智能体也可以自行发现并添加 MCP 服务器（显示为「待批准」）"
-      }
+      },
+      "search": "搜索服务器..."
     },
     "vault": {
       "title": "保险库",
@@ -1717,7 +1722,8 @@
       "publicTip": "公开文件会获得可分享的 URL。私有文件仅所属智能体可访问。",
       "passwordTip": "用密码保护文件。任何访问该文件的人都需要输入密码。",
       "expiresInTip": "在指定小时数后自动删除文件。留空则永久保留。",
-      "readAndBurnTip": "文件被下载一次后自动删除。适合敏感数据。"
+      "readAndBurnTip": "文件被下载一次后自动删除。适合敏感数据。",
+      "search": "搜索文件..."
     },
     "memories": {
       "title": "记忆",
@@ -1995,7 +2001,8 @@
         "bullet1": "创建可配置过期时间的邀请链接",
         "bullet2": "每个用户拥有自己的账户和对话",
         "bullet3": "邀请在被使用之前可以随时撤销"
-      }
+      },
+      "search": "搜索用户..."
     },
     "addressBook": {
       "title": "通讯录",
@@ -2368,7 +2375,8 @@
       "updateSuccess": "插件更新成功",
       "sourceLocal": "本地",
       "resetHealth": "重置健康统计",
-      "healthReset": "健康统计已重置"
+      "healthReset": "健康统计已重置",
+      "search": "搜索插件..."
     },
     "marketplace": {
       "title": "浏览插件",

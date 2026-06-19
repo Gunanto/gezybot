@@ -1213,7 +1213,8 @@
       "search": "Buscar ícones…",
       "noResults": "Nenhum ícone corresponde à sua busca",
       "truncated": "Mostrando os primeiros {{count}}, refine sua busca"
-    }
+    },
+    "search": "Pesquisar ferramentas..."
   },
   "toolDomains": {
     "title": "Domínios de Ferramentas",
@@ -1240,7 +1241,8 @@
     "errors": {
       "slug": "O slug deve corresponder a ^[a-z][a-z0-9-]*$",
       "label": "O rótulo é obrigatório"
-    }
+    },
+    "search": "Pesquisar domínios..."
   },
   "toolboxes": {
     "title": "Caixas de Ferramentas",
@@ -1298,7 +1300,8 @@
       "bullet2": "Crie suas próprias caixas para tipos de trabalho recorrentes.",
       "bullet3": "Toda tarefa sempre mantém um conjunto básico de ferramentas, independentemente das caixas atribuídas.",
       "bullet4": "Algumas ferramentas nunca podem rodar dentro de uma tarefa. Elas são sinalizadas quando você monta uma caixa."
-    }
+    },
+    "search": "Pesquisar caixas de ferramentas..."
   },
   "settings": {
     "title": "Configurações",
@@ -1458,7 +1461,8 @@
         "bullet2": "Cada Agente pode usar um modelo diferente conforme suas necessidades",
         "bullet3": "Provedores compatíveis com OpenAI (Groq, Together, etc.) funcionam com o mesmo padrão de configuração",
         "bullet4": "Teste a conexão após adicionar para verificar se a chave de API é válida"
-      }
+      },
+      "search": "Pesquisar provedores..."
     },
     "modelRegistry": {
       "title": "Registro de modelos",
@@ -1593,7 +1597,8 @@
         "bullet2": "Os servidores iniciam automaticamente quando um Agente precisa deles e param quando ociosos",
         "bullet3": "Variáveis de ambiente permitem passar chaves de API e segredos com segurança ao processo do servidor",
         "bullet4": "Os Agentes também podem descobrir e adicionar servidores MCP por conta própria (exibidos como \"Aguardando aprovação\")"
-      }
+      },
+      "search": "Pesquisar servidores..."
     },
     "vault": {
       "title": "Cofre",
@@ -1717,7 +1722,8 @@
       "publicTip": "Arquivos públicos recebem uma URL compartilhável. Arquivos privados são acessíveis apenas pelo Agente proprietário.",
       "passwordTip": "Proteja o arquivo com uma senha. Qualquer pessoa que acessar o arquivo precisará digitá-la.",
       "expiresInTip": "Exclui o arquivo automaticamente após esse número de horas. Deixe vazio para mantê-lo indefinidamente.",
-      "readAndBurnTip": "O arquivo é excluído automaticamente após ser baixado uma vez. Útil para dados sensíveis."
+      "readAndBurnTip": "O arquivo é excluído automaticamente após ser baixado uma vez. Útil para dados sensíveis.",
+      "search": "Pesquisar arquivos..."
     },
     "memories": {
       "title": "Memórias",
@@ -1995,7 +2001,8 @@
         "bullet1": "Crie links de convite com prazo de expiração configurável",
         "bullet2": "Cada usuário tem sua própria conta e conversas",
         "bullet3": "Convites podem ser revogados a qualquer momento antes de serem usados"
-      }
+      },
+      "search": "Pesquisar usuários..."
     },
     "addressBook": {
       "title": "Agendas de Contatos",
@@ -2368,7 +2375,8 @@
       "updateSuccess": "Plugin atualizado com sucesso",
       "sourceLocal": "Local",
       "resetHealth": "Redefinir estatísticas de saúde",
-      "healthReset": "Estatísticas de saúde redefinidas"
+      "healthReset": "Estatísticas de saúde redefinidas",
+      "search": "Pesquisar plugins..."
     },
     "marketplace": {
       "title": "Explorar Plugins",

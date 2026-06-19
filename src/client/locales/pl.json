@@ -1225,7 +1225,8 @@
       "search": "Szukaj ikon…",
       "noResults": "Żadna ikona nie pasuje do wyszukiwania",
       "truncated": "Pokazano pierwsze {{count}}, doprecyzuj wyszukiwanie"
-    }
+    },
+    "search": "Szukaj narzędzi..."
   },
   "toolDomains": {
     "title": "Domeny narzędzi",
@@ -1252,7 +1253,8 @@
     "errors": {
       "slug": "Slug musi pasować do ^[a-z][a-z0-9-]*$",
       "label": "Etykieta jest wymagana"
-    }
+    },
+    "search": "Szukaj domen..."
   },
   "toolboxes": {
     "title": "Skrzynki narzędziowe",
@@ -1310,7 +1312,8 @@
       "bullet2": "Twórz własne skrzynki dopasowane do powtarzających się rodzajów pracy.",
       "bullet3": "Każde zadanie zawsze zachowuje podstawowy zestaw narzędzi, niezależnie od przypisanych skrzynek.",
       "bullet4": "Niektóre narzędzia nigdy nie mogą działać wewnątrz zadania. Są oznaczane podczas budowania skrzynki."
-    }
+    },
+    "search": "Szukaj zestawów narzędzi..."
   },
   "settings": {
     "title": "Ustawienia",
@@ -1470,7 +1473,8 @@
         "bullet2": "Każdy Agent może używać innego modelu w zależności od twoich potrzeb",
         "bullet3": "Dostawcy zgodni z OpenAI (Groq, Together itd.) działają według tego samego wzorca konfiguracji",
         "bullet4": "Po dodaniu przetestuj połączenie, aby sprawdzić, czy klucz API jest prawidłowy"
-      }
+      },
+      "search": "Szukaj dostawców..."
     },
     "modelRegistry": {
       "title": "Rejestr modeli",
@@ -1609,7 +1613,8 @@
         "bullet2": "Serwery są uruchamiane automatycznie, gdy Agent ich potrzebuje, i zatrzymywane w czasie bezczynności",
         "bullet3": "Zmienne środowiskowe pozwalają bezpiecznie przekazać klucze API i sekrety do procesu serwera",
         "bullet4": "Agenci mogą też samodzielnie odkrywać i dodawać serwery MCP (widoczne jako \"Oczekuje na zatwierdzenie\")"
-      }
+      },
+      "search": "Szukaj serwerów..."
     },
     "vault": {
       "title": "Sejf",
@@ -1733,7 +1738,8 @@
       "publicTip": "Pliki publiczne otrzymują link do udostępniania. Pliki prywatne są dostępne tylko dla Agenta właściciela.",
       "passwordTip": "Zabezpiecz plik hasłem. Każdy, kto chce uzyskać dostęp do pliku, będzie musiał je podać.",
       "expiresInTip": "Automatycznie usuń plik po upływie tylu godzin. Pozostaw puste, aby przechowywać go bezterminowo.",
-      "readAndBurnTip": "Plik jest automatycznie usuwany po jednym pobraniu. Przydatne dla danych wrażliwych."
+      "readAndBurnTip": "Plik jest automatycznie usuwany po jednym pobraniu. Przydatne dla danych wrażliwych.",
+      "search": "Szukaj plików..."
     },
     "memories": {
       "title": "Wspomnienia",
@@ -2011,7 +2017,8 @@
         "bullet1": "Twórz linki z zaproszeniami z konfigurowalnym czasem wygaśnięcia",
         "bullet2": "Każdy użytkownik ma własne konto i rozmowy",
         "bullet3": "Zaproszenia można odwołać w dowolnym momencie, zanim zostaną użyte"
-      }
+      },
+      "search": "Szukaj użytkowników..."
     },
     "addressBook": {
       "title": "Książki adresowe",
@@ -2386,7 +2393,8 @@
       "updateSuccess": "Wtyczka zaktualizowana",
       "sourceLocal": "Lokalna",
       "resetHealth": "Resetuj statystyki kondycji",
-      "healthReset": "Statystyki kondycji zresetowane"
+      "healthReset": "Statystyki kondycji zresetowane",
+      "search": "Szukaj wtyczek..."
     },
     "marketplace": {
       "title": "Przeglądaj wtyczki",
