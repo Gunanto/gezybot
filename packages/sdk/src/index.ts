@@ -320,6 +320,24 @@ export interface IncomingMessage {
 
 export type IncomingMessageHandler = (message: IncomingMessage) => Promise<void>
 
+/**
+ * A pairing-lifecycle event emitted by adapters that establish their session
+ * interactively (e.g. WhatsApp-Web's QR scan) rather than from a static token.
+ * The host forwards these to the UI over SSE during channel activation.
+ */
+export type ChannelPairingEvent =
+  | { type: 'qr'; qr: string }          // raw QR payload for the UI to render + scan
+  | { type: 'connected' }               // pairing succeeded; session established
+  | { type: 'logged-out' }              // session invalidated; must re-pair
+  | { type: 'error'; message: string }  // pairing / connection failed
+
+/** Handlers passed to {@link ChannelAdapter.startWithPairing}: the usual
+ *  inbound-message callback plus an optional pairing-event sink. */
+export interface ChannelStartHandlers {
+  onMessage: IncomingMessageHandler
+  onPairing?: (event: ChannelPairingEvent) => void
+}
+
 export interface OutboundAttachment {
   /** Local file path (absolute) or a public URL. */
   source: string
@@ -449,6 +467,14 @@ export interface ChannelAdapter {
   readonly configSchema?: ChannelConfigSchema
 
   /**
+   * Interactive-pairing capability marker. `'qr'` means the adapter has no
+   * static credential to enter: it establishes its session by surfacing a QR
+   * code during {@link startWithPairing} for the user to scan. The UI uses
+   * this to render a QR step instead of a config form.
+   */
+  readonly pairing?: 'qr'
+
+  /**
    * Open the inbound stream for this channel. Hivekeep calls this once
    * per channel at startup, and again each time the channel is
    * re-enabled. Must be idempotent — calling twice with the same
@@ -459,6 +485,19 @@ export interface ChannelAdapter {
     channelId: string,
     config: Record<string, unknown>,
     onMessage: IncomingMessageHandler,
+  ): Promise<void>
+
+  /**
+   * Variant of {@link start} for adapters that pair interactively. It opens
+   * the connection and streams QR / connection-lifecycle events through
+   * `handlers.onPairing`, which the host pushes to the UI over SSE. The host
+   * prefers this over `start` when present (and `pairing` is set). Like
+   * `start`, it must be idempotent — a second call restarts cleanly.
+   */
+  startWithPairing?(
+    channelId: string,
+    config: Record<string, unknown>,
+    handlers: ChannelStartHandlers,
   ): Promise<void>
 
   /** Tear down the inbound stream + any platform-side webhook

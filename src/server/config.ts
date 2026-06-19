@@ -607,6 +607,9 @@ export const config = {
     maxPerAgent: Number(process.env.CHANNELS_MAX_PER_KIN ?? 5),
     telegramWebhookPath: '/api/channels/telegram',
     pendingOriginTtlMs: Number(process.env.CHANNEL_PENDING_ORIGIN_TTL ?? 300_000),
+    // Per-channel WhatsApp-Web (Baileys) multi-file auth state. One subfolder
+    // per channel id; survives restarts so a paired session reconnects.
+    whatsappWebDir: process.env.WHATSAPP_WEB_DIR ?? `${dataDir}/whatsapp-web`,
   },
 
   quickSessions: {

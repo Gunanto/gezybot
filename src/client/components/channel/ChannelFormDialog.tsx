@@ -13,9 +13,12 @@ import { AgentSelector } from '@/client/components/common/AgentSelector'
 import type { AgentOption } from '@/client/components/common/AgentSelectItem'
 import { PlatformSelector } from '@/client/components/common/PlatformSelector'
 import { DynamicField } from '@/client/components/common/DynamicField'
-import { AlertTriangle, ChevronRight, HelpCircle, Lightbulb } from 'lucide-react'
+import { Button } from '@/client/components/ui/button'
+import { AlertTriangle, ChevronRight, HelpCircle, Lightbulb, CheckCircle2, Loader2, RefreshCw, Smartphone } from 'lucide-react'
 import { cn } from '@/client/lib/utils'
 import { usePlatforms } from '@/client/hooks/usePlatforms'
+import { useSSE } from '@/client/hooks/useSSE'
+import { api, getErrorMessage } from '@/client/lib/api'
 import type { ChannelConfigSchema, ChannelSummary } from '@/shared/types'
 
 function PlatformSetupGuide({ platform }: { platform: string }) {
@@ -133,6 +136,20 @@ export function ChannelFormDialog({
   // Transfer reason (only used when the user changes the Agent on edit).
   const [transferReason, setTransferReason] = useState('')
 
+  // ─── QR pairing (e.g. WhatsApp Web) ────────────────────────────────────────
+  // Pairing platforms have no static config: after the channel is created we
+  // activate it, the server streams a QR via `channel:pairing` SSE, and the
+  // channel turns active once the user scans it.
+  const [pairStep, setPairStep] = useState<'form' | 'qr' | 'connected'>('form')
+  const [qrImage, setQrImage] = useState('')
+  const [pairChannelId, setPairChannelId] = useState('')
+
+  const resetPairing = () => {
+    setPairStep('form')
+    setQrImage('')
+    setPairChannelId('')
+  }
+
   // Agent change detection in edit mode: anything bound to onTransfer below.
   const agentChanged = isEdit && !!channel && selectedAgentId !== '' && selectedAgentId !== channel.agentId
 
@@ -141,6 +158,27 @@ export function ChannelFormDialog({
     [platforms, platform],
   )
   const activeSchema = activePlatform?.configSchema
+  const isPairingPlatform = !isEdit && activePlatform?.pairing === 'qr'
+
+  // Listen for pairing lifecycle of the channel we just created.
+  useSSE({
+    'channel:pairing': (data) => {
+      if (!pairChannelId || data.channelId !== pairChannelId) return
+      const status = data.status as string
+      if (status === 'qr') {
+        setQrImage(String(data.qrImage ?? ''))
+        setPairStep('qr')
+      } else if (status === 'connected') {
+        setPairStep('connected')
+        // Give the user a beat to see the success state, then close. The
+        // channels list refreshes itself off the channel:updated SSE event.
+        setTimeout(() => onOpenChange(false), 1400)
+      } else if (status === 'logged-out' || status === 'error') {
+        setError(String(data.message ?? '') || t('settings.channels.qr.failed'))
+        setPairStep('form')
+      }
+    },
+  })
 
   // Set default platform when platforms load
   useEffect(() => {
@@ -166,6 +204,7 @@ export function ChannelFormDialog({
     // leak into a new transfer.
     setTransferReason('')
     setError(null)
+    resetPairing()
   }, [channel, open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset form values to the active platform's schema defaults whenever
@@ -213,6 +252,55 @@ export function ChannelFormDialog({
     }
   }
 
+  // Create the channel then activate it to begin QR pairing. The QR image and
+  // the eventual "connected" arrive over the `channel:pairing` SSE handler above.
+  const handlePairingStart = async () => {
+    setError(null)
+    setIsLoading(true)
+    try {
+      if (!selectedAgentId) return
+      let channelId = pairChannelId
+      if (!channelId) {
+        const res = await api.post<{ channel: { id: string } }>('/channels', {
+          agentId: selectedAgentId,
+          name,
+          platform,
+          platformConfig: {},
+        })
+        channelId = res.channel.id
+        setPairChannelId(channelId)
+      }
+      await api.post(`/channels/${channelId}/activate`)
+      setPairStep('qr')
+    } catch (err) {
+      setError(getErrorMessage(err))
+      setPairStep('form')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Re-activate to request a fresh QR (the displayed one expires).
+  const handleRegenerateQr = async () => {
+    if (!pairChannelId) return
+    setError(null)
+    setQrImage('')
+    try {
+      await api.post(`/channels/${pairChannelId}/activate`)
+    } catch (err) {
+      setError(getErrorMessage(err))
+    }
+  }
+
+  // Closing mid-pair (QR shown but not yet scanned) leaves the socket running —
+  // deactivate it so we don't keep an unpaired connection alive.
+  const handleOpenChange = (next: boolean) => {
+    if (!next && pairChannelId && pairStep === 'qr') {
+      void api.post(`/channels/${pairChannelId}/deactivate`).catch(() => {})
+    }
+    onOpenChange(next)
+  }
+
   const requiredFieldsMissing = (activeSchema?.fields ?? [])
     .filter((f) => f.required)
     .some((f) => isRequiredFieldMissing(formValues[f.name], f.type))
@@ -224,15 +312,70 @@ export function ChannelFormDialog({
   return (
     <FormDialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={handleOpenChange}
       title={isEdit ? t('common.edit') : t('settings.channels.add')}
       size="lg"
       error={error}
-      onSubmit={handleSave}
+      onSubmit={
+        isPairingPlatform
+          ? (pairStep === 'form' ? handlePairingStart : pairStep === 'qr' ? handleRegenerateQr : undefined)
+          : handleSave
+      }
       isSubmitting={isLoading}
       submitDisabled={!canSubmit}
-      submitLabel={t('common.save')}
+      submitLabel={
+        isPairingPlatform && pairStep === 'form'
+          ? t('settings.channels.qr.start')
+          : t('common.save')
+      }
+      footer={
+        isPairingPlatform && pairStep !== 'form' ? (
+          <>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
+              {pairStep === 'connected' ? t('common.close') : t('common.cancel')}
+            </Button>
+            {pairStep === 'qr' && (
+              <Button type="button" variant="secondary" onClick={handleRegenerateQr}>
+                <RefreshCw className="size-4" />
+                {t('settings.channels.qr.regenerate')}
+              </Button>
+            )}
+          </>
+        ) : undefined
+      }
     >
+      {/* QR pairing step (e.g. WhatsApp Web) */}
+      {isPairingPlatform && pairStep !== 'form' && (
+        <div className="flex flex-col items-center gap-3 py-2 text-center">
+          {pairStep === 'connected' ? (
+            <>
+              <CheckCircle2 className="size-12 text-primary" />
+              <p className="text-sm font-medium">{t('settings.channels.qr.connected')}</p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">{t('settings.channels.qr.instructions')}</p>
+              <div className="rounded-xl border border-border bg-white p-3">
+                {qrImage ? (
+                  <img src={qrImage} alt="WhatsApp QR code" className="size-56" width={224} height={224} />
+                ) : (
+                  <div className="flex size-56 items-center justify-center">
+                    <Loader2 className="size-8 animate-spin text-muted-foreground" />
+                  </div>
+                )}
+              </div>
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Smartphone className="size-3.5" />
+                {t('settings.channels.qr.waiting')}
+              </p>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Form (hidden once QR pairing begins) */}
+      {pairStep === 'form' && (
+        <>
       {/* Name */}
       <FormField
         label={t('settings.channels.name')}
@@ -314,6 +457,8 @@ export function ChannelFormDialog({
           ))}
           <PlatformSetupGuide platform={platform} />
         </div>
+      )}
+        </>
       )}
     </FormDialog>
   )

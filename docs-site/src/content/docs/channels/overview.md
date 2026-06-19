@@ -13,6 +13,7 @@ Channels let your Agents communicate with users on external messaging platforms.
 | **Discord** | Gateway (WebSocket) | 2,000 chars | ✅ Images, files |
 | **Slack** | Events API (webhook) | 4,000 chars | ✅ Images, files |
 | **WhatsApp** | Cloud API (webhook) | 4,096 chars | ✅ Images, files |
+| **WhatsApp (QR)** | Web multi-device (Baileys socket) | 4,096 chars | ✅ Images, files (outbound) |
 | **Signal** | signal-cli REST API | 2,000 chars | ✅ Images, files |
 | **Matrix** | Long-poll sync | 4,096 chars | ✅ Images, files |
 
@@ -31,12 +32,18 @@ Each platform has a **channel adapter** that implements a common interface:
 ```
 ChannelAdapter
 ├── start(channelId, config, onMessage)    → Connect to platform
+├── startWithPairing?(channelId, config, handlers) → Connect + stream QR/connection
+│                                              events (interactive pairing, optional)
 ├── stop(channelId)                         → Disconnect
 ├── sendMessage(channelId, config, params)  → Send outbound message
 ├── validateConfig(config)                  → Test credentials before saving
 ├── getBotInfo(config)                      → Get bot name/username for display
 └── sendTypingIndicator?(channelId, config, chatId) → Show typing (optional)
 ```
+
+### Interactive (QR) pairing
+
+Some platforms have no static token to paste: they pair by scanning a QR code. An adapter advertises this with `pairing: 'qr'` and implements `startWithPairing`, which opens the connection and streams QR + lifecycle events to the host. Hivekeep encodes the QR and pushes it to the UI over the `channel:pairing` SSE event; once you scan it, the channel turns active and the session is persisted so it reconnects on restart. **WhatsApp (QR)** is the built-in example (see [WhatsApp](/docs/channels/whatsapp/)).
 
 Adapters handle platform-specific details: webhook verification, gateway heartbeats, API authentication, file uploads, and message formatting. The rest of Hivekeep treats all channels identically.
 

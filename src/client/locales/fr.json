@@ -2221,6 +2221,14 @@
         "bullet2": "Testez votre connexion après la configuration pour vérifier que le token du bot est valide",
         "bullet3": "Gérez les approbations d'utilisateurs pour contrôler qui peut discuter avec votre Agent sur chaque plateforme",
         "bullet4": "Utilisez les IDs de chat autorisés pour restreindre les groupes ou chats auxquels l'Agent répond"
+      },
+      "qr": {
+        "start": "Afficher le QR code",
+        "regenerate": "Nouveau QR code",
+        "instructions": "Ouvrez WhatsApp sur votre téléphone, allez dans Réglages > Appareils connectés > Connecter un appareil, et scannez ce code.",
+        "waiting": "En attente du scan",
+        "connected": "WhatsApp connecté",
+        "failed": "L'association a échoué. Réessayez."
       }
     },
     "notifications": {

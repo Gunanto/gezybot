@@ -18,6 +18,8 @@ export type {
   ChannelConfigField,
   ChannelConfigSchema,
   ChannelEndpoint,
+  ChannelPairingEvent,
+  ChannelStartHandlers,
   DeliveryStatus,
   DeliveryStatusUpdate,
   IncomingAttachment,

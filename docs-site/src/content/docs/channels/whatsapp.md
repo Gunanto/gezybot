@@ -1,9 +1,29 @@
 ---
 title: WhatsApp
-description: Connect your Agent to WhatsApp using the Cloud API.
+description: Connect your Agent to WhatsApp using the Cloud API or QR-code pairing.
 ---
 
-WhatsApp integration uses the [Meta Cloud API](https://developers.facebook.com/docs/whatsapp/cloud-api) for both inbound and outbound messaging.
+Hivekeep offers two ways to connect WhatsApp:
+
+- **WhatsApp** (this page's main setup): the official [Meta Cloud API](https://developers.facebook.com/docs/whatsapp/cloud-api). Requires a Meta app, a business phone number, and a webhook. Best for businesses already on the Cloud API.
+- **WhatsApp (QR)**: links your **personal** WhatsApp number by scanning a QR code, like WhatsApp Web. No Meta app, no business account, nothing to install. See [QR-code pairing](#qr-code-pairing-no-cloud-api) below.
+
+## QR-code pairing (no Cloud API)
+
+The **WhatsApp (QR)** platform connects through the WhatsApp **web multi-device** protocol (via [Baileys](https://github.com/WhiskeySockets/Baileys)) over a long-lived socket, exactly like the WhatsApp Web app on a desktop.
+
+1. In Hivekeep, **Add channel** and pick **WhatsApp (QR)**. Choose the Agent and a name (there is no token to enter).
+2. Click **Show QR code**. A QR appears in the dialog.
+3. On your phone, open **WhatsApp > Settings > Linked devices > Link a device** and scan the code.
+4. Once scanned, the channel turns **active**. The session is saved on the server, so it reconnects automatically after a restart.
+
+If the QR expires before you scan it, click **New QR code**. If WhatsApp later reports the device as logged out, the channel flips to an error state and you can re-pair by activating it again.
+
+**Notes and limits:**
+
+- The session lives on the server under the data directory (`WHATSAPP_WEB_DIR`, default `data/whatsapp-web/<channel-id>`). Deleting the channel removes it.
+- This uses an unofficial protocol. Use a number you control and review WhatsApp's terms; it is not a substitute for the official Cloud API for high-volume business use.
+- Inbound currently handles text (including image/video captions); outbound supports text plus image/document attachments.
 
 ## Setup
 

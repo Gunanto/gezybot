@@ -1977,6 +1977,19 @@ Returns `201 { "ok": true }`. Errors: `503 FEEDBACK_DISABLED` (feature off), `50
 // Active project of an Agent changed
 { event: 'agent:active-project', data: { agentId: string, activeProjectId: string | null } }
 
+// Channel interactive pairing (e.g. WhatsApp QR): emitted during a pairing
+// adapter's activation. `status: 'qr'` carries a `qrImage` data-URL (PNG) to
+// render; `'connected'` means the session paired (the channel turns active);
+// `'logged-out'` / `'error'` carry an optional `message`. Trigger pairing by
+// POST /api/channels/:id/activate; re-activate for a fresh QR.
+{ event: 'channel:pairing', data: {
+  channelId: string,
+  agentId: string,
+  status: 'qr' | 'connected' | 'logged-out' | 'error',
+  qrImage?: string,   // data:image/png;base64,... when status === 'qr'
+  message?: string    // when status === 'error' | 'logged-out'
+} }
+
 // Workspace mutated (Files section): emitted by the /workspace/* routes AND by the
 // native tools that write into the static workspace (write_file, edit_file,
 // multi_edit, download_stored_file, download_email_attachment). A recursive

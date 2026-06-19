@@ -10,6 +10,9 @@ export interface PlatformInfo {
   iconUrl?: string
   isPlugin: boolean
   configSchema?: ChannelConfigSchema
+  /** Interactive-pairing capability (e.g. 'qr') — the platform is connected by
+   *  scanning a code rather than entering a static token. */
+  pairing?: 'qr'
 }
 
 /** Cached platforms — shared across all hook consumers within the same session.
