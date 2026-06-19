@@ -8,6 +8,9 @@ export interface ChannelPlatformInfo {
   isPlugin: boolean
   /** Declared configuration schema, when the adapter provides one. */
   configSchema?: ChannelConfigSchema
+  /** Interactive-pairing capability (e.g. 'qr'); set when the platform is
+   *  connected by scanning a code rather than entering a static token. */
+  pairing?: 'qr'
 }
 
 class ChannelAdapterRegistry {
@@ -46,6 +49,7 @@ class ChannelAdapterRegistry {
       iconUrl: a.meta?.iconUrl,
       isPlugin: this.pluginAdapters.has(p),
       ...(a.configSchema ? { configSchema: a.configSchema } : {}),
+      ...(a.pairing ? { pairing: a.pairing } : {}),
     }))
   }
 

@@ -2210,6 +2210,14 @@
         "bullet2": "Test your connection after setup to verify the bot token is valid",
         "bullet3": "Manage user approvals to control who can chat with your Agent on each platform",
         "bullet4": "Use allowed chat IDs to restrict which groups or chats the Agent responds to"
+      },
+      "qr": {
+        "start": "Show QR code",
+        "regenerate": "New QR code",
+        "instructions": "Open WhatsApp on your phone, go to Settings > Linked devices > Link a device, and scan this code.",
+        "waiting": "Waiting for you to scan",
+        "connected": "WhatsApp connected",
+        "failed": "Pairing failed. Try again."
       }
     },
     "notifications": {

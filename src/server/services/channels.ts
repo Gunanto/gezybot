@@ -13,10 +13,59 @@ import { config } from '@/server/config'
 import { agentAvatarUrl } from '@/server/services/field-validator'
 import { getContactDisplayName } from '@/shared/contact-display'
 import { applyAgentNamePrefix } from '@/server/services/channel-prefix'
-import type { IncomingMessage, OutboundAttachment, DeliveryStatusUpdate } from '@/server/channels/adapter'
+import type { IncomingMessage, OutboundAttachment, DeliveryStatusUpdate, ChannelPairingEvent } from '@/server/channels/adapter'
 import type { ChannelPlatform, ChannelStatus } from '@/shared/types'
+import QRCode from 'qrcode'
 
 const log = createLogger('channels')
+
+// ─── Interactive pairing (QR) → SSE bridge ──────────────────────────────────
+
+/**
+ * Build the `onPairing` sink for an interactive-pairing adapter (e.g.
+ * WhatsApp-Web). It turns the adapter's QR/connection lifecycle into
+ * `channel:pairing` SSE events (encoding the QR string into a data-URL image so
+ * the client just renders an <img>) and drives the channel status.
+ */
+function makePairingHandler(channelId: string, agentId: string): (e: ChannelPairingEvent) => void {
+  return (event) => {
+    void (async () => {
+      try {
+        if (event.type === 'qr') {
+          const qrImage = await QRCode.toDataURL(event.qr, { margin: 1, width: 320 })
+          sseManager.broadcast({
+            type: 'channel:pairing',
+            agentId,
+            data: { channelId, agentId, status: 'qr', qrImage },
+          })
+        } else if (event.type === 'connected') {
+          await setChannelStatus(channelId, 'active')
+          sseManager.broadcast({
+            type: 'channel:pairing',
+            agentId,
+            data: { channelId, agentId, status: 'connected' },
+          })
+        } else if (event.type === 'logged-out') {
+          await setChannelStatus(channelId, 'error', 'WhatsApp session logged out — scan the QR code again to re-pair.')
+          sseManager.broadcast({
+            type: 'channel:pairing',
+            agentId,
+            data: { channelId, agentId, status: 'logged-out' },
+          })
+        } else {
+          await setChannelStatus(channelId, 'error', event.message)
+          sseManager.broadcast({
+            type: 'channel:pairing',
+            agentId,
+            data: { channelId, agentId, status: 'error', message: event.message },
+          })
+        }
+      } catch (err) {
+        log.error({ channelId, err }, 'Failed to relay channel pairing event')
+      }
+    })()
+  }
+}
 
 // ─── In-memory sideband for channel metadata (same pattern as queueFileIds) ──
 
@@ -363,6 +412,18 @@ export async function activateChannel(channelId: string) {
   const cfg = JSON.parse(channel.platformConfig) as Record<string, unknown>
 
   try {
+    if (adapter.pairing && typeof adapter.startWithPairing === 'function') {
+      // Interactive pairing (QR): the socket opens now, but the channel only
+      // becomes 'active' once the user scans and the adapter reports
+      // 'connected' (handled by makePairingHandler). The status stays as-is
+      // until then; the UI watches `channel:pairing` SSE events.
+      await adapter.startWithPairing(channelId, cfg, {
+        onMessage: (incoming) => handleIncomingChannelMessage(channelId, incoming),
+        onPairing: makePairingHandler(channelId, channel.agentId),
+      })
+      log.info({ channelId, platform: channel.platform }, 'Channel pairing started')
+      return await getChannel(channelId)
+    }
     await adapter.start(channelId, cfg, (incoming) => handleIncomingChannelMessage(channelId, incoming))
     await setChannelStatus(channelId, 'active')
     log.info({ channelId, platform: channel.platform }, 'Channel activated')
@@ -1612,7 +1673,17 @@ export async function restoreActiveChannels() {
 
     const cfg = JSON.parse(channel.platformConfig) as Record<string, unknown>
     try {
-      await adapter.start(channel.id, cfg, (incoming) => handleIncomingChannelMessage(channel.id, incoming))
+      if (adapter.pairing && typeof adapter.startWithPairing === 'function') {
+        // Reconnect from the stored session. If it's still valid the adapter
+        // reports 'connected'; if it was logged out it reports 'logged-out'
+        // and makePairingHandler flips the channel to an error state.
+        await adapter.startWithPairing(channel.id, cfg, {
+          onMessage: (incoming) => handleIncomingChannelMessage(channel.id, incoming),
+          onPairing: makePairingHandler(channel.id, channel.agentId),
+        })
+      } else {
+        await adapter.start(channel.id, cfg, (incoming) => handleIncomingChannelMessage(channel.id, incoming))
+      }
       log.info({ channelId: channel.id, platform: channel.platform }, 'Channel restored')
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'Unknown error'

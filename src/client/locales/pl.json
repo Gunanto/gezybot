@@ -2226,6 +2226,14 @@
         "bullet2": "Po konfiguracji przetestuj połączenie, aby sprawdzić, czy token bota jest poprawny",
         "bullet3": "Zarządzaj zatwierdzaniem użytkowników, aby kontrolować, kto może rozmawiać z Twoim Agentem na każdej platformie",
         "bullet4": "Użyj dozwolonych ID czatów, aby ograniczyć grupy lub czaty, na które Agent odpowiada"
+      },
+      "qr": {
+        "start": "Pokaż kod QR",
+        "regenerate": "Nowy kod QR",
+        "instructions": "Otwórz WhatsApp w telefonie, przejdź do Ustawienia > Połączone urządzenia > Połącz urządzenie i zeskanuj ten kod.",
+        "waiting": "Oczekiwanie na zeskanowanie",
+        "connected": "WhatsApp połączony",
+        "failed": "Parowanie nie powiodło się. Spróbuj ponownie."
       }
     },
     "notifications": {

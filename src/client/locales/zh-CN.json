@@ -2210,6 +2210,14 @@
         "bullet2": "设置后请测试连接，确认机器人令牌有效",
         "bullet3": "通过用户审批管理控制谁能在各平台与你的智能体聊天",
         "bullet4": "用允许的聊天 ID 限制智能体响应哪些群组或聊天"
+      },
+      "qr": {
+        "start": "显示二维码",
+        "regenerate": "新二维码",
+        "instructions": "在手机上打开 WhatsApp，进入 设置 > 已关联的设备 > 关联设备，然后扫描此二维码。",
+        "waiting": "等待扫描",
+        "connected": "WhatsApp 已连接",
+        "failed": "配对失败，请重试。"
       }
     },
     "notifications": {
