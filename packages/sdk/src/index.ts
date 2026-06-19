@@ -2584,6 +2584,27 @@ export type PluginCardActionResult = { ok: true } | { ok: false; error: string }
  * before instantiating the context. The generic is purely a type-side
  * convenience for the plugin's call sites.
  */
+/**
+ * OAuth helper for a plugin LLM provider that declares an `oauth` descriptor
+ * (interactive sign-in). When the user connects that provider via the in-app
+ * "Sign in" card, the host stores + refreshes its tokens in the vault; this is
+ * how the plugin reads a fresh access token inside `chat()` / `authenticate()`.
+ *
+ * Scoped to the plugin's OWN providers: passing a config for a provider outside
+ * this plugin's namespace returns null.
+ */
+export interface PluginOAuthAPI {
+  /**
+   * Resolve a fresh access token for the provider described by `config` (pass
+   * the `ProviderConfig` your provider method received). The host reads the
+   * vault-stored bundle, refreshes it via your declared `oauth.client` when
+   * expired, and returns the token (+ any durable `extra` fields you captured
+   * with `oauth.buildExtra`). Returns null when the provider wasn't connected
+   * via sign-in (e.g. it uses an API key) — fall back to your own auth then.
+   */
+  getAccessToken(config: ProviderConfig): Promise<{ accessToken: string; extra?: Record<string, string> } | null>
+}
+
 export interface PluginContext<Config = Record<string, unknown>> {
   config: Config
   log: PluginLogger
@@ -2592,6 +2613,8 @@ export interface PluginContext<Config = Record<string, unknown>> {
   vault: PluginVaultAPI
   manifest: PluginManifestInfo
   cards: PluginCardsAPI
+  /** OAuth helper for plugin providers that declare `oauth` (sign-in). */
+  oauth: PluginOAuthAPI
 }
 
 /**

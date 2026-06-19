@@ -32,12 +32,7 @@ import { join } from 'path'
 import { createLogger } from '@/server/logger'
 import type { ProviderConfig } from '@/server/llm/core/types'
 import type { PkceClient } from '@/server/llm/llm/_oauth-pkce'
-import {
-  readTokenBundle,
-  writeTokenBundle,
-  vaultKeyFromConfig,
-  type OAuthTokenBundle,
-} from '@/server/llm/llm/_oauth-token-store'
+import { getVaultOAuthToken } from '@/server/llm/llm/_oauth-vault-access'
 
 const log = createLogger('provider:anthropic-oauth')
 
@@ -211,35 +206,6 @@ async function refreshFromFile(credsPath: string): Promise<string> {
   return data.access_token
 }
 
-// ─── Vault path (CLI-free "Sign in with Claude") ─────────────────────────────
-
-async function refreshFromVault(vaultKey: string, hint?: OAuthTokenBundle): Promise<string> {
-  // Re-read the latest bundle in case another worker refreshed it meanwhile.
-  const bundle = (await readTokenBundle(vaultKey)) ?? hint
-  if (!bundle) {
-    throw new Error('No stored Claude sign-in tokens found — reconnect the provider.')
-  }
-  const now = Date.now()
-  if (bundle.expiresAt && bundle.expiresAt - now > BUFFER_MS && bundle.accessToken) {
-    accessTokenCache.set(vaultKey, { accessToken: bundle.accessToken, expiresAt: bundle.expiresAt })
-    return bundle.accessToken
-  }
-
-  const data = await refreshToken(bundle.refreshToken)
-  log.info('OAuth token refreshed successfully (vault)')
-
-  const expiresAt = now + data.expires_in * 1000
-  const next: OAuthTokenBundle = {
-    accessToken: data.access_token,
-    refreshToken: data.refresh_token,
-    expiresAt,
-    ...(bundle.extra ? { extra: bundle.extra } : {}),
-  }
-  await writeTokenBundle(vaultKey, next)
-  accessTokenCache.set(vaultKey, { accessToken: data.access_token, expiresAt: expiresAt - BUFFER_MS })
-  return data.access_token
-}
-
 // ---------------------------------------------------------------------------
 // Public OAuth helpers
 // ---------------------------------------------------------------------------
@@ -248,22 +214,15 @@ async function refreshFromVault(vaultKey: string, hint?: OAuthTokenBundle): Prom
  * Get a fresh OAuth access token for the Anthropic API.
  *
  * Resolution order:
- *   1. **Vault** — when the provider row was set up via the in-app sign-in flow
- *      (a `provider_<type>_<id>_oauth` bundle exists). The row id/type reach us
- *      through the reserved `__providerId` / `__providerType` config keys.
+ *   1. **Vault** — when the provider row was set up via the in-app sign-in flow.
+ *      Handled by the generic, declaration-driven `getVaultOAuthToken` (shared
+ *      with Codex and any plugin provider that declares `oauth`).
  *   2. **CLI file** — the legacy `~/.claude/.credentials.json` (or an explicit
  *      `authFilePath` override). Keeps existing setups working unchanged.
  */
 export async function getOAuthAccessToken(config: ProviderConfig = {}): Promise<string> {
-  const vaultKey = vaultKeyFromConfig(config)
-  if (vaultKey) {
-    // Hot path: a still-fresh cached access token needs no vault read at all.
-    const cached = accessTokenCache.get(vaultKey)
-    if (cached && cached.expiresAt - Date.now() > BUFFER_MS) return cached.accessToken
-    // Otherwise, sign-in mode iff a stored bundle exists for this provider.
-    const bundle = await readTokenBundle(vaultKey)
-    if (bundle) return ensureFresh(vaultKey, () => refreshFromVault(vaultKey, bundle))
-  }
+  const vault = await getVaultOAuthToken(config)
+  if (vault) return vault.accessToken
   const credsPath = resolveCredsPath(config['authFilePath'] || undefined)
   return ensureFresh(credsPath, () => refreshFromFile(credsPath))
 }

@@ -30,8 +30,9 @@ import { registerEmailProvider, unregisterEmailProvider } from '@/server/email/r
 import { registerContactsProvider, unregisterContactsProvider } from '@/server/contacts/registry'
 import { registerCalendarProvider, unregisterCalendarProvider } from '@/server/calendar/registry'
 import { channelAdapters } from '@/server/channels/index'
-import type { LLMProvider, EmbeddingProvider, ImageProvider, SearchProvider, TTSProvider, STTProvider, EmailProvider, ContactsProvider, CalendarProvider, PluginProvider, ProviderCapability } from '@hivekeep/sdk'
+import type { LLMProvider, EmbeddingProvider, ImageProvider, SearchProvider, TTSProvider, STTProvider, EmailProvider, ContactsProvider, CalendarProvider, PluginProvider, ProviderCapability, ProviderConfig } from '@hivekeep/sdk'
 import { emitPluginCard, updatePluginCard } from '@/server/services/plugin-cards'
+import { getVaultOAuthToken } from '@/server/llm/llm/_oauth-vault-access'
 import type {
   PluginContext,
   PluginExports,
@@ -42,6 +43,7 @@ import type {
   PluginStorageAPI,
   PluginHTTPClient,
   PluginVaultAPI,
+  PluginOAuthAPI,
 } from '@hivekeep/sdk'
 
 // Re-export the plugin-facing surface so other internal modules keep their
@@ -1285,6 +1287,20 @@ class PluginManager {
 
     const vault: PluginVaultAPI = createPluginVault(manifest.name)
 
+    // OAuth helper, scoped to THIS plugin's own providers. The reserved
+    // `__providerType` in the runtime config must be in the plugin's namespace
+    // (`plugin:<name>:…`) — otherwise a plugin could read another provider's
+    // (or a built-in's) vault tokens.
+    const oauth: PluginOAuthAPI = {
+      getAccessToken: async (cfg) => {
+        const type = (cfg as Record<string, unknown>)?.['__providerType']
+        if (typeof type !== 'string' || !type.startsWith(`plugin:${manifest.name}:`)) {
+          return null
+        }
+        return getVaultOAuthToken(cfg as ProviderConfig)
+      },
+    }
+
     return {
       config,
       log: pluginLog as unknown as PluginLogger,
@@ -1293,6 +1309,7 @@ class PluginManager {
       vault,
       manifest,
       cards,
+      oauth,
     }
   }
 

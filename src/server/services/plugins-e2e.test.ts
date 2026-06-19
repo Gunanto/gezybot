@@ -65,6 +65,7 @@ function makeCtx(): PluginContext<{ greeting?: string }> {
       emit: mock(async () => ({ messageId: 'm1', cardInstanceId: 'c1' })),
       update: mock(async () => {}),
     },
+    oauth: { getAccessToken: async () => null },
   }
 }
 

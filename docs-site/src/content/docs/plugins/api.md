@@ -114,6 +114,32 @@ interface PluginVaultAPI {
 }
 ```
 
+### `ctx.oauth`
+
+OAuth helper for a plugin **LLM provider** that declares an `oauth` descriptor (interactive browser sign-in). When the user connects that provider via the in-app "Sign in" card, Hivekeep runs the PKCE flow and stores + refreshes the tokens in the vault for you. Inside your provider's `chat()` / `authenticate()`, call `getAccessToken(config)` with the `ProviderConfig` you received to get a fresh token. Scoped to your own providers (a config outside your `plugin:<name>:` namespace returns null).
+
+```typescript
+interface PluginOAuthAPI {
+  // Returns a fresh access token (+ any durable `extra` you captured with
+  // oauth.buildExtra), refreshing via your declared oauth.client when expired.
+  // null when the provider wasn't connected via sign-in (e.g. an API key) —
+  // fall back to your own auth then.
+  getAccessToken(config: ProviderConfig): Promise<{ accessToken: string; extra?: Record<string, string> } | null>
+}
+```
+
+To declare the sign-in, set `oauth` on your `LLMProvider`:
+
+```typescript
+import type { LLMProvider, ProviderOAuthDescriptor } from '@hivekeep/sdk'
+
+const oauth: ProviderOAuthDescriptor = {
+  client: { clientId, authorizeUrl, tokenUrl, redirectUri, scopes },
+  redirectStyle: 'page', // or 'loopback' (the code is in a localhost URL the user copies)
+}
+// provider.oauth = oauth  → the host shows the in-chat "Sign in" card + Settings toggle automatically.
+```
+
 ### `ctx.cards`
 
 Emit and update rich, live-updating cards in the chat. The plugin name is captured at context creation, so a plugin can only emit cards under its own identity. See [Plugin Cards](#plugin-cards) below.

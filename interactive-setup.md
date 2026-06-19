@@ -12,7 +12,13 @@
 >   `'oauth'`); `request_provider_setup` opens it.
 > - **P2** (done): QR pairing card (kind `'qr'`, event-resolved via
 >   `channel:pairing`); `request_channel_setup` opens it.
-> - **P3** (in progress): re-pair an existing channel, docs.
+> - **P3** (done): re-pair an existing channel, docs.
+> - **Plugin parity** (done): the vault token read/refresh is now a single
+>   generic accessor (`_oauth-vault-access.ts`, declaration-driven) shared by the
+>   built-ins and exposed to plugin providers as `ctx.oauth.getAccessToken`
+>   (namespace-gated). A plugin LLM provider that declares `oauth` gets the
+>   sign-in card AND can read/refresh its tokens; a plugin channel that declares
+>   `pairing:'qr'` gets the QR card + re-pair for free.
 
 ## 1. Problem
 
