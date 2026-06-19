@@ -7,6 +7,7 @@ const PLATFORM_COLORS: Record<string, string> = {
   discord: '#5865F2',
   slack: '#4A154B',
   whatsapp: '#25D366',
+  'whatsapp-web': '#25D366',
   signal: '#3A76F0',
   matrix: '#0DBD8B',
 }
@@ -64,6 +65,7 @@ const PLATFORM_ICONS: Record<string, React.FC<{ className?: string; color?: stri
   discord: DiscordSvg,
   slack: SlackSvg,
   whatsapp: WhatsAppSvg,
+  'whatsapp-web': WhatsAppSvg,
   signal: SignalSvg,
   matrix: MatrixSvg,
 }
