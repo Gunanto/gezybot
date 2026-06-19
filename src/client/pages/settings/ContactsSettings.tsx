@@ -61,6 +61,13 @@ export function ContactsSettings() {
     fetchContacts()
   }, [fetchContacts])
 
+  // If the total shrinks below the current page (e.g. the last item on the last
+  // page was deleted), step back so we never strand the user on an empty page.
+  useEffect(() => {
+    const maxPage = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1)
+    if (page > maxPage) setPage(maxPage)
+  }, [total, page])
+
   // SSE has no replay — refetch the current page on reconnect/resume.
   useSSEResync(() => { fetchContacts() })
 
