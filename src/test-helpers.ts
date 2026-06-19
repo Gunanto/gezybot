@@ -242,6 +242,7 @@ export const fullMockSchema = {
   channels: {},
   channelUserMappings: {},
   channelMessageLinks: {},
+  channelPendingMessages: {},
   invitations: {},
   notifications: {},
   notificationPreferences: {},
@@ -275,6 +276,8 @@ export const fullMockSchema = {
   accountSyncState: {},
   triggerLogs: {},
   terminalSessions: {},
+  workspaceFolders: {},
+  feedbackState: {},
 }
 
 /**
