@@ -3070,7 +3070,8 @@
     "filesRename": "Renombrar la entrada seleccionada (árbol enfocado)",
     "filesDelete": "Eliminar la entrada seleccionada (árbol enfocado)",
     "filesClipboard": "Copiar / cortar / pegar (árbol enfocado)",
-    "filesCloseTab": "Cerrar la pestaña activa"
+    "filesCloseTab": "Cerrar la pestaña activa",
+    "filesReopenTab": "Reabrir pestaña cerrada"
   },
   "theme": {
     "palette": "Paleta",

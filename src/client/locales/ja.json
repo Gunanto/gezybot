@@ -3070,7 +3070,8 @@
     "filesRename": "選択中の項目の名前を変更(ツリーにフォーカス時)",
     "filesDelete": "選択中の項目を削除(ツリーにフォーカス時)",
     "filesClipboard": "コピー / 切り取り / 貼り付け(ツリーにフォーカス時)",
-    "filesCloseTab": "アクティブなタブを閉じる"
+    "filesCloseTab": "アクティブなタブを閉じる",
+    "filesReopenTab": "閉じたタブを再度開く"
   },
   "theme": {
     "palette": "パレット",

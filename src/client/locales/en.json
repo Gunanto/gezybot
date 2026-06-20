@@ -3070,7 +3070,8 @@
     "filesRename": "Rename the selected entry (tree focused)",
     "filesDelete": "Delete the selected entry (tree focused)",
     "filesClipboard": "Copy / cut / paste (tree focused)",
-    "filesCloseTab": "Close the active tab"
+    "filesCloseTab": "Close the active tab",
+    "filesReopenTab": "Reopen closed tab"
   },
   "theme": {
     "palette": "Palette",

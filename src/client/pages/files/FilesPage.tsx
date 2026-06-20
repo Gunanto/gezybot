@@ -302,7 +302,10 @@ export function FilesPage() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey
-      if (mod && e.key.toLowerCase() === 'p') {
+      if (mod && e.shiftKey && e.key.toLowerCase() === 't') {
+        e.preventDefault()
+        tabsApiRef.current.reopenLastClosed()
+      } else if (mod && e.key.toLowerCase() === 'p') {
         e.preventDefault()
         setQuickOpenOpen(true)
       } else if (mod && e.key.toLowerCase() === 's') {

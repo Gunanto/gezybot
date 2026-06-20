@@ -3070,7 +3070,8 @@
     "filesRename": "Rinomina l'elemento selezionato (albero attivo)",
     "filesDelete": "Elimina l'elemento selezionato (albero attivo)",
     "filesClipboard": "Copia / taglia / incolla (albero attivo)",
-    "filesCloseTab": "Chiudi la scheda attiva"
+    "filesCloseTab": "Chiudi la scheda attiva",
+    "filesReopenTab": "Riapri scheda chiusa"
   },
   "theme": {
     "palette": "Palette",

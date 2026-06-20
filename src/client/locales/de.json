@@ -3070,7 +3070,8 @@
     "filesRename": "Ausgewählten Eintrag umbenennen (Baum fokussiert)",
     "filesDelete": "Ausgewählten Eintrag löschen (Baum fokussiert)",
     "filesClipboard": "Kopieren / Ausschneiden / Einfügen (Baum fokussiert)",
-    "filesCloseTab": "Aktiven Tab schließen"
+    "filesCloseTab": "Aktiven Tab schließen",
+    "filesReopenTab": "Geschlossenen Tab wieder öffnen"
   },
   "theme": {
     "palette": "Palette",

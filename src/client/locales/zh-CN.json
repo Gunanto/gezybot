@@ -3070,7 +3070,8 @@
     "filesRename": "重命名所选条目（树聚焦时）",
     "filesDelete": "删除所选条目（树聚焦时）",
     "filesClipboard": "复制 / 剪切 / 粘贴（树聚焦时）",
-    "filesCloseTab": "关闭当前标签页"
+    "filesCloseTab": "关闭当前标签页",
+    "filesReopenTab": "重新打开已关闭的标签页"
   },
   "theme": {
     "palette": "调色板",

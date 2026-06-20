@@ -3070,7 +3070,8 @@
     "filesRename": "Renommer la sélection (focus arborescence)",
     "filesDelete": "Supprimer la sélection (focus arborescence)",
     "filesClipboard": "Copier / couper / coller (focus arborescence)",
-    "filesCloseTab": "Fermer l’onglet actif"
+    "filesCloseTab": "Fermer l’onglet actif",
+    "filesReopenTab": "Rouvrir l'onglet fermé"
   },
   "theme": {
     "palette": "Palette",

@@ -3088,7 +3088,8 @@
     "filesRename": "Zmień nazwę zaznaczonego elementu (fokus na drzewie)",
     "filesDelete": "Usuń zaznaczony element (fokus na drzewie)",
     "filesClipboard": "Kopiuj / wytnij / wklej (fokus na drzewie)",
-    "filesCloseTab": "Zamknij aktywną kartę"
+    "filesCloseTab": "Zamknij aktywną kartę",
+    "filesReopenTab": "Otwórz ponownie zamkniętą kartę"
   },
   "theme": {
     "palette": "Paleta",

@@ -3070,7 +3070,8 @@
     "filesRename": "Renomear a entrada selecionada (árvore em foco)",
     "filesDelete": "Excluir a entrada selecionada (árvore em foco)",
     "filesClipboard": "Copiar / recortar / colar (árvore em foco)",
-    "filesCloseTab": "Fechar a aba ativa"
+    "filesCloseTab": "Fechar a aba ativa",
+    "filesReopenTab": "Reabrir aba fechada"
   },
   "theme": {
     "palette": "Paleta",
