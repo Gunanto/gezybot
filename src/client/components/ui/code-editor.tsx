@@ -47,6 +47,12 @@ interface CodeEditorProps {
   extensions?: Extension[]
   /** Bound to Mod-S inside the editor (browser save dialog suppressed). */
   onSave?: () => void
+  /**
+   * Enable the in-editor search panel + keymap (Mod-F find, Mod-G next,
+   * Mod-Alt-G go-to-line) and selection-match highlighting. Off by default so
+   * embedded editors (modals) keep the browser's native find.
+   */
+  search?: boolean
   className?: string
 }
 
@@ -86,6 +92,7 @@ export function CodeEditor({
   lineWrapping = true,
   extensions: extraExtensions,
   onSave,
+  search = false,
   className,
 }: CodeEditorProps) {
   const { resolvedTheme } = useTheme()
@@ -184,8 +191,8 @@ export function CodeEditor({
           autocompletion: false,
           crosshairCursor: false,
           rectangularSelection: false,
-          highlightSelectionMatches: false,
-          searchKeymap: false,
+          highlightSelectionMatches: search,
+          searchKeymap: search,
           lintKeymap: false,
           completionKeymap: false,
           foldKeymap: false,

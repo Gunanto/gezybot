@@ -113,6 +113,7 @@ export function WorkspaceEditor({ source, path, state, onChangeDraft, onSave, on
             onChange={onChangeDraft}
             filename={name}
             height="100%"
+            search
             className="h-full rounded-none border-0 [&:has(.cm-focused)]:ring-0 [&:has(.cm-focused)]:border-0"
             onSave={() => onSave()}
           />
