@@ -87,7 +87,7 @@ test.describe.serial('Agent management', () => {
     // Change role
     await page.locator('#agentFormRole').fill('Updated role description')
 
-    // Save — look for the save button
+    // Save (look for the save button)
     await page.getByRole('button', { name: /Save/i }).click()
 
     // Should see success indication (toast or dialog closes)
@@ -156,7 +156,7 @@ test.describe.serial('Agent management', () => {
     await expect(deleteButton).toBeVisible({ timeout: 5_000 })
     await deleteButton.click()
 
-    // Should show confirmation — click confirm/delete
+    // Should show confirmation, click confirm/delete
     const confirmButton = page.getByRole('button', { name: /Delete|Confirm/i }).last()
     await expect(confirmButton).toBeVisible({ timeout: 5_000 })
     await confirmButton.click()

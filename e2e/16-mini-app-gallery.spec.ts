@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { loginAs } from './helpers/auth'
 
-// ─── Tests ──────────────────────────────────────────────────────────────────
 // The gallery dialog UI was removed (apps are shown inline in the sidebar).
 // Only the sidebar-level Mini-Apps tests remain.
 

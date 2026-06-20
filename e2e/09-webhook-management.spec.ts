@@ -60,7 +60,7 @@ async function createWebhook(page: Page, name: string, description?: string) {
   // Save
   await page.getByRole('button', { name: /save/i }).click()
 
-  // After creation, a token reveal dialog appears — close it
+  // After creation, a token reveal dialog appears, close it
   await expect(page.getByText('Webhook created')).toBeVisible({ timeout: 10_000 })
   await page.getByRole('button', { name: 'Close', exact: true }).first().click()
 

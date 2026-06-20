@@ -10,7 +10,7 @@ async function navigateToSection(page: Page, sectionName: string) {
   await page.getByRole('dialog').getByText(sectionName, { exact: true }).click()
 }
 
-test.describe.serial('Settings — Plugins', () => {
+test.describe.serial('Settings: Plugins', () => {
   test.beforeEach(async ({ page }) => {
     await mockProviderModels(page)
     await page.goto('/')
@@ -70,7 +70,7 @@ test.describe.serial('Settings — Plugins', () => {
     await page.getByRole('button', { name: /install plugin/i }).click()
     await expect(page.getByText('Git Repository URL')).toBeVisible({ timeout: 3_000 })
 
-    // Switch to npm source — the Select trigger is inside the install dialog
+    // Switch to npm source (the Select trigger is inside the install dialog)
     const sourceSelect = page.locator('[data-slot="select-trigger"]').last()
     await sourceSelect.click()
     await page.getByRole('option', { name: /npm/i }).click()

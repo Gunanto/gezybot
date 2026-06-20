@@ -16,7 +16,7 @@ async function navigateToSection(page: Page, sectionName: string) {
   await page.getByRole('dialog').getByText(sectionName, { exact: true }).click()
 }
 
-test.describe.serial('Settings — General & Navigation', () => {
+test.describe.serial('Settings: General & Navigation', () => {
   test.beforeEach(async ({ page }) => {
     await mockProviderModels(page)
     await page.goto('/')
@@ -28,7 +28,7 @@ test.describe.serial('Settings — General & Navigation', () => {
   test('should open settings dialog on General tab by default', async ({ page }) => {
     await openSettings(page)
 
-    // General section should be visible — check for the description text
+    // General section should be visible (check for the description text)
     await expect(
       page.getByText('Platform-wide settings that apply to all Agents.')
     ).toBeVisible({ timeout: 5_000 })
@@ -45,11 +45,11 @@ test.describe.serial('Settings — General & Navigation', () => {
   test('should edit and save the global prompt', async ({ page }) => {
     await openSettings(page)
 
-    // Wait for loading to finish — Save button should appear
+    // Wait for loading to finish (Save button should appear)
     const saveButton = page.getByRole('button', { name: /save/i })
     await expect(saveButton).toBeVisible({ timeout: 5_000 })
 
-    // The MarkdownEditor uses a CodeMirror editor — must type via keyboard (fill() bypasses CM change detection)
+    // The MarkdownEditor uses a CodeMirror editor: must type via keyboard (fill() bypasses CM change detection)
     const editor = page.locator('.cm-editor .cm-content')
     await expect(editor).toBeVisible({ timeout: 5_000 })
 

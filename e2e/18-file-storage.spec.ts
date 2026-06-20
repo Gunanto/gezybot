@@ -4,7 +4,7 @@ import { loginAs, TEST_USER } from './helpers/auth'
 const BASE = 'http://localhost:3334'
 
 /**
- * Helper: ensure at least one Agent exists (needed for file storage — files belong to an Agent).
+ * Helper: ensure at least one Agent exists (needed for file storage, files belong to an Agent).
  */
 async function ensureAgentExists(page: import('@playwright/test').Page) {
   await page.goto(BASE)
@@ -81,7 +81,7 @@ test.describe.serial('File Storage settings', () => {
     const fileInput = page.locator('input[type="file"]')
     await expect(fileInput).toBeVisible()
 
-    // Agent selector — the upload dialog is the last [role="dialog"] (nested inside settings dialog)
+    // Agent selector (the upload dialog is the last [role="dialog"], nested inside settings dialog)
     const uploadDialog = page.locator('[role="dialog"]').last()
     const agentSelector = uploadDialog.locator('[data-slot="select-trigger"]').first()
     await expect(agentSelector).toBeVisible({ timeout: 5000 })
@@ -186,9 +186,6 @@ test.describe.serial('File Storage settings', () => {
       buffer: Buffer.from('Hello E2E world!'),
     })
     await page.waitForTimeout(300)
-
-    // Name should be auto-filled with filename
-    const nameInput = page.locator('input').filter({ has: page.locator('[placeholder]') }).first()
 
     // Fill description
     const descInput = page.locator('input[placeholder*="What is this file"]')

@@ -83,7 +83,7 @@ async function createContact(
     }
   }
 
-  // Submit — the "Add contact" button in the dialog footer
+  // Submit via the "Add contact" button in the dialog footer
   // The dialog has a footer with Cancel + Add contact buttons
   const dialogs = page.locator('[role="dialog"]')
   const contactDialog = dialogs.last()

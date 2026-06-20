@@ -72,7 +72,7 @@ async function mockModels(page: Page) {
   })
 }
 
-test.describe.serial('Settings — Memories', () => {
+test.describe.serial('Settings: Memories', () => {
   test.beforeEach(async ({ page }) => {
     await mockModels(page)
     await page.goto('/')
@@ -106,7 +106,7 @@ test.describe.serial('Settings — Memories', () => {
     // Click the "Add memory" button
     await page.getByRole('button', { name: 'Add memory' }).first().click()
 
-    // Dialog should open — check for the content textarea
+    // Dialog should open (check for the content textarea)
     await expect(page.getByPlaceholder('Enter the memory content...')).toBeVisible({ timeout: 5_000 })
 
     // Should show form fields
@@ -140,7 +140,7 @@ test.describe.serial('Settings — Memories', () => {
     // Fill content
     await page.getByPlaceholder('Enter the memory content...').fill('The user prefers dark mode for all applications.')
 
-    // Category should default to "Fact" — change to "Preference"
+    // Category should default to "Fact", change to "Preference"
     const categoryTrigger = page.locator('[data-slot="select-trigger"]').filter({ hasText: 'Fact' })
     await categoryTrigger.click()
     await page.locator('[data-slot="select-item"]').filter({ hasText: 'Preference' }).click()
@@ -181,7 +181,7 @@ test.describe.serial('Settings — Memories', () => {
       await page.locator('[data-slot="select-item"]').first().click()
     }
 
-    // Fill content — keep default "Fact" category
+    // Fill content, keep default "Fact" category
     await page.getByPlaceholder('Enter the memory content...').fill('Project deadline is March 15, 2026.')
 
     // Save

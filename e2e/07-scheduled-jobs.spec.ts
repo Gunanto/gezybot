@@ -65,7 +65,7 @@ async function createJob(
   }
 
   // Fill task instructions (CodeMirror markdown editor)
-  // CodeMirror uses contenteditable .cm-content — click and use keyboard shortcuts to fill
+  // CodeMirror uses contenteditable .cm-content: click and use keyboard shortcuts to fill
   const cmContent = page.locator('.cm-content[contenteditable="true"]').first()
   await cmContent.click()
   // Select all existing content and replace it
@@ -136,7 +136,7 @@ test.describe.serial('Scheduled jobs management', () => {
     const jobCard = page.locator('[role="button"]', { hasText: 'Daily Report Job' }).first()
     await jobCard.click()
 
-    // Detail modal should open — title is the job name
+    // Detail modal should open (title is the job name)
     const dialog = page.locator('[role="dialog"]')
     await expect(dialog).toBeVisible({ timeout: 5_000 })
     await expect(dialog.getByText('Generate a daily summary report')).toBeVisible()

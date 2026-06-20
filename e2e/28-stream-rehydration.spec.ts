@@ -2,8 +2,8 @@ import { test, expect, type Page } from '@playwright/test'
 import { loginAs, mockProviderModels } from './helpers/auth'
 
 /**
- * Regression spec for ticket hivekeep#19 — "Problème de reprise de streaming
- * sur le main thread".
+ * Regression spec for ticket hivekeep#19 ("stream resumption on the main
+ * thread").
  *
  * Scenario:
  *   1. Send a message to an Agent in its main conversation.
@@ -12,8 +12,8 @@ import { loginAs, mockProviderModels } from './helpers/auth'
  *   3. Navigate back to the conversation BEFORE chat:done fires.
  *   4. Expectation: the partial assistant bubble is visible immediately
  *      (rehydrated from GET /api/agents/:id/messages's `streamingMessage`
- *      snapshot). Pre-fix behaviour showed only the "Réflexion…" /
- *      typing indicator until chat:done landed.
+ *      snapshot). Pre-fix behaviour showed only the typing indicator until
+ *      chat:done landed.
  *
  * Server-side: relies on E2E_MOCK_LLM=true (configured in
  * playwright.config.js) emitting a deterministic ~30-token response
@@ -46,7 +46,7 @@ test.describe.serial('Main-thread stream rehydration', () => {
   test('partial assistant bubble survives a navigate-away mid-stream', async ({ page }) => {
     const input = await openAgentChat(page)
 
-    // Send a fresh prompt — the mock LLM will start streaming back the
+    // Send a fresh prompt: the mock LLM will start streaming back the
     // canned response at the configured token delay.
     await input.fill(USER_MESSAGE)
     await page.keyboard.press('Enter')
@@ -57,7 +57,7 @@ test.describe.serial('Main-thread stream rehydration', () => {
     // appears about 200ms into the mock stream at 120ms per token.
     await expect(page.getByText(ASSISTANT_PHRASE).first()).toBeVisible({ timeout: 10_000 })
 
-    // Navigate away to Projects (any non-chat page works — we just need to
+    // Navigate away to Projects (any non-chat page works, we just need to
     // unmount the ChatPanel so its streamingMessage state is wiped).
     await page.goto('/projects')
     await expect(page).toHaveURL(/\/projects/, { timeout: 5_000 })
@@ -67,7 +67,7 @@ test.describe.serial('Main-thread stream rehydration', () => {
     await page.getByText('Test Assistant').first().click()
     await expect(page.getByPlaceholder('Send a message...')).toBeVisible({ timeout: 10_000 })
 
-    // ── Assertion ────────────────────────────────────────────────────────
+    // Assertion:
     // The partial assistant bubble must be visible IMMEDIATELY after the
     // remount, NOT only once chat:done lands. Pre-fix this assertion would
     // have failed because the conversation showed only the typing indicator
@@ -80,7 +80,7 @@ test.describe.serial('Main-thread stream rehydration', () => {
       page.getByText('cornerstones of Italian cooking').first(),
     ).toBeVisible({ timeout: 10_000 })
 
-    // Sanity: only ONE assistant bubble containing the phrase — the seeded
+    // Sanity: only ONE assistant bubble containing the phrase. The seeded
     // streaming bubble should have been replaced in-place, not duplicated.
     await expect(page.getByText(ASSISTANT_PHRASE)).toHaveCount(1)
   })

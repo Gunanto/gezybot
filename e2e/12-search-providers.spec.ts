@@ -63,7 +63,7 @@ test.describe.serial('Search provider management', () => {
     // Click "Add search provider" from empty state
     await page.getByRole('button', { name: 'Add search provider' }).first().click()
 
-    // Form should appear — type defaults to first search provider (Brave Search)
+    // Form should appear (type defaults to first search provider, Brave Search)
     await expect(page.locator('#providerName')).toBeVisible({ timeout: 5_000 })
 
     // Fill name and API key
@@ -90,7 +90,7 @@ test.describe.serial('Search provider management', () => {
     await expect(page.locator('#providerName')).toBeVisible({ timeout: 5_000 })
 
     // Select Tavily type from the provider type dropdown
-    // The dialog has a Select for provider type — find it by looking for the trigger inside the dialog
+    // The dialog has a Select for provider type: find it by looking for the trigger inside the dialog
     const dialog = page.getByRole('dialog')
     const typeSelector = dialog.locator('[data-slot="select-trigger"]').first()
     await typeSelector.click()

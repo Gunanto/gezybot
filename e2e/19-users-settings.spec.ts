@@ -85,7 +85,7 @@ test.describe.serial('Users settings', () => {
     // Fill label
     await page.getByPlaceholder(/for mom|for coworker/i).fill('For E2E Friend')
 
-    // Submit — click the Invite button inside the dialog (not the page-level one)
+    // Submit: click the Invite button inside the dialog (not the page-level one)
     const dialog = page.locator('[role="dialog"]').last()
     await dialog.getByRole('button', { name: /invite/i }).last().click()
 
@@ -120,7 +120,7 @@ test.describe.serial('Users settings', () => {
     await page.getByRole('button', { name: /invite/i }).click()
     await expect(page.getByPlaceholder(/for mom|for coworker/i)).toBeVisible({ timeout: 5_000 })
 
-    // Don't fill label — submit directly
+    // Don't fill label, submit directly
     const dialog = page.locator('[role="dialog"]').last()
     await dialog.getByRole('button', { name: /invite/i }).last().click()
 

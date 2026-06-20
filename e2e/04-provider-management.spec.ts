@@ -72,7 +72,7 @@ test.describe.serial('Provider management', () => {
     // Click "Test connection" button
     await page.getByRole('button', { name: 'Test connection' }).click()
 
-    // Wait for test to pass — the button should change to "Add provider"
+    // Wait for test to pass (the button should change to "Add provider")
     await expect(page.getByRole('button', { name: /Add provider/i })).toBeVisible({ timeout: 10_000 })
 
     // Click "Add provider"
@@ -112,7 +112,7 @@ test.describe.serial('Provider management', () => {
     // The edit form dialog should open
     await expect(page.locator('#providerName')).toBeVisible({ timeout: 5_000 })
 
-    // Change the name — triple-click to select all, then type over it
+    // Change the name: triple-click to select all, then type over it
     await page.locator('#providerName').click({ clickCount: 3 })
     await page.locator('#providerName').fill('Renamed E2E Provider')
 

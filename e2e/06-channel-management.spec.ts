@@ -20,7 +20,7 @@ async function openAddChannelForm(page: Page) {
   const addButton = page.getByRole('button', { name: /add channel/i })
   await addButton.first().click()
 
-  // Wait for the form to appear — look for the bot token field which is unique to the add form
+  // Wait for the form to appear (look for the bot token field which is unique to the add form)
   await expect(page.getByPlaceholder('Paste your bot token here')).toBeVisible({ timeout: 5_000 })
 }
 

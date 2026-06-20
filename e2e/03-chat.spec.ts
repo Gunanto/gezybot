@@ -129,7 +129,7 @@ test.describe.serial('Chat flow', () => {
     // Confirm the clear action
     await page.getByRole('button', { name: 'Clear all messages' }).click()
 
-    // The conversation should now be empty — ChatEmptyState shows "Chat with <agent name>"
+    // The conversation should now be empty (ChatEmptyState shows "Chat with <agent name>")
     await expect(page.getByText('Chat with Test Assistant')).toBeVisible({ timeout: 10_000 })
   })
 
@@ -146,7 +146,7 @@ test.describe.serial('Chat flow', () => {
     await messageInput.fill('Message after clear')
     await page.locator('button:has(svg.lucide-send-horizontal)').click()
 
-    // The new message should appear — use getByText since markdown rendering may vary
+    // The new message should appear (use getByText since markdown rendering may vary)
     await expect(page.getByText('Message after clear').first()).toBeVisible({ timeout: 10_000 })
   })
 

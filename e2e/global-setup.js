@@ -1,7 +1,7 @@
 import { rm } from 'fs/promises'
 
 /**
- * Playwright global setup — runs once before all tests.
+ * Playwright global setup: runs once before all tests.
  * Deletes the E2E database so every test run starts fresh.
  */
 export default async function globalSetup() {

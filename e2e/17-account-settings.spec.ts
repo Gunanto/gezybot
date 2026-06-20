@@ -84,7 +84,7 @@ test.describe('Account Settings', () => {
     await firstNameInput.fill('Updated')
     await dialog.getByRole('button', { name: /save/i }).click()
 
-    // Dialog auto-closes on save — wait for it to disappear
+    // Dialog auto-closes on save, wait for it to disappear
     await expect(page.getByRole('dialog')).not.toBeVisible({ timeout: 10_000 })
 
     // Reopen and verify persistence
@@ -146,7 +146,7 @@ test.describe('Account Settings', () => {
     await dialog.getByRole('button', { name: /cancel/i }).click()
     await expect(dialog).not.toBeVisible()
 
-    // Reopen — should show original value
+    // Reopen (should show original value)
     await openAccountDialog(page)
     await expect(page.getByRole('dialog').locator('#acctFirstName')).toHaveValue(TEST_USER.firstName)
   })

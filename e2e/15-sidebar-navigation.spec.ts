@@ -44,7 +44,7 @@ test.describe.serial('Sidebar navigation & layout', () => {
   test('should show Agent created during onboarding', async ({ page }) => {
     const sidebar = page.locator('[data-slot="sidebar"]')
 
-    // Onboarding creates a default Agent — "Test Assistant" should appear in the sidebar
+    // Onboarding creates a default Agent ("Test Assistant" should appear in the sidebar)
     await expect(sidebar.getByText('Test Assistant')).toBeVisible({ timeout: 5_000 })
   })
 
@@ -146,7 +146,7 @@ test.describe.serial('Sidebar navigation & layout', () => {
     await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5_000 })
     await page.getByRole('button', { name: 'Close' }).click()
 
-    // Click logo — should navigate to /
+    // Click logo (should navigate to /)
     const logoButton = sidebar.locator('button').filter({ hasText: 'Hivekeep' }).first()
     await logoButton.click()
 
@@ -188,7 +188,7 @@ test.describe('Sidebar responsive behavior', () => {
     await expect(page.getByText('Sign in to your Hivekeep workspace')).toBeVisible({ timeout: 10_000 })
     await loginAs(page)
 
-    // Wait for app to load — sidebar should be directly visible on desktop
+    // Wait for app to load (sidebar should be directly visible on desktop)
     const sidebar = page.locator('[data-slot="sidebar"]')
     await expect(sidebar.getByText('Agents', { exact: true })).toBeVisible({ timeout: 10_000 })
     await expect(sidebar.getByText('Hivekeep')).toBeVisible()

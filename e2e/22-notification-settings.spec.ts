@@ -11,7 +11,7 @@ async function navigateToNotifications(page: Page) {
   await page.getByRole('dialog').getByText('Notifications', { exact: true }).click()
 }
 
-test.describe.serial('Settings — Notifications', () => {
+test.describe.serial('Settings: Notifications', () => {
   test.beforeEach(async ({ page }) => {
     await mockProviderModels(page)
     await page.goto('/')
