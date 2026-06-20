@@ -1,9 +1,17 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, Download, Eye, FileWarning, Loader2, Pencil, Save } from 'lucide-react'
 import { Button } from '@/client/components/ui/button'
 import { CodeEditor } from '@/client/components/ui/code-editor'
 import { ScrollArea } from '@/client/components/ui/scroll-area'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/client/components/ui/breadcrumb'
 import { MarkdownContent } from '@/client/components/chat/MarkdownContent'
 import { cn } from '@/client/lib/utils'
 import { getFileIcon, formatFileSize } from '@/client/lib/file-icons'
@@ -18,6 +26,8 @@ interface WorkspaceEditorProps {
   onChangeDraft: (value: string) => void
   onSave: (opts?: { force?: boolean }) => void
   onReload: () => void
+  /** Reveal a parent directory of the file in the tree (breadcrumb segment click). */
+  onRevealDir?: (dirPath: string) => void
 }
 
 export { workspaceRawUrl }
@@ -30,7 +40,7 @@ const isMarkdown = (name: string) => /\.(md|markdown)$/i.test(name)
  * deleted-on-disk banners, status bar. The text editor IS the shared
  * CodeEditor (extended with filename/onSave), not a fork.
  */
-export function WorkspaceEditor({ source, path, state, onChangeDraft, onSave, onReload }: WorkspaceEditorProps) {
+export function WorkspaceEditor({ source, path, state, onChangeDraft, onSave, onReload, onRevealDir }: WorkspaceEditorProps) {
   const { t } = useTranslation()
   const [mdView, setMdView] = useState<'edit' | 'preview'>('edit')
 
@@ -152,9 +162,44 @@ export function WorkspaceEditor({ source, path, state, onChangeDraft, onSave, on
 
   const isText = info?.kind === 'text'
 
+  const segments = path.split('/')
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       {banner}
+      {info && (
+        <div className="flex shrink-0 items-center overflow-x-auto border-b border-border px-2.5 py-1">
+          <Breadcrumb>
+            <BreadcrumbList className="flex-nowrap gap-1 text-[11px] sm:gap-1.5">
+              {segments.map((seg, i) => {
+                const isLast = i === segments.length - 1
+                const dirPath = segments.slice(0, i + 1).join('/')
+                return (
+                  <Fragment key={dirPath}>
+                    <BreadcrumbItem>
+                      {isLast ? (
+                        <BreadcrumbPage className="flex items-center gap-1 whitespace-nowrap">
+                          <Icon className="size-3.5 shrink-0" />
+                          {seg}
+                        </BreadcrumbPage>
+                      ) : onRevealDir ? (
+                        <BreadcrumbLink asChild>
+                          <button type="button" className="whitespace-nowrap" onClick={() => onRevealDir(dirPath)}>
+                            {seg}
+                          </button>
+                        </BreadcrumbLink>
+                      ) : (
+                        <span className="whitespace-nowrap text-muted-foreground">{seg}</span>
+                      )}
+                    </BreadcrumbItem>
+                    {!isLast && <BreadcrumbSeparator />}
+                  </Fragment>
+                )
+              })}
+            </BreadcrumbList>
+          </Breadcrumb>
+        </div>
+      )}
       {isText && (
         <div className="flex shrink-0 items-center gap-1 border-b border-border px-2 py-1">
           {isMarkdown(name) && (

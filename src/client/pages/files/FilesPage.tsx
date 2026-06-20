@@ -475,6 +475,13 @@ export function FilesPage() {
                   onChangeDraft={(value) => tabsApi.updateDraft(activeTab, value)}
                   onSave={(opts) => void tabsApi.save(activeTab, opts)}
                   onReload={() => void tabsApi.reload(activeTab)}
+                  onRevealDir={(dir) => {
+                    setSelectedPath(dir)
+                    workspace.expandTo(`${dir}/x`)
+                    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
+                      setTreeSheetOpen(true)
+                    }
+                  }}
                 />
               ) : (
                 <div className="flex flex-1 items-center justify-center p-6">
