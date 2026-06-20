@@ -1,9 +1,9 @@
 ---
 title: Autonomy Quickstart
-description: Get an Agent running autonomously in 15–30 minutes — crons, webhooks, and sub-tasks explained.
+description: Get an Agent running autonomously in 15 to 30 minutes, with crons, webhooks, and sub-tasks explained.
 ---
 
-Hivekeep Agents aren't just chatbots — they can work autonomously on schedules, react to external events, and delegate work to sub-agents. This guide takes you from zero to a working autonomous Agent.
+Hivekeep Agents aren't just chatbots. They can work autonomously on schedules, react to external events, and delegate work to sub-agents. This guide takes you from zero to a working autonomous Agent.
 
 ## What "autonomy" means in Hivekeep
 
@@ -22,7 +22,7 @@ These can be combined. A cron job can spawn sub-tasks. A webhook can trigger a c
 Before starting, make sure you have:
 
 - A working Hivekeep installation ([Installation guide](/docs/getting-started/installation/))
-- At least one **LLM provider** configured (Anthropic recommended — see [Model Selection](/docs/guides/model-selection/))
+- At least one **LLM provider** configured (Anthropic recommended, see [Model Selection](/docs/guides/model-selection/))
 - At least one **embedding provider** configured (for memory)
 - An Agent created ([Your First Agent](/docs/getting-started/first-agent/))
 
@@ -64,7 +64,7 @@ Simply tell your Agent:
 
 > Create a cron job that runs every day at 8:00 AM UTC. The task should: search the web for the latest news about "artificial intelligence", summarize the top 3 stories, and save the summary to memory.
 
-The Agent will call `create_cron` with the appropriate configuration. You'll see a **pending approval** notification — cron jobs created by Agents always require human approval before they run.
+The Agent will call `create_cron` with the appropriate configuration. You'll see a **pending approval** notification. Cron jobs created by Agents always require human approval before they run.
 
 ### Option B: Understand the cron structure
 
@@ -91,12 +91,12 @@ Common cron schedules:
 1. Hivekeep spawns a **sub-Agent** (a temporary copy of your Agent)
 2. The sub-Agent receives the `task_description` as its mission
 3. The sub-Agent executes using all available tools
-4. Results are saved — the sub-Agent **must** call `update_task_status("completed", result)` when done
+4. Results are saved. The sub-Agent **must** call `update_task_status("completed", result)` when done
 5. The result appears in your Agent's conversation as an informational message
 6. On the next run, the sub-Agent receives the **previous run's result** for continuity
 
 :::note
-Cron results are informational — they don't trigger an LLM turn on the parent Agent. This means your Agent won't "react" to cron results automatically. If you need the Agent to process results, design the cron task to be self-contained.
+Cron results are informational: they don't trigger an LLM turn on the parent Agent. This means your Agent won't "react" to cron results automatically. If you need the Agent to process results, design the cron task to be self-contained.
 :::
 
 ## Step 3: Verify it's working
@@ -119,7 +119,7 @@ The Agent will call `get_cron_journal` to show past executions with timestamps, 
 
 ### Manual trigger for testing
 
-Don't wait for the schedule — trigger it now:
+Don't wait for the schedule, trigger it now:
 
 > Trigger my daily news cron immediately.
 
@@ -128,7 +128,7 @@ This runs the cron right now without affecting the regular schedule.
 ### What to look for in the UI
 
 - **Task indicators**: When a cron fires, you'll see a sub-task appear in the Agent's conversation
-- **Tool call markers**: Successful autonomous execution shows tool calls (web search, memory writes, etc.) — not just text responses
+- **Tool call markers**: Successful autonomous execution shows tool calls (web search, memory writes, etc.), not just text responses
 - **Status**: The task should end with `completed` status and a result summary
 
 :::caution
@@ -146,8 +146,8 @@ Ask your Agent:
 > Create a webhook called "GitHub Events" that listens for GitHub webhook payloads. Filter to only accept payloads where the "action" field is "opened" or "labeled". Use task dispatch mode so each event spawns a sub-task.
 
 The Agent will create a webhook with:
-- **Payload filtering** — drops irrelevant events before they cost LLM tokens
-- **Task dispatch mode** — each matching payload spawns an isolated sub-task
+- **Payload filtering**: drops irrelevant events before they cost LLM tokens
+- **Task dispatch mode**: each matching payload spawns an isolated sub-task
 
 ### Webhook dispatch modes
 
@@ -156,7 +156,7 @@ The Agent will create a webhook with:
 | `conversation` | Payload injected into the Agent's main chat | Low-volume events you want to discuss |
 | `task` | Each payload spawns an autonomous sub-task | High-volume events that need processing |
 
-Task mode supports **concurrency control** — you can limit how many webhook-spawned tasks run in parallel to avoid overwhelming your LLM provider.
+Task mode supports **concurrency control**: you can limit how many webhook-spawned tasks run in parallel to avoid overwhelming your LLM provider.
 
 ### Connecting to external services
 
@@ -170,7 +170,7 @@ Point your external service (GitHub, GitLab, Linear, etc.) to this URL. Hivekeep
 
 ## Step 5: Design self-contained tasks
 
-The secret to reliable autonomy is **self-contained task descriptions**. The sub-Agent that executes a cron or webhook task has no memory of previous conversations — it only knows what's in the task description.
+The secret to reliable autonomy is **self-contained task descriptions**. The sub-Agent that executes a cron or webhook task has no memory of previous conversations: it only knows what's in the task description.
 
 ### Good task description
 
@@ -232,6 +232,6 @@ A good task description includes:
 
 ## Next steps
 
-- **[GitHub Issue Processor](/docs/guides/blueprints/github-issue-processor/)** — A complete, production-tested blueprint
-- **[Daily Digest](/docs/guides/blueprints/daily-digest/)** — Automated tech watch and reporting
-- **[Model Selection](/docs/guides/model-selection/)** — Deep dive into model choice and troubleshooting
+- **[GitHub Issue Processor](/docs/guides/blueprints/github-issue-processor/)**: A complete, production-tested blueprint
+- **[Daily Digest](/docs/guides/blueprints/daily-digest/)**: Automated tech watch and reporting
+- **[Model Selection](/docs/guides/model-selection/)**: Deep dive into model choice and troubleshooting

@@ -25,7 +25,7 @@ All components auto-adapt to light/dark theme.
 
 ### Heading
 
-Standalone, theme-aware title. Renders a real `<h1>`–`<h6>` via `as`.
+Standalone, theme-aware title. Renders a real `<h1>` to `<h6>` via `as`.
 
 ```jsx
 <Heading as="h1">Page title</Heading>
@@ -34,10 +34,10 @@ Standalone, theme-aware title. Renders a real `<h1>`–`<h6>` via `as`.
 
 | Prop | Type | Default |
 |------|------|---------|
-| `as` | `"h1"`–`"h6"` | `"h2"` |
+| `as` | `"h1"` to `"h6"` | `"h2"` |
 | `size` | `"sm" \| "md" \| "lg" \| "xl" \| "2xl"` | derived from `as` |
 | `weight` | `"normal" \| "medium" \| "semibold" \| "bold"` | `"semibold"` |
-| `align` | `"left" \| "center" \| "right"` | — |
+| `align` | `"left" \| "center" \| "right"` | none |
 
 ### Text
 
@@ -54,9 +54,9 @@ Theme-aware text block. Prefer this over a raw `<p>`/`<span>` so the color follo
 | `size` | `"xs" \| "sm" \| "md" \| "lg"` | `"md"` |
 | `weight` | `"normal" \| "medium" \| "semibold" \| "bold"` | `"normal"` |
 | `muted` | `boolean` | `false` |
-| `align` | `"left" \| "center" \| "right"` | — |
+| `align` | `"left" \| "center" \| "right"` | none |
 
-> Inside a `Card`, use `Card.Title` / `Card.Description` instead — they carry the card-specific spacing.
+> Inside a `Card`, use `Card.Title` / `Card.Description` instead. They carry the card-specific spacing.
 
 ## Layout
 
@@ -74,9 +74,9 @@ Flexbox container.
 | Prop | Type | Default |
 |------|------|---------|
 | `direction` | `"row" \| "column"` | `"column"` |
-| `gap` | `string` | — |
-| `align` | CSS `alignItems` | — |
-| `justify` | CSS `justifyContent` | — |
+| `gap` | `string` | none |
+| `align` | CSS `alignItems` | none |
+| `justify` | CSS `justifyContent` | none |
 | `wrap` | `boolean` | `false` |
 
 ### Grid

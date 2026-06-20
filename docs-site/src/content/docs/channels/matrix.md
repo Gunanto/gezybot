@@ -8,7 +8,7 @@ Matrix integration uses the [Client-Server API](https://spec.matrix.org/latest/c
 ## Setup
 
 1. **Create a Matrix account** for your bot on any homeserver (e.g., matrix.org, or your own Synapse/Dendrite)
-2. **Get an access token** — you can use the login API or extract it from Element's settings
+2. **Get an access token**: you can use the login API or extract it from Element's settings
 3. **Invite the bot** to the rooms you want it to participate in
 4. In Hivekeep, add a Matrix channel with the access token and homeserver URL
 5. Optionally, restrict to specific room IDs with the allowlist
@@ -37,6 +37,6 @@ Matrix integration uses the [Client-Server API](https://spec.matrix.org/latest/c
 
 ## Advantages
 
-- **No public URL required** — Matrix uses client-side long-polling, so Hivekeep doesn't need to be publicly reachable
-- **Federated** — works with any Matrix homeserver
-- **Self-hostable** — run your own homeserver for full control
+- **No public URL required**: Matrix uses client-side long-polling, so Hivekeep doesn't need to be publicly reachable
+- **Federated**: works with any Matrix homeserver
+- **Self-hostable**: run your own homeserver for full control

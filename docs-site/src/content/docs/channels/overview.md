@@ -60,10 +60,10 @@ Hivekeep handles file attachments intelligently when received from channels:
 
 Agents have built-in tools for interacting with their channels:
 
-- **`list_channels`** — List all connected channels with status and message counts
-- **`list_channel_conversations`** — Discover known users and chat IDs for proactive messaging
-- **`send_channel_message`** — Send a message (with optional attachments) to any connected platform
-- **`attach_file`** — Attach a file to the current response for channel delivery
+- **`list_channels`**: List all connected channels with status and message counts
+- **`list_channel_conversations`**: Discover known users and chat IDs for proactive messaging
+- **`send_channel_message`**: Send a message (with optional attachments) to any connected platform
+- **`attach_file`**: Attach a file to the current response for channel delivery
 
 These tools are available to main agents only.
 

@@ -3,7 +3,7 @@ title: "Blueprint: GitHub Issue Processor"
 description: A complete, copy-paste-ready blueprint for an Agent that triages, diagnoses, and processes GitHub issues autonomously.
 ---
 
-This blueprint sets up an Agent that autonomously processes GitHub issues — triaging new issues, diagnosing bugs, implementing fixes, and managing the issue lifecycle. This pattern is **running in production** on the Hivekeep repository itself.
+This blueprint sets up an Agent that autonomously processes GitHub issues: triaging new issues, diagnosing bugs, implementing fixes, and managing the issue lifecycle. This pattern is **running in production** on the Hivekeep repository itself.
 
 ## Use case
 
@@ -17,8 +17,8 @@ You have a GitHub repository and want to:
 
 | Requirement | Details |
 |---|---|
-| **LLM Provider** | Anthropic (Claude Sonnet 4 or Sonnet 3.5) — strong tool use required |
-| **Embedding Provider** | Any (OpenAI, Voyage, etc.) — for memory |
+| **LLM Provider** | Anthropic (Claude Sonnet 4 or Sonnet 3.5), strong tool use required |
+| **Embedding Provider** | Any (OpenAI, Voyage, etc.), for memory |
 | **MCP Server** | GitHub MCP server connected to your repo |
 | **Workspace** | A workspace directory with the repo cloned |
 
@@ -94,7 +94,7 @@ For batch processing (e.g., sweep open issues every few hours):
 
 Ask your Agent:
 
-> Create a cron job called "GitHub Issue Sweep" that runs every 6 hours (schedule: "0 */6 * * *"). The task should: list all open issues in my-org/my-repo, identify any that haven't been triaged yet (no labels), and process each one — read the issue, analyze it, apply appropriate labels, and comment with an initial assessment.
+> Create a cron job called "GitHub Issue Sweep" that runs every 6 hours (schedule: "0 */6 * * *"). The task should: list all open issues in my-org/my-repo, identify any that haven't been triaged yet (no labels), and process each one: read the issue, analyze it, apply appropriate labels, and comment with an initial assessment.
 
 ### Task description template
 
@@ -175,7 +175,7 @@ Your codebase is at: /path/to/workspace/my-repo
 ## Rules
 - Be thorough but concise in your comments
 - If you can't determine the issue type, label it as "needs-triage"
-- Never close issues automatically — only comment
+- Never close issues automatically, only comment
 - Always call update_task_status when done
 ```
 
@@ -226,13 +226,13 @@ I've implemented a fix in branch `fix/issue-42` — see commit abc1234.
 
 ### Webhook receives events but nothing happens
 
-- Check the webhook's filter configuration — is the `action` field in the allowlist?
+- Check the webhook's filter configuration: is the `action` field in the allowlist?
 - Check the webhook stats via `list_webhooks` (it shows received/filtered/processed counts)
 - Verify the task prompt template uses correct `{{placeholder}}` syntax
 
 ### Agent writes text instead of calling tools
 
-This is the "text mode" problem. See [Model Selection](/docs/guides/model-selection/) — the fix is usually switching to Claude Sonnet.
+This is the "text mode" problem. See [Model Selection](/docs/guides/model-selection/). The fix is usually switching to Claude Sonnet.
 
 ### Tasks stay "in progress" forever
 

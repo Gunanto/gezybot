@@ -1,17 +1,17 @@
 ---
-title: Terminal — a shell on your server
+title: "Terminal: a shell on your server"
 description: An admin-only web terminal on the Hivekeep host (or inside the container under Docker), straight from the app.
 ---
 
-The **Terminal** section gives administrators a real shell on the machine running Hivekeep — the host itself, or the container when you run the Docker image. It is a full PTY rendered with xterm.js: interactive programs, colors, tab completion, `htop`, `vim`, everything works as in a native terminal.
+The **Terminal** section gives administrators a real shell on the machine running Hivekeep: the host itself, or the container when you run the Docker image. It is a full PTY rendered with xterm.js: interactive programs, colors, tab completion, `htop`, `vim`, everything works as in a native terminal.
 
-The typical moment: an Agent just wrote files to its workspace, a cron failed, or you want to check disk usage — open Terminal from the activity bar and look for yourself, without SSH-ing into the box.
+The typical moment: an Agent just wrote files to its workspace, a cron failed, or you want to check disk usage. Open Terminal from the activity bar and look for yourself, without SSH-ing into the box.
 
 Terminal is **admin-only**: the entry only appears for admin users, and the server rejects non-admin connections regardless of what the client does.
 
 ## Persistent sessions, on every device
 
-Terminal works like a lightweight tmux. Shells run server-side and **survive disconnects**: close the laptop, open Hivekeep on your phone, and the sessions sidebar shows the same running shells — pick one and you are back where you left off, recent output replayed. This is ideal for long-running interactive work, like driving one or more `claude code` instances directly on the machine that hosts Hivekeep.
+Terminal works like a lightweight tmux. Shells run server-side and **survive disconnects**: close the laptop, open Hivekeep on your phone, and the sessions sidebar shows the same running shells: pick one and you are back where you left off, recent output replayed. This is ideal for long-running interactive work, like driving one or more `claude code` instances directly on the machine that hosts Hivekeep.
 
 The sidebar lists your sessions (sessions are private to each user). From there you can:
 
@@ -56,7 +56,7 @@ A web terminal is equivalent to giving shell access on the server. Hivekeep miti
 
 - Anyone with an admin account on your instance can run arbitrary commands as the server user.
 - If your instance is exposed to the internet, make sure admin accounts have strong passwords.
-- You can disable the feature entirely with `HIVEKEEP_TERMINAL_ENABLED=false` — the section then refuses connections and explains why.
+- You can disable the feature entirely with `HIVEKEEP_TERMINAL_ENABLED=false`. The section then refuses connections and explains why.
 
 ## Configuration
 

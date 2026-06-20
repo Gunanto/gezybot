@@ -13,7 +13,7 @@ Discord integration uses the [Gateway API](https://discord.com/developers/docs/e
 4. Generate an invite link with the required permissions and add the bot to your server
 5. In Hivekeep, go to your Agent's **Channels** tab
 6. Click **Add Channel**, select **Discord**
-7. Paste your bot token — it will be encrypted in Hivekeep's vault
+7. Paste your bot token. It will be encrypted in Hivekeep's vault
 8. Optionally, restrict to specific channel IDs with the allowlist
 
 ## Configuration

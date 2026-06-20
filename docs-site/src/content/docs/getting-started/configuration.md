@@ -3,7 +3,7 @@ title: Configuration
 description: Environment variables and settings for Hivekeep.
 ---
 
-Hivekeep uses environment variables for configuration. Copy `.env.example` to `.env` and adjust as needed. All values have sensible defaults — you can start with an empty `.env`.
+Hivekeep uses environment variables for configuration. Copy `.env.example` to `.env` and adjust as needed. All values have sensible defaults, so you can start with an empty `.env`.
 
 ## Core settings
 
@@ -23,10 +23,10 @@ Hivekeep uses environment variables for configuration. Copy `.env.example` to `.
 
 Hivekeep stores everything in a single directory (`HIVEKEEP_DATA_DIR`):
 
-- **SQLite database** — messages, agents, settings, memories
-- **File uploads** — user-uploaded files and generated images
-- **Agent workspaces** — custom tools and scripts created by Agents
-- **Encryption key** — auto-generated on first run if not provided
+- **SQLite database**: messages, agents, settings, memories
+- **File uploads**: user-uploaded files and generated images
+- **Agent workspaces**: custom tools and scripts created by Agents
+- **Encryption key**: auto-generated on first run if not provided
 
 :::tip
 When using Docker, mount a volume to `/app/data` to persist data across container restarts.

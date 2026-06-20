@@ -85,7 +85,7 @@ export async function onStart(ctx) {
 
 ## Reacting to Platform Events
 
-`ctx.on(eventType, handler)` subscribes to Hivekeep's platform events — the same catalogue the app sends over SSE (see [the SSE reference](https://github.com/MarlBurroW/hivekeep/blob/main/api.md)). This is what makes a background app **reactive** instead of having to poll: run something the moment a task finishes, a message arrives on a channel, a contact is created, a cron fires.
+`ctx.on(eventType, handler)` subscribes to Hivekeep's platform events, the same catalogue the app sends over SSE (see [the SSE reference](https://github.com/MarlBurroW/hivekeep/blob/main/api.md)). This is what makes a background app **reactive** instead of having to poll: run something the moment a task finishes, a message arrives on a channel, a contact is created, a cron fires.
 
 ```javascript
 export async function onStart(ctx) {
@@ -101,14 +101,14 @@ export async function onStart(ctx) {
 }
 ```
 
-- Gated by the `events:<prefix>` permission — `events:task` covers `task:*`, `events:channel` covers `channel:*`, etc. Declare them in `app.json`.
+- Gated by the `events:<prefix>` permission: `events:task` covers `task:*`, `events:channel` covers `channel:*`, etc. Declare them in `app.json`.
 - The handler receives `{ type, agentId?, data }`. Returns an unsubscribe function; all subscriptions are torn down automatically on reload/stop. Max 30 per app.
-- High-frequency / internal events are **not** subscribable (`chat:token`, `queue:update`, `*-token-usage`, …) — a per-token handler would be a footgun.
+- High-frequency / internal events are **not** subscribable (`chat:token`, `queue:update`, `*-token-usage`, …): a per-token handler would be a footgun.
 - **Avoid feedback loops**: a handler reacting to an event that itself triggers that event (e.g. handling `contact:updated` by updating a contact) will recurse. The action capabilities are rate-limited, but design handlers to be idempotent / guarded.
 
 ## Timers and Cancellation
 
-Never use the global `setInterval`/`setTimeout` in a backend — they would survive reloads and leak. Use the managed equivalents:
+Never use the global `setInterval`/`setTimeout` in a backend: they would survive reloads and leak. Use the managed equivalents:
 
 ```javascript
 const id = ctx.timers.setInterval(() => { /* ... */ }, 60_000); // min 1s
@@ -143,19 +143,19 @@ When the app panel is open and permissions are missing, Hivekeep shows an approv
 
 | Capability | Permission | Limit | Description |
 |------------|------------|-------|-------------|
-| `ctx.secrets.get(name)` | `secrets:<NAME>` (per secret) | — | Read a vault secret. Never store API keys in code or storage. |
+| `ctx.secrets.get(name)` | `secrets:<NAME>` (per secret) | none | Read a vault secret. Never store API keys in code or storage. |
 | `ctx.llm.complete(prompt, opts?)` | `llm` | 30/hour | One-shot LLM completion via the platform's providers (defaults to the maintainer Agent's model). `opts`: `{ model, providerId, maxTokens }`. |
 | `ctx.agent.inform(text)` | `agent:inform` | 10/hour | Drop an informational message into the maintainer Agent's queue. |
 | `ctx.agent.task(description, opts?)` | `agent:task` | 5/hour | Spawn an async sub-task on the maintainer Agent. Returns `{ taskId }`. |
 | `ctx.channels.list()` / `.send(channelId, chatId, text)` / `.sendToContact(contact, platform, text)` | `channels:send` | 20/hour | Send through the platform's existing messaging channels (Telegram, Discord, Twilio SMS, plugin platforms…). `sendToContact` resolves the contact's platform identifier and an active channel automatically. Prefer this over re-implementing a provider API with raw secrets: one permission, audited sends, no credentials in the app. |
 | `ctx.on(eventType, handler)` | `events:<prefix>` (e.g. `events:task`) | 30 subscriptions | Subscribe to platform events ([Reacting to Platform Events](#reacting-to-platform-events)). |
-| `ctx.platform.get/post/put/patch/delete(path)` | `platform:<resource>:<read\|write>` | — | Manage platform resources from the backend ([Managing Platform Resources](#managing-platform-resources)). |
+| `ctx.platform.get/post/put/patch/delete(path)` | `platform:<resource>:<read\|write>` | none | Manage platform resources from the backend ([Managing Platform Resources](#managing-platform-resources)). |
 
 `ctx.permissions` exposes `{ requested, granted, has(permission) }` for introspection.
 
 ## Managing Platform Resources
 
-`ctx.platform` lets a backend read and mutate platform resources — the background counterpart of the frontend `Hivekeep.platform`. The frontend gateway re-dispatches to the full REST API with the user's session; a background backend has no user session and runs unattended, so `ctx.platform` instead routes through an explicit, service-backed set of resources (the safer trust model for autonomous code).
+`ctx.platform` lets a backend read and mutate platform resources, the background counterpart of the frontend `Hivekeep.platform`. The frontend gateway re-dispatches to the full REST API with the user's session; a background backend has no user session and runs unattended, so `ctx.platform` instead routes through an explicit, service-backed set of resources (the safer trust model for autonomous code).
 
 ```javascript
 // app.json: { "permissions": ["platform:tickets:write", "platform:contacts:read"] }
@@ -180,8 +180,8 @@ await ctx.platform.delete("/crons/" + id)
 
 These are always available (no permission needed):
 
-- `ctx.fetch(url, options?)` — SSRF-guarded fetch: http/https only, private/internal hosts blocked, 30s default timeout.
-- `ctx.files` — file storage scoped to the app's `_data/` directory (excluded from snapshots and rollbacks):
+- `ctx.fetch(url, options?)`: SSRF-guarded fetch: http/https only, private/internal hosts blocked, 30s default timeout.
+- `ctx.files`: file storage scoped to the app's `_data/` directory (excluded from snapshots and rollbacks):
 
 ```javascript
 await ctx.files.write("cache/feed.json", JSON.stringify(items));
@@ -429,7 +429,7 @@ const [config] = useStorage("config");
 
 ## Caching & Invalidation
 
-Backends are cached by version number. When you update `_server.js` via `write_mini_app_file`, the running instance is stopped cleanly (`onStop`, jobs and timers cleared) and reloaded — immediately for background apps, on the next request otherwise. No manual restart needed.
+Backends are cached by version number. When you update `_server.js` via `write_mini_app_file`, the running instance is stopped cleanly (`onStop`, jobs and timers cleared) and reloaded: immediately for background apps, on the next request otherwise. No manual restart needed.
 
 Use the `get_mini_app_backend_status` tool to inspect the live instance: loaded state, background mode, scheduled jobs with next run times, active timers, SSE subscribers, and the permission state.
 

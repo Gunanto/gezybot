@@ -9,9 +9,9 @@ Slack integration uses the [Events API](https://api.slack.com/apis/events-api) w
 
 1. **Create a Slack App** at [api.slack.com/apps](https://api.slack.com/apps)
 2. Under **OAuth & Permissions**, add these bot token scopes:
-   - `chat:write` — Send messages
-   - `files:read` — Read file attachments
-   - `files:write` — Upload files
+   - `chat:write`: Send messages
+   - `files:read`: Read file attachments
+   - `files:write`: Upload files
 3. Install the app to your workspace and copy the **Bot User OAuth Token**
 4. Under **Event Subscriptions**, enable events and set the request URL to your Hivekeep webhook endpoint
 5. Subscribe to bot events: `message.channels`, `message.groups`, `message.im`
