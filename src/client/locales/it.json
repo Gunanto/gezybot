@@ -3746,7 +3746,8 @@
       "addFolder": "Aggiungi una cartella…",
       "all": "Tutti",
       "searchPlaceholder": "Cerca fonti…",
-      "empty": "Nessuna fonte trovata"
+      "empty": "Nessuna fonte trovata",
+      "miniapps": "Mini-app"
     },
     "addFolder": {
       "title": "Cartelle",

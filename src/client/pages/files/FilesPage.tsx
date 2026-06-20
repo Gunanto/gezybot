@@ -22,6 +22,7 @@ import {
 import { useAgentList } from '@/client/hooks/useAgentList'
 import { useWorkspaceFolders } from '@/client/hooks/useWorkspaceFolders'
 import { useProjects } from '@/client/hooks/useProjects'
+import { useMiniApps } from '@/client/hooks/useMiniApps'
 import { useWorkspaceGit } from '@/client/hooks/useWorkspaceGit'
 import { appendToDraft } from '@/client/hooks/useDraftMessage'
 import {
@@ -70,6 +71,7 @@ export function FilesPage() {
   const { agents, isLoading: agentsLoading } = useAgentList()
   const foldersApi = useWorkspaceFolders()
   const { projects } = useProjects()
+  const { apps: miniApps } = useMiniApps(null, 'all')
   const [addFolderOpen, setAddFolderOpen] = useState(false)
 
   // Only repos that finished cloning can be browsed.
@@ -78,9 +80,18 @@ export function FilesPage() {
     [projects],
   )
 
+  const miniAppOptions = useMemo(
+    () => miniApps.map((a) => ({ id: a.id, title: a.name, sub: a.maintainerAgentName })),
+    [miniApps],
+  )
+
   // Source from the route: explicit project/folder, or legacy agent id/slug.
   const routeSource = useMemo<WorkspaceSourceRef | null>(() => {
-    if (params.sourceType && params.sourceId && (params.sourceType === 'project' || params.sourceType === 'folder')) {
+    if (
+      params.sourceType &&
+      params.sourceId &&
+      (params.sourceType === 'project' || params.sourceType === 'folder' || params.sourceType === 'miniapp')
+    ) {
       return { type: params.sourceType, id: params.sourceId, worktree: requestedWorktree }
     }
     if (params.agentId) {
@@ -97,6 +108,7 @@ export function FilesPage() {
       if (last.type === 'agent' && agents.some((a) => a.id === last.id)) return last
       if (last.type === 'folder' && foldersApi.folders.some((f) => f.id === last.id)) return last
       if (last.type === 'project') return last // validity re-checked server-side (P4)
+      if (last.type === 'miniapp') return last // validity re-checked server-side
     }
     return agents[0] ? { type: 'agent', id: agents[0].id } : null
   }, [agents, foldersApi.folders])
@@ -356,6 +368,7 @@ export function FilesPage() {
           agents={agents.map((a) => ({ id: a.id, name: a.name, role: a.role, avatarUrl: a.avatarUrl }))}
           folders={foldersApi.folders}
           projects={readyProjects}
+          miniapps={miniAppOptions}
           onAddFolder={() => setAddFolderOpen(true)}
           placeholder={t('files.selectWorkspace')}
         />

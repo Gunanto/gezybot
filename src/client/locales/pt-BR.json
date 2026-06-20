@@ -3746,7 +3746,8 @@
       "addFolder": "Adicionar uma pasta…",
       "all": "Todos",
       "searchPlaceholder": "Buscar fontes…",
-      "empty": "Nenhuma fonte encontrada"
+      "empty": "Nenhuma fonte encontrada",
+      "miniapps": "Miniaplicativos"
     },
     "addFolder": {
       "title": "Pastas",

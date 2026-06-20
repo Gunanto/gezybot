@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FolderGit2, FolderInput, Plus, ChevronsUpDown } from 'lucide-react'
+import { FolderGit2, FolderInput, Plus, ChevronsUpDown, AppWindow } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/client/components/ui/popover'
 import {
   Command,
@@ -21,17 +21,25 @@ export interface WorkspaceProjectOption {
   title: string
 }
 
+/** A mini-app offered as a browse source (its source directory). */
+export interface WorkspaceMiniAppOption {
+  id: string
+  title: string
+  sub?: string
+}
+
 interface WorkspaceSourceSelectorProps {
   value: WorkspaceSourceRef | null
   onChange: (source: WorkspaceSourceRef) => void
   agents: AgentOption[]
   folders: Array<{ id: string; label: string; path: string }>
   projects?: WorkspaceProjectOption[]
+  miniapps?: WorkspaceMiniAppOption[]
   onAddFolder: () => void
   placeholder?: string
 }
 
-type Category = 'all' | 'agent' | 'project' | 'folder'
+type Category = 'all' | 'agent' | 'project' | 'folder' | 'miniapp'
 
 /**
  * Files-section source picker: agents, project repos and user-added folders in
@@ -47,6 +55,7 @@ export function WorkspaceSourceSelector({
   agents,
   folders,
   projects = [],
+  miniapps = [],
   onAddFolder,
   placeholder,
 }: WorkspaceSourceSelectorProps) {
@@ -70,6 +79,7 @@ export function WorkspaceSourceSelector({
 
   const showAgents = (category === 'all' || category === 'agent') && agents.length > 0
   const showProjects = (category === 'all' || category === 'project') && projects.length > 0
+  const showMiniApps = (category === 'all' || category === 'miniapp') && miniapps.length > 0
   const showFolders = category === 'all' || category === 'folder'
 
   const triggerLabel = (() => {
@@ -81,6 +91,10 @@ export function WorkspaceSourceSelector({
     if (value.type === 'project') {
       const project = projects.find((p) => p.id === value.id)
       return <SourceRow icon={FolderGit2} label={project?.title ?? value.id} />
+    }
+    if (value.type === 'miniapp') {
+      const app = miniapps.find((a) => a.id === value.id)
+      return <SourceRow icon={AppWindow} label={app?.title ?? value.id} sub={app?.sub} />
     }
     const folder = folders.find((f) => f.id === value.id)
     return <SourceRow icon={FolderInput} label={folder?.label ?? value.id} sub={folder?.path} />
@@ -113,6 +127,7 @@ export function WorkspaceSourceSelector({
               <CategoryTab value="all" label={t('files.sources.all')} />
               {agents.length > 0 && <CategoryTab value="agent" label={t('files.sources.agents')} />}
               {projects.length > 0 && <CategoryTab value="project" label={t('files.sources.projects')} />}
+              {miniapps.length > 0 && <CategoryTab value="miniapp" label={t('files.sources.miniapps')} />}
               <CategoryTab value="folder" label={t('files.sources.folders')} />
             </ToggleGroup>
           </div>
@@ -147,6 +162,20 @@ export function WorkspaceSourceSelector({
                     className="py-2"
                   >
                     <SourceRow icon={FolderGit2} label={project.title} />
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+            {showMiniApps && (
+              <CommandGroup heading={t('files.sources.miniapps')}>
+                {miniapps.map((app) => (
+                  <CommandItem
+                    key={`miniapp:${app.id}`}
+                    value={`${app.title} ${app.sub ?? ''} ${app.id}`}
+                    onSelect={() => select({ type: 'miniapp', id: app.id })}
+                    className="py-2"
+                  >
+                    <SourceRow icon={AppWindow} label={app.title} sub={app.sub} />
                   </CommandItem>
                 ))}
               </CommandGroup>

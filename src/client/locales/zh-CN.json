@@ -3746,7 +3746,8 @@
       "addFolder": "添加文件夹…",
       "all": "全部",
       "searchPlaceholder": "搜索来源…",
-      "empty": "未找到来源"
+      "empty": "未找到来源",
+      "miniapps": "小程序"
     },
     "addFolder": {
       "title": "文件夹",

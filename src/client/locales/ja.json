@@ -3746,7 +3746,8 @@
       "addFolder": "フォルダを追加…",
       "all": "すべて",
       "searchPlaceholder": "ソースを検索…",
-      "empty": "ソースが見つかりません"
+      "empty": "ソースが見つかりません",
+      "miniapps": "ミニアプリ"
     },
     "addFolder": {
       "title": "フォルダ",

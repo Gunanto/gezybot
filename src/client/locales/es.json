@@ -3746,7 +3746,8 @@
       "addFolder": "Añadir una carpeta…",
       "all": "Todos",
       "searchPlaceholder": "Buscar fuentes…",
-      "empty": "No se encontró ninguna fuente"
+      "empty": "No se encontró ninguna fuente",
+      "miniapps": "Miniaplicaciones"
     },
     "addFolder": {
       "title": "Carpetas",

@@ -3746,7 +3746,8 @@
       "addFolder": "Ajouter un dossier…",
       "all": "Tous",
       "searchPlaceholder": "Rechercher une source…",
-      "empty": "Aucune source trouvée"
+      "empty": "Aucune source trouvée",
+      "miniapps": "Mini-apps"
     },
     "addFolder": {
       "title": "Dossiers",

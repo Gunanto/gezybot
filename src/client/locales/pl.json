@@ -3784,7 +3784,8 @@
       "addFolder": "Dodaj folder…",
       "all": "Wszystkie",
       "searchPlaceholder": "Szukaj źródeł…",
-      "empty": "Nie znaleziono źródła"
+      "empty": "Nie znaleziono źródła",
+      "miniapps": "Miniaplikacje"
     },
     "addFolder": {
       "title": "Foldery",
