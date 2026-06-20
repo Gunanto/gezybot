@@ -3715,7 +3715,7 @@
   },
   "updateProgress": {
     "title": "Actualización en curso",
-    "dontClose": "Puedes seguir usando Hivekeep: la actualización corre en segundo plano y la página se recargará cuando termine.",
+    "keepOpen": "Mantén esta página abierta. Hivekeep no estará disponible durante la actualización y se recargará automáticamente al terminar.",
     "waitingForServer": "El servidor se está reiniciando… esperando a que vuelva",
     "reloading": "La página se recargará automáticamente.",
     "failedTitle": "La actualización falló",

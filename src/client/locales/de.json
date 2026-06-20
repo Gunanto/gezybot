@@ -3715,7 +3715,7 @@
   },
   "updateProgress": {
     "title": "Update läuft",
-    "dontClose": "Du kannst Hivekeep weiter nutzen: Das Update läuft im Hintergrund und die Seite lädt neu, wenn es fertig ist.",
+    "keepOpen": "Lass diese Seite geöffnet. Hivekeep ist während des Updates kurz nicht verfügbar und lädt automatisch neu, wenn es fertig ist.",
     "waitingForServer": "Server startet neu… warte auf seine Rückkehr",
     "reloading": "Die Seite lädt automatisch neu.",
     "failedTitle": "Update fehlgeschlagen",

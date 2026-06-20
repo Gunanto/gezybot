@@ -119,7 +119,7 @@ export function UpdateOverlay() {
             )}
 
             <p className="mt-4 text-center text-xs text-muted-foreground">
-              {t('updateProgress.dontClose')}
+              {t('updateProgress.keepOpen')}
             </p>
           </>
         )}

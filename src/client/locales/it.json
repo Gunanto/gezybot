@@ -3715,7 +3715,7 @@
   },
   "updateProgress": {
     "title": "Aggiornamento in corso",
-    "dontClose": "Puoi continuare a usare Hivekeep: l'aggiornamento gira in background e la pagina si ricaricherà al termine.",
+    "keepOpen": "Tieni aperta questa pagina. Hivekeep non è disponibile durante l'aggiornamento e si ricaricherà automaticamente al termine.",
     "waitingForServer": "Il server si sta riavviando… in attesa che torni disponibile",
     "reloading": "La pagina si ricaricherà automaticamente.",
     "failedTitle": "Aggiornamento non riuscito",

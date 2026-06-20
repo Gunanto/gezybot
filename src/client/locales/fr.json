@@ -3715,7 +3715,7 @@
   },
   "updateProgress": {
     "title": "Mise à jour en cours",
-    "dontClose": "Vous pouvez continuer à utiliser Hivekeep : la mise à jour s'exécute en arrière-plan et la page se rechargera à la fin.",
+    "keepOpen": "Gardez cette page ouverte. Hivekeep est momentanément indisponible pendant la mise à jour et se rechargera automatiquement une fois terminée.",
     "waitingForServer": "Redémarrage du serveur… en attente de son retour",
     "reloading": "La page va se recharger automatiquement.",
     "failedTitle": "Échec de la mise à jour",

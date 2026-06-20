@@ -814,6 +814,169 @@ export function ChatPanel({ agent, llmModels, modelUnavailable = false, queueSta
     }
   }, [displayMessages, isLoading])
 
+  // Memoize the whole message-list subtree as a stable element. ChatPanel
+  // re-renders on every keystroke in the composer (the draft lives here, in
+  // useDraftMessage), but none of these deps change while typing — so this
+  // returns the SAME element reference and React skips reconciling the entire
+  // (non-virtualized, potentially huge) list. It still recomputes during
+  // streaming/new messages because streamingMessage/timeline/etc. are deps.
+  const timelineContent = useMemo(() => (
+              <div className="space-y-1">
+                {timeline.map((item) => {
+                  if (item.kind === 'liveTask') {
+                    const task = item.task
+                    return (
+                      <TaskResultCard
+                        key={`live-${task.taskId}`}
+                        mode="live"
+                        taskId={task.taskId}
+                        status={task.status}
+                        title={task.title}
+                        senderName={task.senderName}
+                        senderAvatarUrl={task.senderAvatarUrl}
+                        result={task.result}
+                        error={task.error}
+                        createdAt={task.createdAt}
+                        onOpenDetail={() => openTask({ taskId: task.taskId, agentName: task.senderName ?? agent.name, agentAvatarUrl: task.senderAvatarUrl ?? agent.avatarUrl })}
+                      />
+                    )
+                  }
+
+                  const { msg, showDateSeparator, isGrouped, showTimeGap, prevTimestamp, isSearchMatch, isCurrentMatch, isNew } = item.entry
+                  const dateSeparator = showDateSeparator
+                    ? <DateSeparator key={`date-${msg.id}`} date={msg.createdAt} />
+                    : null
+
+                  const timeGap = showTimeGap && prevTimestamp
+                    ? <TimeGapIndicator key={`gap-${msg.id}`} prevTimestamp={prevTimestamp} currentTimestamp={msg.createdAt} />
+                    : null
+
+                  if (msg.sourceType === 'compacting') {
+                    const isCompactingError = !!msg.compactingError
+                    return (
+                      <React.Fragment key={msg.id}>
+                        {dateSeparator}
+                        {timeGap}
+                        <CompactingCard
+                          status={isCompactingError ? 'error' : 'done'}
+                          summary={msg.content || null}
+                          memoriesExtracted={msg.memoriesExtracted}
+                          error={msg.compactingError ?? undefined}
+                          timestamp={msg.createdAt}
+                        />
+                      </React.Fragment>
+                    )
+                  }
+
+                  const isFromUser = msg.role === 'user' && msg.sourceType === 'user'
+                  const isFromAgent = msg.sourceType === 'agent' && msg.role === 'user'
+                  const isTask = msg.sourceType === 'task'
+                  return (
+                    <React.Fragment key={`wrap-${msg.id}`}>
+                    {dateSeparator}
+                    {timeGap}
+                    <div
+                      data-message-id={msg.id}
+                      className={cn(
+                        'transition-colors duration-300',
+                        isCurrentMatch && 'bg-primary/10 rounded-lg',
+                        isSearchMatch && !isCurrentMatch && 'bg-primary/5 rounded-lg',
+                      )}
+                    >
+                    <MessageBubble
+                      key={msg.id}
+                      role={msg.role}
+                      content={msg.content}
+                      sourceType={msg.sourceType}
+                      compact={compact}
+                      hideThinking={hideThinking}
+                      files={msg.files}
+                      avatarUrl={
+                        isFromUser
+                          ? user?.avatarUrl
+                          : (isFromAgent || isTask)
+                            ? msg.sourceAvatarUrl ?? agent.avatarUrl
+                            : agent.avatarUrl
+                      }
+                      senderName={
+                        isFromUser
+                          ? (user?.pseudonym ?? user?.firstName)
+                          : (isFromAgent || isTask)
+                            ? msg.sourceName ?? agent.name
+                            : agent.name
+                      }
+                      userInitials={isFromUser ? userInitials : undefined}
+                      timestamp={msg.createdAt}
+                      toolCalls={toolCallsByMessage.get(msg.id)}
+                      injectedMemories={msg.injectedMemories}
+                      stepLimitReached={msg.stepLimitReached}
+                    emptyTurn={msg.emptyTurn}
+                    finishReason={msg.finishReason}
+                    silentStop={msg.silentStop}
+                      isRedacted={msg.isRedacted}
+                      isGrouped={isGrouped}
+                      isNew={isNew}
+                      messageId={msg.id}
+                      resolvedTaskId={msg.resolvedTaskId}
+                      onOpenTaskDetail={isTask && msg.resolvedTaskId ? ((taskId: string) => {
+                        const lt = liveTasks.find((t) => t.taskId === taskId)
+                        openTask({ taskId, agentName: lt?.senderName ?? agent.name, agentAvatarUrl: lt?.senderAvatarUrl ?? agent.avatarUrl })
+                      }) : undefined}
+                      reactions={msg.reactions}
+                      currentUserId={user?.id}
+                      onToggleReaction={toggleReaction}
+                      onQuoteReply={handleQuoteReply}
+                      onEditResend={handleEditResend}
+                      onRegenerate={msg.id === lastAssistantMsgId && !isStreaming && !isProcessing ? handleRegenerate : undefined}
+                      onDeleteMessage={!compact && !isStreaming && !isProcessing ? deleteMessage : undefined}
+                      onRewindHere={!compact && !isStreaming && !isProcessing && msg.id !== lastDisplayMsgId ? setRewindTarget : undefined}
+                      tokenUsage={msg.tokenUsage}
+                      reasoning={streamingMessage && msg.id === streamingMessage.id ? streamingReasoning : msg.reasoning ?? undefined}
+                      channelContextLine={msg.channelContextLine}
+                      channelBrandColor={msg.channelMeta?.brandColor ?? null}
+                      channelPlatformOverride={msg.channelMeta?.platform ?? null}
+                      systemEvent={msg.systemEvent}
+                      currentAgentName={agent.name}
+                      currentAgentAvatarUrl={agent.avatarUrl}
+                    />
+                    </div>
+                    </React.Fragment>
+                  )
+                })}
+                {liveCompacting && (
+                  <CompactingCard
+                    status={liveCompacting.status}
+                    summary={liveCompacting.summary}
+                    memoriesExtracted={liveCompacting.memoriesExtracted}
+                    messageCount={liveCompacting.messageCount}
+                    cycle={liveCompacting.cycle}
+                    estimatedTotal={liveCompacting.estimatedTotal}
+                    error={liveCompacting.error}
+                    timestamp={liveCompacting.startedAt}
+                  />
+                )}
+                {pendingPrompts.map((prompt) => (
+                  <HumanPromptCard
+                    key={prompt.id}
+                    prompt={prompt}
+                    onRespond={respondToPrompt}
+                    isResponding={isResponding}
+                  />
+                ))}
+                <SecretPromptModal agentId={agent.id} />
+                {queueState?.isProcessing && !(streamingMessage && streamingMessage.content.length > 0 && !tokenStalled) && (
+                  <TypingIndicator
+                    agentName={agent.name}
+                    agentAvatarUrl={agent.avatarUrl}
+                    startedAt={queueState?.processingStartedAt}
+                    tokenCount={streamingOutputTokens}
+                    toolCallCount={streamingToolCallCount}
+                    onOpenToolCalls={openToolCalls}
+                  />
+                )}
+              </div>
+  ), [timeline, openTask, agent, compact, hideThinking, user, userInitials, toolCallsByMessage, liveTasks, toggleReaction, handleQuoteReply, handleEditResend, lastAssistantMsgId, isStreaming, isProcessing, handleRegenerate, deleteMessage, lastDisplayMsgId, setRewindTarget, streamingMessage, streamingReasoning, liveCompacting, pendingPrompts, respondToPrompt, isResponding, queueState, tokenStalled, streamingOutputTokens, streamingToolCallCount, openToolCalls])
+
   return (
     <WorkspacePathProvider agentId={agent.id}>
     <div
@@ -998,160 +1161,7 @@ export function ChatPanel({ agent, llmModels, modelUnavailable = false, queueSta
                 </div>
               </div>
             ) : (
-              <div className="space-y-1">
-                {timeline.map((item) => {
-                  if (item.kind === 'liveTask') {
-                    const task = item.task
-                    return (
-                      <TaskResultCard
-                        key={`live-${task.taskId}`}
-                        mode="live"
-                        taskId={task.taskId}
-                        status={task.status}
-                        title={task.title}
-                        senderName={task.senderName}
-                        senderAvatarUrl={task.senderAvatarUrl}
-                        result={task.result}
-                        error={task.error}
-                        createdAt={task.createdAt}
-                        onOpenDetail={() => openTask({ taskId: task.taskId, agentName: task.senderName ?? agent.name, agentAvatarUrl: task.senderAvatarUrl ?? agent.avatarUrl })}
-                      />
-                    )
-                  }
-
-                  const { msg, showDateSeparator, isGrouped, showTimeGap, prevTimestamp, isSearchMatch, isCurrentMatch, isNew } = item.entry
-                  const dateSeparator = showDateSeparator
-                    ? <DateSeparator key={`date-${msg.id}`} date={msg.createdAt} />
-                    : null
-
-                  const timeGap = showTimeGap && prevTimestamp
-                    ? <TimeGapIndicator key={`gap-${msg.id}`} prevTimestamp={prevTimestamp} currentTimestamp={msg.createdAt} />
-                    : null
-
-                  if (msg.sourceType === 'compacting') {
-                    const isCompactingError = !!msg.compactingError
-                    return (
-                      <React.Fragment key={msg.id}>
-                        {dateSeparator}
-                        {timeGap}
-                        <CompactingCard
-                          status={isCompactingError ? 'error' : 'done'}
-                          summary={msg.content || null}
-                          memoriesExtracted={msg.memoriesExtracted}
-                          error={msg.compactingError ?? undefined}
-                          timestamp={msg.createdAt}
-                        />
-                      </React.Fragment>
-                    )
-                  }
-
-                  const isFromUser = msg.role === 'user' && msg.sourceType === 'user'
-                  const isFromAgent = msg.sourceType === 'agent' && msg.role === 'user'
-                  const isTask = msg.sourceType === 'task'
-                  return (
-                    <React.Fragment key={`wrap-${msg.id}`}>
-                    {dateSeparator}
-                    {timeGap}
-                    <div
-                      data-message-id={msg.id}
-                      className={cn(
-                        'transition-colors duration-300',
-                        isCurrentMatch && 'bg-primary/10 rounded-lg',
-                        isSearchMatch && !isCurrentMatch && 'bg-primary/5 rounded-lg',
-                      )}
-                    >
-                    <MessageBubble
-                      key={msg.id}
-                      role={msg.role}
-                      content={msg.content}
-                      sourceType={msg.sourceType}
-                      compact={compact}
-                      hideThinking={hideThinking}
-                      files={msg.files}
-                      avatarUrl={
-                        isFromUser
-                          ? user?.avatarUrl
-                          : (isFromAgent || isTask)
-                            ? msg.sourceAvatarUrl ?? agent.avatarUrl
-                            : agent.avatarUrl
-                      }
-                      senderName={
-                        isFromUser
-                          ? (user?.pseudonym ?? user?.firstName)
-                          : (isFromAgent || isTask)
-                            ? msg.sourceName ?? agent.name
-                            : agent.name
-                      }
-                      userInitials={isFromUser ? userInitials : undefined}
-                      timestamp={msg.createdAt}
-                      toolCalls={toolCallsByMessage.get(msg.id)}
-                      injectedMemories={msg.injectedMemories}
-                      stepLimitReached={msg.stepLimitReached}
-                    emptyTurn={msg.emptyTurn}
-                    finishReason={msg.finishReason}
-                    silentStop={msg.silentStop}
-                      isRedacted={msg.isRedacted}
-                      isGrouped={isGrouped}
-                      isNew={isNew}
-                      messageId={msg.id}
-                      resolvedTaskId={msg.resolvedTaskId}
-                      onOpenTaskDetail={isTask && msg.resolvedTaskId ? ((taskId: string) => {
-                        const lt = liveTasks.find((t) => t.taskId === taskId)
-                        openTask({ taskId, agentName: lt?.senderName ?? agent.name, agentAvatarUrl: lt?.senderAvatarUrl ?? agent.avatarUrl })
-                      }) : undefined}
-                      reactions={msg.reactions}
-                      currentUserId={user?.id}
-                      onToggleReaction={toggleReaction}
-                      onQuoteReply={handleQuoteReply}
-                      onEditResend={handleEditResend}
-                      onRegenerate={msg.id === lastAssistantMsgId && !isStreaming && !isProcessing ? handleRegenerate : undefined}
-                      onDeleteMessage={!compact && !isStreaming && !isProcessing ? deleteMessage : undefined}
-                      onRewindHere={!compact && !isStreaming && !isProcessing && msg.id !== lastDisplayMsgId ? setRewindTarget : undefined}
-                      tokenUsage={msg.tokenUsage}
-                      reasoning={streamingMessage && msg.id === streamingMessage.id ? streamingReasoning : msg.reasoning ?? undefined}
-                      channelContextLine={msg.channelContextLine}
-                      channelBrandColor={msg.channelMeta?.brandColor ?? null}
-                      channelPlatformOverride={msg.channelMeta?.platform ?? null}
-                      systemEvent={msg.systemEvent}
-                      currentAgentName={agent.name}
-                      currentAgentAvatarUrl={agent.avatarUrl}
-                    />
-                    </div>
-                    </React.Fragment>
-                  )
-                })}
-                {liveCompacting && (
-                  <CompactingCard
-                    status={liveCompacting.status}
-                    summary={liveCompacting.summary}
-                    memoriesExtracted={liveCompacting.memoriesExtracted}
-                    messageCount={liveCompacting.messageCount}
-                    cycle={liveCompacting.cycle}
-                    estimatedTotal={liveCompacting.estimatedTotal}
-                    error={liveCompacting.error}
-                    timestamp={liveCompacting.startedAt}
-                  />
-                )}
-                {pendingPrompts.map((prompt) => (
-                  <HumanPromptCard
-                    key={prompt.id}
-                    prompt={prompt}
-                    onRespond={respondToPrompt}
-                    isResponding={isResponding}
-                  />
-                ))}
-                <SecretPromptModal agentId={agent.id} />
-                {queueState?.isProcessing && !(streamingMessage && streamingMessage.content.length > 0 && !tokenStalled) && (
-                  <TypingIndicator
-                    agentName={agent.name}
-                    agentAvatarUrl={agent.avatarUrl}
-                    startedAt={queueState?.processingStartedAt}
-                    tokenCount={streamingOutputTokens}
-                    toolCallCount={streamingToolCallCount}
-                    onOpenToolCalls={openToolCalls}
-                  />
-                )}
-              </div>
+              timelineContent
             )}
             <div ref={bottomRef} />
           </div>

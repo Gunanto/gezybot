@@ -3715,7 +3715,7 @@
   },
   "updateProgress": {
     "title": "更新进行中",
-    "dontClose": "你可以继续使用 Hivekeep：更新在后台运行，完成后页面会自动重新加载。",
+    "keepOpen": "请保持此页面打开。更新期间 Hivekeep 会暂时不可用，完成后页面会自动重新加载。",
     "waitingForServer": "服务器正在重启…等待它恢复",
     "reloading": "页面将自动重新加载。",
     "failedTitle": "更新失败",

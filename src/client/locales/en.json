@@ -3715,7 +3715,7 @@
   },
   "updateProgress": {
     "title": "Update in progress",
-    "dontClose": "You can keep using Hivekeep: the update runs in the background and the page will reload when it's done.",
+    "keepOpen": "Keep this page open. Hivekeep is briefly unavailable while it updates and will reload automatically when it's done.",
     "waitingForServer": "Server is restarting… waiting for it to come back",
     "reloading": "The page will reload automatically.",
     "failedTitle": "Update failed",

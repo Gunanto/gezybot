@@ -70,6 +70,14 @@ export async function setUpdateChannel(channel: UpdateChannel): Promise<void> {
   await setSetting(CHANNEL_SETTING_KEY, channel)
   // The cached check result belongs to the previous channel — invalidate it
   // so the next read triggers a fresh check instead of comparing apples to shas.
+  await invalidateVersionCheckCache()
+}
+
+/** Drop the cached check result so the next read re-fetches from GitHub. Used
+ *  after a self-update completes: the running version/sha just changed, so the
+ *  pre-update cache would still report "update available" (the edge channel in
+ *  particular keys availability off the cached changelog, not the version). */
+export async function invalidateVersionCheckCache(): Promise<void> {
   await setSetting(CACHE_KEY, '')
   await setSetting(LAST_TIME_KEY, '0')
 }

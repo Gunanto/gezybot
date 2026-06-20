@@ -3753,7 +3753,7 @@
   },
   "updateProgress": {
     "title": "Trwa aktualizacja",
-    "dontClose": "Możesz dalej korzystać z Hivekeep: aktualizacja działa w tle, a strona przeładuje się po jej zakończeniu.",
+    "keepOpen": "Pozostaw tę stronę otwartą. Hivekeep jest chwilowo niedostępny podczas aktualizacji i przeładuje się automatycznie po jej zakończeniu.",
     "waitingForServer": "Serwer się restartuje… czekam, aż wróci",
     "reloading": "Strona przeładuje się automatycznie.",
     "failedTitle": "Aktualizacja nie powiodła się",

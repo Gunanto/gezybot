@@ -45,10 +45,12 @@ import {
 import { performRollback } from '@/server/update/rollback'
 import { isManagedInstall, respawnDetached } from '@/server/update/respawn'
 import {
+  checkForUpdates,
   getCachedVersionInfo,
   getCurrentSha,
   getSelfUpdateCapability,
   getUpdateChannel,
+  invalidateVersionCheckCache,
 } from '@/server/services/version-check'
 import type { UpdateRunInfo, UpdateStepId } from '@/shared/types'
 
@@ -453,6 +455,12 @@ export function finalizeUpdateOnBoot(): void {
     writeJournal(journal)
     appendUpdateLog(`[${journal.id}] Update to ${journal.toVersion} booted successfully`)
     log.info({ runId: journal.id, version: config.version }, 'Self-update completed successfully')
+    // The running version/sha just changed: drop the pre-update version-check
+    // cache and re-check, otherwise the "update available" badge would linger
+    // (edge keys availability off the cached changelog, not the version).
+    void invalidateVersionCheckCache()
+      .then(() => checkForUpdates())
+      .catch((err) => log.warn({ err }, 'Post-update version re-check failed'))
     // Clients reconnect within seconds of the restart; give them a moment.
     setTimeout(() => {
       sseManager.broadcast({
