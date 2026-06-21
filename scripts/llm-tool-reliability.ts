@@ -24,6 +24,10 @@
  *   TEST_MODEL      required, the model id as the server lists it
  *   TEST_RUNS       samples per prompt per temperature (default 3)
  *   TEST_TEMPS      comma list of temperatures (default "0,0.8")
+ *   TEST_MODE       "native" (default, OpenAI tools API) or "prompt" (R5-style:
+ *                   tools described in the system prompt, model emits
+ *                   <tool_call>{...}</tool_call>, parsed from the text). Use
+ *                   "prompt" for models whose backend rejects native tools.
  */
 import OpenAI from 'openai'
 import { z } from 'zod'
@@ -38,6 +42,7 @@ if (!baseURL || !model) {
 }
 const runs = Number(process.env.TEST_RUNS ?? 3)
 const temps = (process.env.TEST_TEMPS ?? '0,0.8').split(',').map((t) => Number(t.trim()))
+const mode = process.env.TEST_MODE === 'prompt' ? 'prompt' : 'native'
 
 const client = new OpenAI({ apiKey: process.env.TEST_API_KEY || 'sk-no-key', baseURL })
 
@@ -89,7 +94,44 @@ function classify(name: string, rawArgs: string): Outcome {
   return wasValidJson ? 'VALID' : 'REPAIRED'
 }
 
+// R5-style: tools described in the prompt, the model replies with a delimited block.
+const PROMPT_SYSTEM =
+  'You can call tools to answer. Available tools (JSON Schema):\n' +
+  openaiTools.map((t) => JSON.stringify(t.function)).join('\n') +
+  '\n\nTo call a tool, reply with EXACTLY one line and nothing else:\n' +
+  '<tool_call>{"name": "<tool name>", "arguments": { ... }}</tool_call>'
+
+function classifyPrompt(content: string): Outcome {
+  const tagged = content.match(/<tool_call>\s*([\s\S]*?)<\/tool_call>/i)
+  const blob = (tagged?.[1] ?? content).trim()
+  let wasValidJson = true
+  try {
+    JSON.parse(blob)
+  } catch {
+    wasValidJson = false
+  }
+  const parsed = parseToolArguments(blob)
+  if (isRawToolArgs(parsed) || typeof parsed !== 'object' || parsed === null) return 'NONE'
+  const obj = parsed as Record<string, unknown>
+  if (typeof obj.name !== 'string') return 'NONE'
+  if (!(obj.name in TOOLS)) return 'INVALID'
+  const schema = TOOLS[obj.name as keyof typeof TOOLS]
+  if (!validateToolArgs(schema, obj.arguments ?? {}, obj.name).ok) return 'INVALID'
+  return wasValidJson ? 'VALID' : 'REPAIRED'
+}
+
 async function callOnce(prompt: string, temperature: number): Promise<Outcome> {
+  if (mode === 'prompt') {
+    const resp = await client.chat.completions.create({
+      model: model!,
+      temperature,
+      messages: [
+        { role: 'system', content: PROMPT_SYSTEM },
+        { role: 'user', content: prompt },
+      ],
+    })
+    return classifyPrompt(resp.choices[0]?.message?.content ?? '')
+  }
   const resp = await client.chat.completions.create({
     model: model!,
     temperature,
@@ -106,7 +148,7 @@ async function callOnce(prompt: string, temperature: number): Promise<Outcome> {
 
 const ORDER: Outcome[] = ['VALID', 'REPAIRED', 'INVALID', 'RAW', 'NONE']
 
-console.log(`\nModel: ${model}  endpoint: ${baseURL}`)
+console.log(`\nModel: ${model}  endpoint: ${baseURL}  mode: ${mode}`)
 console.log(`Samples: ${runs} per prompt, temperatures: ${temps.join(', ')}\n`)
 
 for (const temperature of temps) {

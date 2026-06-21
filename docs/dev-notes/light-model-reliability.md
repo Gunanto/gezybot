@@ -5,7 +5,10 @@ problem and proposes fixes ranked by impact and effort, for the maintainer to de
 Built so far: R1 (tolerant tool-argument parsing), R2 (schema validation with a correctable
 error), and the low-temperature-for-tool-turns part of R6. R3 was re-scoped after research
 (the client-side constrained-decoding knob does not apply to tool-call arguments; see R3).
-R4, R5, and R6's tool-scoping / prompt-slimming parts remain proposals.
+**Empirically, R5 is now the priority:** a real `gemma3:12b` on Ollama returns HTTP 400
+`does not support tools` for every native call (so R1/R2/R6 never run), while the same
+model emits 100% valid tool calls via a prompt-based protocol (see R5). R4 and R6's
+tool-scoping / prompt-slimming parts remain proposals.
 
 **Origin:** user feedback that Hivekeep is the #1-cited adoption blocker for the
 self-hosted / local-LLM audience. The platform works well with Claude, but small and
@@ -508,7 +511,27 @@ Two further consequences for our exact audience:
 | Does this model support a JSON / structured-output mode? | Yes (`structured_output`, **not yet ingested**) |
 | Which structured-output knob to send (Ollama / vLLM / llama.cpp)? | **No, and structurally cannot** — it is a server property, needs backend detection |
 
-### R5. Prompt-based tool-call fallback for weak native function-calling (high impact, high effort)
+### R5. Prompt-based tool-call fallback for weak native function-calling (high impact, high effort) — VALIDATED, RECOMMENDED NEXT
+
+**Empirical result (2026-06-21, real `gemma3:12b` on Ollama 0.30.10 over the LAN, via
+`scripts/llm-tool-reliability.ts`):**
+
+| Mode | Outcome (24 calls each, temps 0 and 0.8) |
+|---|---|
+| **Native** (OpenAI `tools` API) | **100% HTTP 400** `gemma3:12b does not support tools` |
+| **Prompt** (R5-style, tools in the system prompt, `<tool_call>{...}</tool_call>`) | **100% VALID** (24/24), schema-valid, no repair needed |
+
+This is the decisive evidence for the whole investigation. The users' "doesn't respond at
+all" symptom for Gemma on Ollama is the native-tools `400`: Ollama refuses the request
+because this model's template declares no tool support, so the call fails before any
+generation. R1/R2/R6 all operate on the native path and therefore cannot help this case at
+all. The same model, asked to emit tool calls as text, produced perfectly formed,
+schema-valid calls every time, at both temperatures. So R5 is **necessary and sufficient**
+for this model, not an optional nicety. Implication for the build: R5 also needs to detect
+the native-unsupported case (the `400`, or a per-model flag) and switch to the prompt
+protocol automatically, rather than surfacing the `400` to the user as it does today.
+
+
 
 #### Why an alternative protocol exists, and its limits
 
