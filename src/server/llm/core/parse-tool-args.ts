@@ -22,6 +22,16 @@ export interface RawToolArgs {
   _raw: string
 }
 
+/** True for the exact `{ _raw }` fallback shape produced by `parseToolArguments`. */
+export function isRawToolArgs(value: unknown): value is RawToolArgs {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as Record<string, unknown>)._raw === 'string' &&
+    Object.keys(value).length === 1
+  )
+}
+
 /**
  * Parse accumulated tool-call arguments into a value to hand to the tool.
  * Returns `{}` for empty input, the parsed value on success (direct or recovered),

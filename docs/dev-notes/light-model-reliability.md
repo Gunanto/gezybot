@@ -1,8 +1,9 @@
 # Reliability with low-end / self-hosted LLMs
 
-**Status:** analysis, plus R1 now implemented. This maps the problem and proposes fixes
-ranked by impact and effort, for the maintainer to decide on. R1 (tolerant tool-argument
-parsing) has since been built; the remaining items R2 to R6 are still proposals.
+**Status:** analysis, plus R1 and R2 now implemented. This maps the problem and proposes
+fixes ranked by impact and effort, for the maintainer to decide on. R1 (tolerant
+tool-argument parsing) and R2 (schema validation with a correctable error) have since been
+built; the remaining items R3 to R6 are still proposals.
 
 **Origin:** user feedback that Hivekeep is the #1-cited adoption blocker for the
 self-hosted / local-LLM audience. The platform works well with Claude, but small and
@@ -336,7 +337,20 @@ malformed args). **Effort:** Low (vendor a small repair routine or port `json_re
 one helper). **Risk:** Low; strictly more permissive than today. Add unit tests with real
 broken-output fixtures.
 
-### R2. Schema-validate tool args + bounded repair-retry (high impact, medium effort)
+### R2. Schema-validate tool args + bounded repair-retry (high impact, medium effort) — IMPLEMENTED
+
+**Status:** done. `validateToolArgs` (`src/server/services/tool-arg-validation.ts`, with
+tests) runs in `executeSingleTool` before the tool executes: malformed arguments are
+rejected with a precise, model-facing error (the offending field paths) instead of the
+tool failing deep inside `execute`. The `{ _raw }` salvage from R1 is caught explicitly
+(`isRawToolArgs`) with a "not valid JSON" message. Two deliberate scoping choices: (1) only
+Zod schemas are validated (every native tool has one; MCP / custom tools with a plain JSON
+Schema are skipped, since the host ships no JSON-Schema validator and they validate their
+own input); (2) secret-expanding tools are skipped, because a `{{secret:...}}` placeholder
+can fail a refinement like `.url()` before the real value is substituted. No separate
+retry loop or new config was added: the existing multi-step agent loop already re-prompts
+after a tool error, so a rejected call becomes the repair-retry, bounded by the existing
+`config.tools.maxSteps`. Rejections are logged at debug for measuring small-model impact.
 
 **What:** Before executing a tool, validate the parsed args against the tool's Zod schema
 (`asSchema` already has the schema). On failure, do a bounded re-prompt: feed the model
