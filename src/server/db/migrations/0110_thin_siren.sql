@@ -1,0 +1,1 @@
+ALTER TABLE `pending_email_sends` ADD `watch_reply` text;

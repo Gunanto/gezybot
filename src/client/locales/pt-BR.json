@@ -2050,6 +2050,8 @@
       "dispatchTaskWarning": "Uma tarefa roda em sessão isolada SEM histórico de conversa. Coloque tudo o que o agente precisa para agir no prompt abaixo.",
       "active": "Ativo",
       "pendingApproval": "Aguardando aprovação",
+      "oneShot": "Uma vez",
+      "oneShotHint": "Desativa-se após o primeiro e-mail correspondente.",
       "deleteTitle": "Excluir gatilho",
       "deleteConfirm": "Excluir este gatilho? Isso não pode ser desfeito.",
       "errorName": "O nome é obrigatório.",

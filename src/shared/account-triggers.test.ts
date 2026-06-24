@@ -20,6 +20,7 @@ const baseCtx: EmailMatchContext = {
   hasAttachment: true,
   unread: true,
   labels: ['INBOX', 'IMPORTANT'],
+  threadId: 'thread-abc123',
   body: 'Total due: 42 EUR',
   attachmentNames: ['invoice.pdf'],
   attachmentTypes: ['application/pdf'],
@@ -59,6 +60,12 @@ describe('evaluateConditions', () => {
   it('multi-value fields match if ANY element matches (recipient sub-addressing)', () => {
     expect(evaluateConditions(g('and', leaf('recipient', 'contains', '+stripe')), baseCtx)).toBe(true)
     expect(evaluateConditions(g('and', leaf('label', 'in', ['important'])), baseCtx)).toBe(true)
+  })
+
+  it('thread_id equals matches the reply-watch thread (any sender)', () => {
+    expect(evaluateConditions(g('and', leaf('thread_id', 'equals', 'thread-abc123')), baseCtx)).toBe(true)
+    expect(evaluateConditions(g('and', leaf('thread_id', 'equals', 'other-thread')), baseCtx)).toBe(false)
+    expect(evaluateConditions(g('and', leaf('thread_id', 'in', ['x', 'thread-abc123'])), baseCtx)).toBe(true)
   })
 
   it('matches uses regex (case-insensitive)', () => {

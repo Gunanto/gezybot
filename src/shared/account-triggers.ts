@@ -20,7 +20,7 @@ export const BODY_FIELDS: readonly ConditionField[] = ['body', 'attachment_name'
 
 const ALL_FIELDS: readonly ConditionField[] = [
   'sender_email', 'sender_domain', 'sender_name', 'subject', 'snippet',
-  'recipient', 'has_attachment', 'unread', 'label',
+  'recipient', 'has_attachment', 'unread', 'label', 'thread_id',
   'body', 'attachment_name', 'attachment_type',
 ]
 
@@ -38,6 +38,7 @@ export const FIELD_OPS: Record<ConditionField, ConditionOp[]> = {
   has_attachment: ['is_true', 'is_false'],
   unread: ['is_true', 'is_false'],
   label: ['equals', 'contains', 'in'],
+  thread_id: ['equals', 'in'],
   body: ['contains', 'matches'],
   attachment_name: ['equals', 'contains', 'ends_with', 'matches'],
   attachment_type: ['equals', 'contains', 'in'],
@@ -136,6 +137,7 @@ export interface EmailMatchContext {
   hasAttachment: boolean
   unread: boolean
   labels: string[]
+  threadId: string
   body?: string
   attachmentNames?: string[]
   attachmentTypes?: string[]
@@ -177,6 +179,7 @@ function fieldValues(field: ConditionField, ctx: EmailMatchContext): string[] {
     case 'snippet': return [ctx.snippet]
     case 'recipient': return ctx.recipients
     case 'label': return ctx.labels
+    case 'thread_id': return [ctx.threadId]
     case 'body': return [ctx.body ?? '']
     case 'attachment_name': return ctx.attachmentNames ?? []
     case 'attachment_type': return ctx.attachmentTypes ?? []
@@ -209,7 +212,7 @@ export function evaluateConditions(node: ConditionNode, ctx: EmailMatchContext):
 const FIELD_LABEL: Record<ConditionField, string> = {
   sender_email: 'sender', sender_domain: 'sender domain', sender_name: 'sender name',
   subject: 'subject', snippet: 'preview', recipient: 'recipient',
-  has_attachment: 'attachment', unread: 'unread', label: 'label',
+  has_attachment: 'attachment', unread: 'unread', label: 'label', thread_id: 'thread',
   body: 'body', attachment_name: 'attachment name', attachment_type: 'attachment type',
 }
 

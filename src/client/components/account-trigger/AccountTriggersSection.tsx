@@ -66,6 +66,11 @@ export function AccountTriggersSection({ accountId }: { accountId: string }) {
                   <Badge variant="secondary" className="text-[10px]">
                     {trg.dispatchMode === 'task' ? t('settings.triggers.dispatchTask') : t('settings.triggers.dispatchConversation')}
                   </Badge>
+                  {trg.disableAfterFire && (
+                    <Badge variant="outline" className="text-[10px]" title={t('settings.triggers.oneShotHint')}>
+                      {t('settings.triggers.oneShot')}
+                    </Badge>
+                  )}
                   {trg.requiresApproval && !trg.isActive && (
                     <Badge variant="outline" className="text-[10px] text-warning">{t('settings.triggers.pendingApproval')}</Badge>
                   )}

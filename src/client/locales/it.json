@@ -2050,6 +2050,8 @@
       "dispatchTaskWarning": "Un'attività gira in una sessione isolata SENZA cronologia di conversazione. Metti tutto ciò che serve all'agente per agire nel prompt qui sotto.",
       "active": "Attivo",
       "pendingApproval": "In attesa di approvazione",
+      "oneShot": "Una volta",
+      "oneShotHint": "Si disattiva dopo la prima email corrispondente.",
       "deleteTitle": "Elimina trigger",
       "deleteConfirm": "Eliminare questo trigger? L'operazione non può essere annullata.",
       "errorName": "Il nome è obbligatorio.",

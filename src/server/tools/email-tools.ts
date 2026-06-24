@@ -17,6 +17,7 @@ import { readFile, writeFile, mkdir, stat } from 'node:fs/promises'
 import { basename, dirname, extname } from 'node:path'
 import { tool } from '@/server/tools/tool-helper'
 import { resolveEmailProvider, listEmailAccounts } from '@/server/services/email-accounts'
+import { createReplyWatchTrigger } from '@/server/services/account-triggers'
 import { resolveToolWorkspace } from '@/server/tools/workspace'
 import { emitWorkspaceChangedForTool } from '@/server/services/workspace-files'
 import { resolveAndValidate } from '@/server/tools/filesystem-tools'
@@ -249,7 +250,9 @@ export const sendEmailTool: ToolRegistration = {
       description:
         'Send an email from a connected account. Recipients are email addresses ' +
         '(optionally "Name <email>"). Set reply_to_message_id to reply in the same ' +
-        'thread. This sends immediately — be sure of the content and recipients.',
+        'thread. This sends immediately, so be sure of the content and recipients. ' +
+        'Set watch_reply to be woken up when a reply lands: it creates a one-shot ' +
+        'trigger on the thread, so any reply (whoever sends it) starts a new turn.',
       inputSchema: z.object({
         account: accountField,
         to: z.array(z.string()).min(1).describe('Recipient email addresses.'),
@@ -263,6 +266,18 @@ export const sendEmailTool: ToolRegistration = {
           .optional()
           .describe('Workspace-relative file paths to attach (e.g. ["report.pdf"]).'),
         reply_to_message_id: z.string().optional().describe('Reply in-thread to this message id.'),
+        watch_reply: z
+          .boolean()
+          .optional()
+          .describe(
+            'Wake up when this email gets a reply. Creates a one-shot trigger on the ' +
+            'thread that starts a new turn on the first reply, regardless of sender. ' +
+            'Requires a provider that threads messages (e.g. Gmail).',
+          ),
+        watch_reply_prompt: z
+          .string()
+          .optional()
+          .describe('Instruction injected when the reply arrives (only used with watch_reply).'),
       }),
       execute: async (args) => {
         try {
@@ -292,6 +307,12 @@ export const sendEmailTool: ToolRegistration = {
               agentId: ctx.agentId,
               taskId: ctx.taskId,
               params: sendParams,
+              // The reply-watch trigger can only be created once the message is
+              // actually sent (its threadId is known), so the intent rides along
+              // and approvePendingSend sets it up post-send.
+              watchReply: args.watch_reply
+                ? { prompt: args.watch_reply_prompt }
+                : undefined,
             })
             log.info({ agentId: ctx.agentId, account: account.slug, pendingId }, 'send_email queued for approval')
             return {
@@ -300,12 +321,33 @@ export const sendEmailTool: ToolRegistration = {
               pendingId,
               message:
                 `Email queued for human approval (account "${account.slug}" is in approval mode). ` +
-                `It will be sent once a human approves it.`,
+                `It will be sent once a human approves it.` +
+                (args.watch_reply ? ' A reply-watch trigger will be created once it is sent.' : ''),
             }
           }
           const sent = await provider.sendMessage(sendParams, config)
           log.info({ agentId: ctx.agentId, account: account.slug, recipients: args.to.length }, 'send_email')
-          return { account: account.slug, sent: { id: sent.id, threadId: sent.threadId } }
+          const result: Record<string, unknown> = { account: account.slug, sent: { id: sent.id, threadId: sent.threadId } }
+          if (args.watch_reply) {
+            try {
+              const trigger = await createReplyWatchTrigger({
+                accountId: account.id,
+                targetAgentId: ctx.agentId,
+                threadId: sent.threadId,
+                subject: args.subject,
+                prompt: args.watch_reply_prompt,
+              })
+              result.replyWatch = trigger
+                ? trigger.requiresApproval
+                  ? { status: 'pending_approval', triggerId: trigger.id }
+                  : { status: 'active', triggerId: trigger.id }
+                : { status: 'unsupported', message: 'The account provider does not thread messages, so no reply-watch was created.' }
+            } catch (err) {
+              log.warn({ agentId: ctx.agentId, account: account.slug, err }, 'reply-watch trigger creation failed')
+              result.replyWatch = { status: 'failed', message: err instanceof Error ? err.message : String(err) }
+            }
+          }
+          return result
         } catch (err) {
           return toErr(err)
         }

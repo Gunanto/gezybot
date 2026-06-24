@@ -609,6 +609,7 @@ Déclencheurs par compte email connecté : quand un nouvel email correspond à l
 | `dispatch_mode` | text | NOT NULL, DEFAULT 'conversation' | 'conversation' (injecté dans la session principale, avec contexte) ou 'task' (sous-tâche isolée, sans historique) |
 | `max_concurrent_tasks` | integer | NOT NULL, DEFAULT 1 | Max tâches concurrentes (mode task). 0 = illimité |
 | `needs_body` | integer | NOT NULL, DEFAULT 0 | 1 si une condition vise le corps/pièces jointes (fetch du message complet requis au polling) |
+| `disable_after_fire` | integer | NOT NULL, DEFAULT 0 | 1 = one-shot : le trigger se désactive (`is_active=0`) après le premier match. Utilisé par l'option `watch_reply` de `send_email` (attente de la réponse à un mail envoyé) |
 | `last_triggered_at` | integer | | Dernier déclenchement |
 | `trigger_count` | integer | NOT NULL, DEFAULT 0 | Nombre de déclenchements |
 | `created_by` | text | NOT NULL, DEFAULT 'user' | 'user' ou 'agent' |

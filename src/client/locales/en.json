@@ -2050,6 +2050,8 @@
       "dispatchTaskWarning": "A task runs in an isolated session with NO conversation history. Put everything the agent needs to act in the prompt below.",
       "active": "Active",
       "pendingApproval": "Pending approval",
+      "oneShot": "One-shot",
+      "oneShotHint": "Disables itself after the first matching email.",
       "deleteTitle": "Delete trigger",
       "deleteConfirm": "Delete this trigger? This cannot be undone.",
       "errorName": "Name is required.",

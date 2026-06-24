@@ -2066,6 +2066,8 @@
       "dispatchTaskWarning": "Zadanie działa w izolowanej sesji BEZ historii rozmowy. Umieść w poniższym prompcie wszystko, czego agent potrzebuje do działania.",
       "active": "Aktywny",
       "pendingApproval": "Oczekuje na zatwierdzenie",
+      "oneShot": "Jednorazowo",
+      "oneShotHint": "Wyłącza się po pierwszym pasującym e-mailu.",
       "deleteTitle": "Usuń wyzwalacz",
       "deleteConfirm": "Usunąć ten wyzwalacz? Tej operacji nie można cofnąć.",
       "errorName": "Nazwa jest wymagana.",

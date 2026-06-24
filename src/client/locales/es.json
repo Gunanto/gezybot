@@ -2050,6 +2050,8 @@
       "dispatchTaskWarning": "Una tarea corre en una sesión aislada SIN historial de conversación. Pon todo lo que el agente necesite para actuar en el prompt de abajo.",
       "active": "Activo",
       "pendingApproval": "Pendiente de aprobación",
+      "oneShot": "Una vez",
+      "oneShotHint": "Se desactiva tras el primer correo coincidente.",
       "deleteTitle": "Eliminar disparador",
       "deleteConfirm": "¿Eliminar este disparador? No se puede deshacer.",
       "errorName": "El nombre es obligatorio.",

@@ -457,7 +457,7 @@ export type TriggerDispatchMode = 'conversation' | 'task'
  *  summary; `body` / `attachment_*` require fetching the full message. */
 export type ConditionField =
   | 'sender_email' | 'sender_domain' | 'sender_name' | 'subject' | 'snippet'
-  | 'recipient' | 'has_attachment' | 'unread' | 'label'
+  | 'recipient' | 'has_attachment' | 'unread' | 'label' | 'thread_id'
   | 'body' | 'attachment_name' | 'attachment_type'
 
 export type ConditionOp =
@@ -496,6 +496,9 @@ export interface AccountTriggerSummary {
   targetAgentAvatarUrl: string | null
   dispatchMode: TriggerDispatchMode
   maxConcurrentTasks: number
+  /** One-shot: the trigger disables itself after its first match. Used by the
+   *  send_email reply-watch, which only needs to catch the first reply. */
+  disableAfterFire: boolean
   triggerCount: number
   lastTriggeredAt: number | null
   createdBy: 'user' | 'agent'

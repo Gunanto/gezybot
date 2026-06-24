@@ -2050,6 +2050,8 @@
       "dispatchTaskWarning": "Une tâche s'exécute en session isolée, SANS l'historique de la conversation. Mets dans le prompt ci-dessous tout ce dont l'agent a besoin pour agir.",
       "active": "Actif",
       "pendingApproval": "En attente d'approbation",
+      "oneShot": "Une fois",
+      "oneShotHint": "Se désactive après le premier email correspondant.",
       "deleteTitle": "Supprimer le déclencheur",
       "deleteConfirm": "Supprimer ce déclencheur ? Cette action est irréversible.",
       "errorName": "Le nom est requis.",
