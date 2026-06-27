@@ -493,7 +493,7 @@ Public access to shared files (no auth required, token-based).
 | `POST` | `/api/version-check/check` | Force a fresh version check against GitHub (admin only). Returns 400 if version check is disabled |
 | `PUT` | `/api/version-check/channel` | Switch the update channel: `{ "channel": "stable" \| "edge" }` (admin only) |
 | `POST` | `/api/version-check/update` | Start the safe self-update (admin only, git installs). Returns `{ runId }`; progress over SSE `update:progress`, outcome in `/last-update`. 400 for Docker/dev installs, 409 if already running |
-| `GET` | `/api/version-check/last-update` | Latest update attempt (`running`/`restarting`/`success`/`failed`/`rolled-back`) — persisted, survives the restart |
+| `GET` | `/api/version-check/last-update` | Latest update attempt (`running`/`restarting`/`success`/`failed`/`rolled-back`), persisted, survives the restart |
 
 ## Usage (admin only)
 

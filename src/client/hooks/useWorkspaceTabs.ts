@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { arrayMove } from '@dnd-kit/sortable'
 import { api, getErrorMessage, ApiRequestError } from '@/client/lib/api'
 import { useSSE } from '@/client/hooks/useSSE'
 import { sourceApiBase, sourceQuery, sourceKey, changeMatchesSource } from '@/client/lib/workspace-source'
@@ -124,11 +125,17 @@ export function useWorkspaceTabs(source: WorkspaceSourceRef | null) {
     [loadFile],
   )
 
+  // Most-recently-closed paths (this source), for reopen (Ctrl/Cmd+Shift+T).
+  const closedStackRef = useRef<string[]>([])
+
   /** Close without any dirty guard — the page confirms via UnsavedChangesDialog first. */
   const forceCloseTab = useCallback((path: string) => {
     setTabs((prev) => {
+      if (!prev.includes(path)) return prev
       const idx = prev.indexOf(path)
       const next = prev.filter((p) => p !== path)
+      // Remember it for reopen (dedupe + cap the stack).
+      closedStackRef.current = [...closedStackRef.current.filter((p) => p !== path), path].slice(-20)
       setActive((cur) => {
         if (cur !== path) return cur
         return next[Math.min(idx, next.length - 1)] ?? null
@@ -141,6 +148,14 @@ export function useWorkspaceTabs(source: WorkspaceSourceRef | null) {
       return next
     })
   }, [])
+
+  /** Reopen the most recently closed tab; returns its path, or null if none. */
+  const reopenLastClosed = useCallback(() => {
+    const path = closedStackRef.current.pop()
+    if (!path) return null
+    openTab(path)
+    return path
+  }, [openTab])
 
   const updateDraft = useCallback(
     (path: string, value: string) => {
@@ -198,6 +213,16 @@ export function useWorkspaceTabs(source: WorkspaceSourceRef | null) {
     },
     [source, states, patchState],
   )
+
+  /** Drag-reorder: move the `activeId` tab to the slot of `overId` (files.md § 3.4 v2). */
+  const reorderTabs = useCallback((activeId: string, overId: string) => {
+    setTabs((prev) => {
+      const from = prev.indexOf(activeId)
+      const to = prev.indexOf(overId)
+      if (from === -1 || to === -1 || from === to) return prev
+      return arrayMove(prev, from, to)
+    })
+  }, [])
 
   /** Rename `from` → `to` across tabs/states/active, draft preserved. */
   const retargetTabs = useCallback((from: string, to: string, isDirectory: boolean) => {
@@ -266,6 +291,7 @@ export function useWorkspaceTabs(source: WorkspaceSourceRef | null) {
     if (!source || !key) return
     if (restoredForSource.current === key) return
     restoredForSource.current = key
+    closedStackRef.current = []
     setStates({})
     try {
       const raw = sessionStorage.getItem(storageKey(source))
@@ -296,6 +322,8 @@ export function useWorkspaceTabs(source: WorkspaceSourceRef | null) {
     openTab,
     focusTab,
     forceCloseTab,
+    reopenLastClosed,
+    reorderTabs,
     updateDraft,
     save,
     reload: loadFile,

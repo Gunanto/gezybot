@@ -17,7 +17,7 @@ You want to:
 
 | Requirement | Details |
 |---|---|
-| **LLM Provider** | Anthropic (Claude Sonnet 4 or Sonnet 3.5) — strong tool use required |
+| **LLM Provider** | Anthropic (Claude Sonnet 4 or Sonnet 3.5), strong tool use required |
 | **Embedding Provider** | Any (for memory) |
 | **Search Provider** | Recommended: Brave Search, Tavily, Perplexity, or Serper |
 | **Channel** (optional) | Telegram, Discord, or Slack for delivery |
@@ -250,12 +250,12 @@ the broader "agentic AI" narrative we've been tracking since March.
 ### Digest is empty or has no real content
 
 - Check that your **search provider** is configured and working (test with a manual web search)
-- The `freshness="pd"` parameter in `web_search` filters to the past day — if there's genuinely no news, the digest will be light
+- The `freshness="pd"` parameter in `web_search` filters to the past day. If there's genuinely no news, the digest will be light
 - Try broadening your search queries
 
 ### Agent summarizes without actually searching
 
-This is the "text mode" problem — the Agent is generating plausible-sounding content without calling `web_search`. Verify:
+This is the "text mode" problem: the Agent is generating plausible-sounding content without calling `web_search`. Verify:
 1. The task output shows actual `web_search` tool calls
 2. Switch to Claude Sonnet if you're on a different model
 3. See [Model Selection](/docs/guides/model-selection/) for details
@@ -269,10 +269,10 @@ This is the "text mode" problem — the Agent is generating plausible-sounding c
 ### Channel delivery fails
 
 - Verify the channel is active: check **Settings > Channels**
-- The sub-Agent needs channel tools available — they shouldn't be in `disabledNativeTools`
+- The sub-Agent needs channel tools available: they shouldn't be in `disabledNativeTools`
 - Check that the `chat_id` is correct (use `list_channel_conversations` to find it)
 
 ### Cron runs but produces duplicate content
 
 - Ensure the task description includes the `recall()` instruction to check previous digests
-- The "previous run context" feature helps — the sub-Agent receives the last run's result automatically
+- The "previous run context" feature helps: the sub-Agent receives the last run's result automatically

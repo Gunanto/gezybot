@@ -30,11 +30,11 @@
 
 <p align="center">
   <a href="https://hivekeep.app/#demo">
-    <img src="docs/assets/demo-video.jpg" alt="Watch the Hivekeep walkthrough — from a blank install to your own AI team in six minutes" width="720" />
+    <img src="docs/assets/demo-video.jpg" alt="Watch the Hivekeep walkthrough, from a blank install to your own AI team in six minutes" width="720" />
   </a>
 </p>
 <p align="center">
-  <sub><strong>▶ Watch the 6-minute walkthrough</strong> — onboarding, Queenie setting everything up, agents building a mini-app and a custom tool live, and a full tour.</sub>
+  <sub><strong>▶ Watch the 6-minute walkthrough</strong>: onboarding, Queenie setting everything up, agents building a mini-app and a custom tool live, and a full tour.</sub>
 </p>
 
 ---
@@ -147,7 +147,7 @@ The same building blocks cover a DevOps copilot, a home brain, a personal knowle
 
 ## Providers and plugins
 
-Bring one config per provider and Hivekeep auto-detects its capabilities (`llm`, `embedding`, `image`, `search`, `stt`, `tts`). **Built in today:** Anthropic (API key, or Claude Max via in-app sign-in, no CLI needed), OpenAI (API key, or Codex via in-app sign-in, no CLI needed), Google Gemini, OpenRouter, xAI, DeepSeek, MiniMax, Kimi (Moonshot), and a generic **OpenAI-compatible** connector (your own base URL, for NewAPI / LiteLLM / llama.cpp / LM Studio / vLLM / Ollama) for LLMs; OpenAI and Gemini for images; OpenAI and the OpenAI-compatible connector (local models via Ollama, llama.cpp, etc.) for embeddings; OpenAI and ElevenLabs for speech-to-text and text-to-speech; Brave Search, SerpAPI, Tavily, and Perplexity Sonar for web search. Need more? Add any provider as a **plugin** through the typed SDK, no fork required.
+Bring one config per provider and Hivekeep auto-detects its capabilities (`llm`, `embedding`, `image`, `search`, `stt`, `tts`). **Built in today:** Anthropic (API key, or Claude Max via in-app sign-in, no CLI needed), OpenAI (API key, or Codex via in-app sign-in, no CLI needed), Google Gemini, OpenRouter, xAI, DeepSeek, MiniMax, Kimi (Moonshot), and a generic **OpenAI-compatible** connector (your own base URL, for NewAPI / LiteLLM / llama.cpp / LM Studio / vLLM / Ollama) for LLMs; OpenAI and Gemini for images; OpenAI and the OpenAI-compatible connector (local models via Ollama, llama.cpp, etc.) for embeddings; OpenAI and ElevenLabs for speech-to-text and text-to-speech; Brave Search, SerpAPI, Tavily, and Perplexity Sonar for web search. Need more? Add any provider as a **plugin** through the typed SDK, no fork required. Local models whose backend lacks native tool calling (e.g. Gemma on Ollama) still get tools through an automatic prompt-based fallback.
 
 ---
 
@@ -266,7 +266,7 @@ All capabilities are detailed on the [website](https://marlburrow.github.io/hive
 - 18 OKLch palettes (aurora, ocean, forest, sunset, monochrome, sakura, neon, lavender, midnight, copper, jade, crimson, galaxy, amber, slate, rose, mint, citrus) x light/dark/system x adaptive contrast
 - Glass/gradient design system, WCAG AA, i18n (10 UI languages; Agents speak 40+)
 - Rich tool renders inline, @mentions with autocomplete, real-time SSE streaming, auto-generated per-Agent avatars
-- Files: a built-in workspace browser/editor — browse, edit, upload, and share any file your Agents produce, with clickable file paths in chat
+- Files: a built-in workspace browser/editor to browse, edit, upload, and share any file your Agents produce, with clickable file paths in chat
 
 **Conversational onboarding (Queenie)**
 - Minimal 3-screen onboarding, then full guided configuration by chat
@@ -308,7 +308,7 @@ End-to-end image generation: an LLM prompt-writer rewrites each prompt from the 
 Projects with injectable context, 5-column Kanban (drag-and-drop, optimistic, SSE), tickets (tags, comments, attachments, history, mentions), per-project tags. Ticket sub-tasks in mandatory `await` with project + ticket context. Automated enrichment. GitHub integration (background clone, isolated worktree per sub-task, PAT in vault via credential helper).
 
 #### 8. Connected accounts (mail, calendar, contacts)
-Generic multi-provider OAuth2 (Google, Microsoft 365, Apple). Mail (Gmail, Outlook/365, IMAP/SMTP). Calendar events (Google, M365, iCloud CalDAV, generic CalDAV). Read-only contact search (iCloud, Google People, MS Graph, CardDAV). Tokens cached server-side, never seen by Agents. Optional send-approval mode, per-Agent allow-list, encryption at rest. **Email triggers**: per-account condition trees (sender, domain, subject, body, attachment…, nested AND/OR) that automatically prompt a target Agent — injected into its conversation or spawned as an isolated task — when matching mail arrives (polled, with cold-start and anti-flood guards; Agents can set them up via tools).
+Generic multi-provider OAuth2 (Google, Microsoft 365, Apple). Mail (Gmail, Outlook/365, IMAP/SMTP). Calendar events (Google, M365, iCloud CalDAV, generic CalDAV). Read-only contact search (iCloud, Google People, MS Graph, CardDAV). Tokens cached server-side, never seen by Agents. Optional send-approval mode, per-Agent allow-list, encryption at rest. **Email triggers**: per-account condition trees (sender, domain, subject, body, attachment…, nested AND/OR) that automatically prompt a target Agent (injected into its conversation or spawned as an isolated task) when matching mail arrives (polled, with cold-start and anti-flood guards; Agents can set them up via tools).
 
 #### 9. Plugins, SDK, marketplace
 NPM-based plugins, typed TypeScript SDK (`@hivekeep/sdk`). Built-in marketplace (keyword `hivekeep-plugin`, live npm search) + Git install. Strict declarative manifest with granular permissions. Native AI tools, native provider families (LLM, embedding, image, search, TTS, STT + email/contacts/calendar), channel adapters, lifecycle hooks, interactive cards, per-plugin storage, permission-controlled HTTP, namespaced vault, scaffold CLI (`create-hivekeep-plugin`), auto-disable on error.

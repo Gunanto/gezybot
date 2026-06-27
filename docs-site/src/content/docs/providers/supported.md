@@ -32,11 +32,12 @@ This table is the exact set of built-in providers (see `src/shared/provider-meta
 - **Embeddings** are built in for **OpenAI** and the generic **OpenAI-compatible** connector (point it at Ollama, llama.cpp, LM Studio, vLLM, etc. for fully local embeddings). Other embedding sources come from plugins.
 - **Image generation** is built in for **OpenAI** and **Gemini**.
 - **STT and TTS** are built in for **OpenAI** and **ElevenLabs**.
-- **SearXNG** is a self-hosted search connector: point it at your own [SearXNG](https://github.com/searxng/searxng) instance (custom base URL) to run web search privately, with no commercial search API. The instance must have the `json` format enabled (`search.formats` in `settings.yml`); the API key is optional and only needed for protected instances (sent via a configurable auth header). Do not configure it through the Tavily provider — SearXNG is not Tavily-compatible and will fail with HTTP 401.
+- **SearXNG** is a self-hosted search connector: point it at your own [SearXNG](https://github.com/searxng/searxng) instance (custom base URL) to run web search privately, with no commercial search API. The instance must have the `json` format enabled (`search.formats` in `settings.yml`); the API key is optional and only needed for protected instances (sent via a configurable auth header). Do not configure it through the Tavily provider: SearXNG is not Tavily-compatible and will fail with HTTP 401.
 - Providers such as **Mistral** and **Replicate** are not built in: they ship as plugins.
 - **OpenAI-compatible** is a generic connector: you supply a **custom base URL** (and an optional API key) to point Hivekeep at any OpenAI-style endpoint, NewAPI, LiteLLM, llama.cpp, LM Studio, vLLM, Ollama, and similar. It serves **both LLM and embedding** capabilities (`/chat/completions` and `/embeddings`), so a single connector can run your agents and your semantic memory fully locally. Its model list comes from the endpoint's `/models`; the API key is optional (local servers often need none).
+- **Local models without native tool calling still work.** Some self-hosted models reject the native tools API (for example Gemma on Ollama, which returns `400 does not support tools`). When Hivekeep detects this, it automatically switches that model to a prompt-based tool protocol, describing the tools in the prompt and parsing the model's tool calls back out, so the agent keeps working. This happens transparently, with no configuration, and is remembered per model so there is no repeated failed attempt. A low [`TOOLS_TEMPERATURE`](/docs/getting-started/configuration/) and tolerant parsing further steady tool calls on small models.
 
-Per-model metadata (context window, image/PDF support, reasoning, pricing, and the display label) is **not configured per provider** — it's auto-filled from [models.dev](https://models.dev) and managed in the [Model Registry](/docs/providers/model-registry/), where you can also enable/disable models, fix a wrong match, or override any value.
+Per-model metadata (context window, image/PDF support, reasoning, pricing, and the display label) is **not configured per provider**. It's auto-filled from [models.dev](https://models.dev) and managed in the [Model Registry](/docs/providers/model-registry/), where you can also enable/disable models, fix a wrong match, or override any value.
 
 ## Capabilities
 
@@ -76,7 +77,7 @@ Both methods feed the same provider. Tokens obtained via "Sign in" never touch t
 
 You can also just **ask Queenie** (the configurator Agent) to connect Claude Max or Codex: she opens the sign-in as an in-chat card (the same button + paste-the-code step), so you never have to leave the conversation.
 
-Codex does not need its CLI model cache (`~/.codex/models_cache.json`) anymore: when the cache is absent (which it always is in sign-in mode), Hivekeep falls back to a built-in GPT-5-family catalog, and per-model metadata is filled in from the [Model Registry](/docs/providers/model-registry/).
+Codex does not need its CLI model cache (`~/.codex/models_cache.json`): Hivekeep fetches your live, per-account model catalog straight from the Codex backend (the same source the CLI uses), so it always lists the models your plan actually supports. The CLI cache and a small built-in list are only fallbacks for when that request can't be made. Per-model metadata is enriched from the [Model Registry](/docs/providers/model-registry/).
 
 ## API Endpoints
 

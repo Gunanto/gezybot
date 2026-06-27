@@ -43,16 +43,10 @@ npm_token
 # VSCode
 .vscode/
 
-# Playwright / E2E
-playwright-report/
-test-results/
-e2e-report/
-
 # Claude Code
 .claude/
 .mcp.json
 .marlbot-context.md
-e2e-journal.md
 memory-research.md
 memory-experiments/
 channel-files-journal.md

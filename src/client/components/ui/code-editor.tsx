@@ -47,6 +47,16 @@ interface CodeEditorProps {
   extensions?: Extension[]
   /** Bound to Mod-S inside the editor (browser save dialog suppressed). */
   onSave?: () => void
+  /**
+   * Enable the in-editor search panel + keymap (Mod-F find, Mod-G next,
+   * Mod-Alt-G go-to-line) and selection-match highlighting. Off by default so
+   * embedded editors (modals) keep the browser's native find.
+   */
+  search?: boolean
+  /** Live caret position (1-based) + selection length, for a status bar. */
+  onCursorChange?: (pos: { line: number; col: number; selLen: number }) => void
+  /** Detected language label from the filename (null when unknown / no filename). */
+  onLanguageChange?: (name: string | null) => void
   className?: string
 }
 
@@ -86,20 +96,30 @@ export function CodeEditor({
   lineWrapping = true,
   extensions: extraExtensions,
   onSave,
+  search = false,
+  onCursorChange,
+  onLanguageChange,
   className,
 }: CodeEditorProps) {
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
+
+  const onCursorRef = useRef(onCursorChange)
+  onCursorRef.current = onCursorChange
+  const onLanguageRef = useRef(onLanguageChange)
+  onLanguageRef.current = onLanguageChange
 
   // Filename-based language: matched against the lazy language-data registry.
   const [fileLanguage, setFileLanguage] = useState<Extension | null>(null)
   useEffect(() => {
     if (!filename) {
       setFileLanguage(null)
+      onLanguageRef.current?.(null)
       return
     }
     let cancelled = false
     const description = LanguageDescription.matchFilename(languageData, filename)
+    onLanguageRef.current?.(description?.name ?? null)
     if (!description) {
       setFileLanguage(null)
       return
@@ -141,10 +161,24 @@ export function CodeEditor({
         ),
       )
     }
+    if (onCursorRef.current !== undefined) {
+      exts.push(
+        EditorView.updateListener.of((update) => {
+          if (!update.selectionSet && !update.docChanged) return
+          const head = update.state.selection.main
+          const line = update.state.doc.lineAt(head.head)
+          onCursorRef.current?.({
+            line: line.number,
+            col: head.head - line.from + 1,
+            selLen: head.to - head.from,
+          })
+        }),
+      )
+    }
     if (extraExtensions) exts.push(...extraExtensions)
     return exts
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [language, filename, fileLanguage, lineWrapping, extraExtensions, onSave !== undefined])
+  }, [language, filename, fileLanguage, lineWrapping, extraExtensions, onSave !== undefined, onCursorChange !== undefined])
 
   const theme = useMemo(() => buildThemeExtension(isDark), [isDark])
 
@@ -184,8 +218,8 @@ export function CodeEditor({
           autocompletion: false,
           crosshairCursor: false,
           rectangularSelection: false,
-          highlightSelectionMatches: false,
-          searchKeymap: false,
+          highlightSelectionMatches: search,
+          searchKeymap: search,
           lintKeymap: false,
           completionKeymap: false,
           foldKeymap: false,

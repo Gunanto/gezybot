@@ -102,7 +102,8 @@
     "agentLanguageFollowUi": "Same as the interface",
     "clearFilters": "Clear",
     "perPage": "Per page",
-    "listRange": "{{from}}-{{to}} of {{total}}"
+    "listRange": "{{from}}-{{to}} of {{total}}",
+    "clear": "Clear"
   },
   "errors": {
     "backendUnavailable": "Unable to reach the server. Please check that the backend is running and try again.",
@@ -2049,6 +2050,8 @@
       "dispatchTaskWarning": "A task runs in an isolated session with NO conversation history. Put everything the agent needs to act in the prompt below.",
       "active": "Active",
       "pendingApproval": "Pending approval",
+      "oneShot": "One-shot",
+      "oneShotHint": "Disables itself after the first matching email.",
       "deleteTitle": "Delete trigger",
       "deleteConfirm": "Delete this trigger? This cannot be undone.",
       "errorName": "Name is required.",
@@ -3069,7 +3072,8 @@
     "filesRename": "Rename the selected entry (tree focused)",
     "filesDelete": "Delete the selected entry (tree focused)",
     "filesClipboard": "Copy / cut / paste (tree focused)",
-    "filesCloseTab": "Close the active tab"
+    "filesCloseTab": "Close the active tab",
+    "filesReopenTab": "Reopen closed tab"
   },
   "theme": {
     "palette": "Palette",
@@ -3752,7 +3756,11 @@
       "agents": "Agents",
       "projects": "Projects",
       "folders": "Folders",
-      "addFolder": "Add a folder…"
+      "addFolder": "Add a folder…",
+      "all": "All",
+      "searchPlaceholder": "Search sources…",
+      "empty": "No source found",
+      "miniapps": "Mini-apps"
     },
     "addFolder": {
       "title": "Folders",
@@ -3769,7 +3777,9 @@
       "ticket": "#{{number}} · {{branch}}"
     },
     "git": {
-      "dirty": "{{count}} uncommitted change(s)"
+      "dirty": "{{count}} uncommitted change(s)",
+      "changedTitle": "Changed files",
+      "clean": "Working tree clean"
     },
     "empty": {
       "title": "This workspace is empty",
@@ -3805,7 +3815,20 @@
         "title": "Delete “{{name}}”?",
         "fileDescription": "This file will be permanently deleted from the workspace.",
         "folderDescription": "This folder and everything inside it will be permanently deleted."
-      }
+      },
+      "filter": "Filter files",
+      "collapseAll": "Collapse all",
+      "expandAll": "Expand all",
+      "noMatch": "No file matches"
+    },
+    "tabs": {
+      "menu": "Tab actions",
+      "close": "Close",
+      "closeOthers": "Close others",
+      "closeToRight": "Close to the right",
+      "closeAll": "Close all",
+      "copyPath": "Copy relative path",
+      "reveal": "Reveal in tree"
     },
     "editor": {
       "download": "Download",
@@ -3821,7 +3844,14 @@
         "message": "The file changed on disk since you opened it (probably written by the agent).",
         "reload": "Reload",
         "overwrite": "Overwrite"
-      }
+      },
+      "wrap": "Word wrap",
+      "lineCol": "Ln {{line}}, Col {{col}}",
+      "diff": "Diff",
+      "noChanges": "No changes vs HEAD",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "fit": "Fit to screen"
     },
     "browseWorkspace": "Browse files",
     "share": {
@@ -3834,7 +3864,8 @@
       "placeholder": "Search a file by name or path…",
       "noResults": "No matching file",
       "open": "Quick open (Ctrl+P)"
-    }
+    },
+    "resizeTree": "Resize the file tree"
   },
   "updateOverlay": {
     "title": "Updating Hivekeep",

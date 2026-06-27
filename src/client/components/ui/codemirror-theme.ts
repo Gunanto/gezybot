@@ -87,6 +87,41 @@ export function buildThemeExtension(isDark: boolean) {
     '.cm-scroller::-webkit-scrollbar-thumb:hover': {
       backgroundColor: mutedFg + '40',
     },
+    // Search panel (Mod-F) — token-driven so it matches every palette.
+    '.cm-panels': {
+      backgroundColor: muted,
+      color: fg,
+      borderColor: mutedFg + '30',
+    },
+    '.cm-search.cm-panel input, .cm-textfield': {
+      backgroundColor: bg,
+      color: fg,
+      border: `1px solid ${mutedFg}40`,
+      borderRadius: '4px',
+      padding: '2px 6px',
+    },
+    '.cm-button': {
+      backgroundColor: bg,
+      backgroundImage: 'none',
+      color: fg,
+      border: `1px solid ${mutedFg}40`,
+      borderRadius: '4px',
+    },
+    '.cm-button:hover': {
+      backgroundColor: muted,
+    },
+    '.cm-search label': {
+      color: mutedFg,
+    },
+    '.cm-searchMatch': {
+      backgroundColor: primary + '30',
+    },
+    '.cm-searchMatch-selected': {
+      backgroundColor: primary + '66',
+    },
+    '.cm-selectionMatch': {
+      backgroundColor: primary + '22',
+    },
     // Syntax colors
     '.cm-header': { color: primary, fontWeight: 'bold' },
     '.cm-strong': { fontWeight: 'bold' },

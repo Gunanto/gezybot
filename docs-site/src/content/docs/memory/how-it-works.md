@@ -1,6 +1,6 @@
 ---
 title: How Memory Works
-description: Understanding Hivekeep's memory system — extraction, retrieval, and the advanced search pipeline.
+description: "Understanding Hivekeep's memory system: extraction, retrieval, and the advanced search pipeline."
 ---
 
 Hivekeep gives each Agent persistent memory across conversations. The system uses two complementary channels: **automatic extraction** and **explicit remembering**, backed by a sophisticated hybrid search pipeline. Memories can be **private** (default, only the owning Agent can access them) or **shared** (visible and searchable by all Agents).
@@ -17,10 +17,10 @@ After every LLM turn, Hivekeep runs a memory extraction pipeline that identifies
 
 The extraction uses a dedicated model (configurable via `MEMORY_EXTRACTION_MODEL`) to analyze the conversation and produce structured memory entries with:
 
-- **Category** — `fact`, `preference`, `decision`, or `knowledge`
-- **Subject** — Who or what the memory is about (e.g. a contact name)
-- **Source context** — A brief 1-2 sentence description of the conversational context in which the fact was mentioned (e.g. *"While discussing weekend plans, user mentioned..."*). This gives memories episodic flavor without a separate memory system.
-- **Importance** — Score from 1 (mundane) to 10 (critical)
+- **Category**: `fact`, `preference`, `decision`, or `knowledge`
+- **Subject**: Who or what the memory is about (e.g. a contact name)
+- **Source context**: A brief 1 to 2 sentence description of the conversational context in which the fact was mentioned (e.g. *"While discussing weekend plans, user mentioned..."*). This gives memories episodic flavor without a separate memory system.
+- **Importance**: Score from 1 (mundane) to 10 (critical)
 
 ### Explicit Remembering
 
@@ -61,8 +61,8 @@ Both `recall` and `list_memories` include conversational provenance: when a memo
 
 Memories are stored as vector embeddings using an embedding provider (OpenAI, Voyage, Jina, etc.) in a SQLite database with two search indexes:
 
-- **sqlite-vec** — KNN vector index for semantic similarity
-- **FTS5** — Full-text search index for keyword matching
+- **sqlite-vec**: KNN vector index for semantic similarity
+- **FTS5**: Full-text search index for keyword matching
 
 ## Retrieval Pipeline
 
@@ -72,20 +72,20 @@ When an Agent needs relevant memories (either via the `recall` tool or automatic
 
 Short or ambiguous messages (e.g. "yes", "what about that?") are rewritten into standalone queries using recent conversation context. This prevents poor retrieval on follow-up messages that only make sense in context.
 
-Controlled by `MEMORY_CONTEXTUAL_REWRITE_MODEL` — disabled by default.
+Controlled by `MEMORY_CONTEXTUAL_REWRITE_MODEL`, disabled by default.
 
 ### 2. Multi-Query Expansion
 
 If enabled, the query is expanded into 3 alternative formulations using an LLM. Each variation targets a different aspect, entity, or sub-topic to maximize recall. The system provides known memory subjects to help generate targeted, entity-specific queries.
 
-Controlled by `MEMORY_MULTI_QUERY_MODEL` — disabled by default.
+Controlled by `MEMORY_MULTI_QUERY_MODEL`, disabled by default.
 
 ### 3. Hybrid Search (Vector + FTS)
 
 For each query (original + variations), two searches run in parallel:
 
-- **Vector similarity** — KNN search via sqlite-vec, filtered by a cosine similarity threshold
-- **Full-text search** — FTS5 with prefix matching, AND-first with OR fallback
+- **Vector similarity**: KNN search via sqlite-vec, filtered by a cosine similarity threshold
+- **Full-text search**: FTS5 with prefix matching, AND-first with OR fallback
 
 ### 4. Reciprocal Rank Fusion (RRF)
 
@@ -101,21 +101,21 @@ Where `K` is a smoothing constant (default 60) and FTS results get an optional b
 
 Fused scores are weighted by multiple factors:
 
-- **Temporal decay** — Older memories decay based on category. Facts/knowledge decay very slowly; decisions decay faster. Controlled by `MEMORY_TEMPORAL_DECAY_LAMBDA`.
-- **Importance** — Higher importance memories get proportionally higher scores
-- **Retrieval frequency** — Memories retrieved more often get a mild logarithmic boost (the system finds them useful)
-- **Subject matching** — If the query mentions a known memory subject, those memories get a boost (default 1.3×)
-- **Recency boost** — Very recent memories get an extra multiplier: ×1.5 for today, ×1.25 for this week, ×1.1 for this month. Enabled by default, disable with `MEMORY_RECENCY_BOOST=false`
-- **Category boost** — Memories matching a detected category in the query get a configurable multiplier (default 1.2×, set via `MEMORY_CATEGORY_BOOST`)
+- **Temporal decay**: Older memories decay based on category. Facts/knowledge decay very slowly; decisions decay faster. Controlled by `MEMORY_TEMPORAL_DECAY_LAMBDA`.
+- **Importance**: Higher importance memories get proportionally higher scores
+- **Retrieval frequency**: Memories retrieved more often get a mild logarithmic boost (the system finds them useful)
+- **Subject matching**: If the query mentions a known memory subject, those memories get a boost (default 1.3×)
+- **Recency boost**: Very recent memories get an extra multiplier: ×1.5 for today, ×1.25 for this week, ×1.1 for this month. Enabled by default, disable with `MEMORY_RECENCY_BOOST=false`
+- **Category boost**: Memories matching a detected category in the query get a configurable multiplier (default 1.2×, set via `MEMORY_CATEGORY_BOOST`)
 
 ### 6. Re-ranking (Optional)
 
 If enabled via `MEMORY_RERANK_MODEL`, top candidates are re-ranked for relevance. Hivekeep supports two re-ranking strategies:
 
-1. **Cross-encoder rerank (preferred)** — If a provider with `rerank` capability is configured (Cohere or Jina), Hivekeep calls their dedicated rerank API. Cross-encoders are ~20× faster and ~10× cheaper than LLM rerankers with comparable accuracy.
-2. **LLM-based rerank (fallback)** — If no rerank provider is available, an LLM scores each memory's relevance on a 0-10 scale. The LLM score becomes the primary ranking signal, with the hybrid score as tiebreaker.
+1. **Cross-encoder rerank (preferred)**: If a provider with `rerank` capability is configured (Cohere or Jina), Hivekeep calls their dedicated rerank API. Cross-encoders are ~20× faster and ~10× cheaper than LLM rerankers with comparable accuracy.
+2. **LLM-based rerank (fallback)**: If no rerank provider is available, an LLM scores each memory's relevance on a 0-10 scale. The LLM score becomes the primary ranking signal, with the hybrid score as tiebreaker.
 
-The system tries cross-encoder first and falls back to LLM automatically. Controlled by `MEMORY_RERANK_MODEL` — disabled by default.
+The system tries cross-encoder first and falls back to LLM automatically. Controlled by `MEMORY_RERANK_MODEL`, disabled by default.
 
 ### 7. Adaptive K
 
@@ -131,16 +131,16 @@ This ensures only genuinely relevant memories are injected, avoiding noise. Enab
 Every time memories are injected into an Agent's context, their retrieval count and timestamp are updated. This data feeds into:
 
 - **Retrieval frequency boost** during search scoring
-- **Importance recalibration** — a periodic process that nudges importance scores based on retrieval patterns (frequently retrieved = bump up, never retrieved after 30+ days = slight decrease)
+- **Importance recalibration**: a periodic process that nudges importance scores based on retrieval patterns (frequently retrieved = bump up, never retrieved after 30+ days = slight decrease)
 
 ## Memory Consolidation
 
 When enabled, Hivekeep periodically consolidates similar memories to reduce redundancy:
 
-1. **Pair detection** — memories with cosine similarity above the threshold (default `0.85`) are flagged as candidates
-2. **Clustering** — overlapping pairs are grouped into clusters, capped at **3 memories per cluster** to avoid information loss in large merges (larger clusters are split and handled across multiple runs)
-3. **LLM merge** — each cluster is sent to an LLM that either merges them into a single richer memory or **aborts** if the memories are about genuinely different topics (preventing false merges)
-4. **Quality guardrails** — the LLM preserves all unique details, picks the most appropriate category/subject, and keeps the highest importance rating from the sources
+1. **Pair detection**: memories with cosine similarity above the threshold (default `0.85`) are flagged as candidates
+2. **Clustering**: overlapping pairs are grouped into clusters, capped at **3 memories per cluster** to avoid information loss in large merges (larger clusters are split and handled across multiple runs)
+3. **LLM merge**: each cluster is sent to an LLM that either merges them into a single richer memory or **aborts** if the memories are about genuinely different topics (preventing false merges)
+4. **Quality guardrails**: the LLM preserves all unique details, picks the most appropriate category/subject, and keeps the highest importance rating from the sources
 
 Consolidation is disabled by default. Enable it by setting `MEMORY_CONSOLIDATION_MODEL` to a model identifier. See [configuration](/docs/memory/configuration/#memory-consolidation) for all settings.
 
@@ -163,13 +163,13 @@ When conversations grow long, Hivekeep automatically **compacts** them using **t
 
 1. After each LLM turn, the system checks if context usage exceeds a configurable threshold (`COMPACTING_THRESHOLD_PERCENT`, default: **75%** of the model's context window)
 2. A **keep-window** preserves recent messages that fit within `COMPACTING_KEEP_PERCENT` (default: 40%) of the context window as raw context
-3. Everything before the keep-window is summarized into a **new dated summary** — summaries accumulate chronologically, never overwrite
+3. Everything before the keep-window is summarized into a **new dated summary**. Summaries accumulate chronologically, never overwrite
 4. When summaries exceed the budget (`COMPACTING_MAX_SUMMARIES` or `COMPACTING_SUMMARY_BUDGET_PERCENT`), the oldest merge **telescopically** into higher-level summaries marked `[compressed]`
 
 Before compacting runs, a **progressive context pipeline** reduces in-memory context size without any LLM calls:
-- **Intact zone** — Recent tool results kept in full
-- **Observation zone** — Middle-aged tool results truncated
-- **Collapsed zone** — Oldest tool results collapsed to one-line summaries
+- **Intact zone**: Recent tool results kept in full
+- **Observation zone**: Middle-aged tool results truncated
+- **Collapsed zone**: Oldest tool results collapsed to one-line summaries
 
 Users can **force compact** from the UI at any time. All compaction results and errors are persisted in the conversation history, with real-time progress via SSE events. Compacting is fully configurable **per-Agent** (threshold, keep window, summary budget, max summaries, model).
 

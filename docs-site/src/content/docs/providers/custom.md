@@ -3,13 +3,13 @@ title: Adding Custom Providers
 description: Extend Hivekeep with custom AI providers via plugins.
 ---
 
-Beyond the built-in providers, you can ship your own through the **plugin system**. Plugin providers register into the same four native registries as built-ins (LLM, embedding, image, search) and appear alongside them in the Settings UI — there is no second-class plugin shape.
+Beyond the built-in providers, you can ship your own through the **plugin system**. Plugin providers register into the same four native registries as built-ins (LLM, embedding, image, search) and appear alongside them in the Settings UI. There is no second-class plugin shape.
 
 This page is a quick orientation. The full author guide is on the [Developing Plugins](/docs/plugins/developing/) page, including a complete `SearchProvider` example.
 
 ## When you need a plugin
 
-- **Proprietary or internal endpoints** — your own model server, an internal RAG service.
+- **Proprietary or internal endpoints**: your own model server, an internal RAG service.
 - **Specialized search APIs** not shipped as a built-in (Kagi, You.com, Exa, …).
 - **Embedding or image services** not in the built-in set.
 - **OpenAI-compatible endpoints with non-standard auth or wire quirks** that the built-in **OpenAI-compatible** provider can't express.
@@ -18,7 +18,7 @@ If your endpoint is plainly OpenAI-compatible (NewAPI, LiteLLM, vLLM, llama.cpp 
 
 ## Provider shape
 
-A plugin exports a `providers` array. Each entry implements one of the four native SDK interfaces (`LLMProvider`, `EmbeddingProvider`, `ImageProvider`, `SearchProvider`) — the same interfaces the built-in Anthropic / OpenAI / Brave / Tavily providers implement.
+A plugin exports a `providers` array. Each entry implements one of the four native SDK interfaces (`LLMProvider`, `EmbeddingProvider`, `ImageProvider`, `SearchProvider`), the same interfaces the built-in Anthropic / OpenAI / Brave / Tavily providers implement.
 
 ```typescript
 // In your plugin's main file
@@ -50,7 +50,7 @@ export default function (ctx: PluginContext) {
 
 The plugin loader inspects which method each provider exposes (`chat` → LLM, `embed` → embedding, `generate` → image, `search` → search) and registers it into the matching registry. The provider's `type` is prefixed internally to `plugin:<your-plugin-name>:<type>` so it can't collide with built-ins.
 
-Once your plugin is enabled, the provider appears in **Settings > Providers** and Agents can use it through the standard tools (`web_search`, `generate_image`, etc.) — no further wiring needed on the host side.
+Once your plugin is enabled, the provider appears in **Settings > Providers** and Agents can use it through the standard tools (`web_search`, `generate_image`, etc.), with no further wiring needed on the host side.
 
 ## OpenAI-Compatible Endpoints
 

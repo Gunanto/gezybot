@@ -102,7 +102,8 @@
     "agentLanguageFollowUi": "Come l'interfaccia",
     "clearFilters": "Cancella",
     "perPage": "Per pagina",
-    "listRange": "{{from}}-{{to}} di {{total}}"
+    "listRange": "{{from}}-{{to}} di {{total}}",
+    "clear": "Cancella"
   },
   "errors": {
     "backendUnavailable": "Impossibile raggiungere il server. Verifica che il backend sia in esecuzione e riprova.",
@@ -2049,6 +2050,8 @@
       "dispatchTaskWarning": "Un'attività gira in una sessione isolata SENZA cronologia di conversazione. Metti tutto ciò che serve all'agente per agire nel prompt qui sotto.",
       "active": "Attivo",
       "pendingApproval": "In attesa di approvazione",
+      "oneShot": "Una volta",
+      "oneShotHint": "Si disattiva dopo la prima email corrispondente.",
       "deleteTitle": "Elimina trigger",
       "deleteConfirm": "Eliminare questo trigger? L'operazione non può essere annullata.",
       "errorName": "Il nome è obbligatorio.",
@@ -3069,7 +3072,8 @@
     "filesRename": "Rinomina l'elemento selezionato (albero attivo)",
     "filesDelete": "Elimina l'elemento selezionato (albero attivo)",
     "filesClipboard": "Copia / taglia / incolla (albero attivo)",
-    "filesCloseTab": "Chiudi la scheda attiva"
+    "filesCloseTab": "Chiudi la scheda attiva",
+    "filesReopenTab": "Riapri scheda chiusa"
   },
   "theme": {
     "palette": "Palette",
@@ -3752,7 +3756,11 @@
       "agents": "Agenti",
       "projects": "Progetti",
       "folders": "Cartelle",
-      "addFolder": "Aggiungi una cartella…"
+      "addFolder": "Aggiungi una cartella…",
+      "all": "Tutti",
+      "searchPlaceholder": "Cerca fonti…",
+      "empty": "Nessuna fonte trovata",
+      "miniapps": "Mini-app"
     },
     "addFolder": {
       "title": "Cartelle",
@@ -3769,7 +3777,9 @@
       "ticket": "#{{number}} · {{branch}}"
     },
     "git": {
-      "dirty": "{{count}} modifica/e non committate"
+      "dirty": "{{count}} modifica/e non committate",
+      "changedTitle": "File modificati",
+      "clean": "Albero di lavoro pulito"
     },
     "empty": {
       "title": "Questo workspace è vuoto",
@@ -3805,7 +3815,20 @@
         "title": "Eliminare “{{name}}”?",
         "fileDescription": "Questo file sarà eliminato definitivamente dal workspace.",
         "folderDescription": "Questa cartella e tutto il suo contenuto saranno eliminati definitivamente."
-      }
+      },
+      "filter": "Filtra file",
+      "collapseAll": "Comprimi tutto",
+      "expandAll": "Espandi tutto",
+      "noMatch": "Nessun file corrisponde"
+    },
+    "tabs": {
+      "menu": "Azioni scheda",
+      "close": "Chiudi",
+      "closeOthers": "Chiudi le altre",
+      "closeToRight": "Chiudi quelle a destra",
+      "closeAll": "Chiudi tutte",
+      "copyPath": "Copia percorso relativo",
+      "reveal": "Mostra nell'albero"
     },
     "editor": {
       "download": "Scarica",
@@ -3821,7 +3844,14 @@
         "message": "Il file è cambiato su disco da quando lo hai aperto (probabilmente scritto dall'agente).",
         "reload": "Ricarica",
         "overwrite": "Sovrascrivi"
-      }
+      },
+      "wrap": "A capo automatico",
+      "lineCol": "Ln {{line}}, Col {{col}}",
+      "diff": "Diff",
+      "noChanges": "Nessuna modifica rispetto a HEAD",
+      "zoomIn": "Ingrandisci",
+      "zoomOut": "Riduci",
+      "fit": "Adatta allo schermo"
     },
     "browseWorkspace": "Sfoglia i file",
     "share": {
@@ -3834,7 +3864,8 @@
       "placeholder": "Cerca un file per nome o percorso…",
       "noResults": "Nessun file corrispondente",
       "open": "Apertura rapida (Ctrl+P)"
-    }
+    },
+    "resizeTree": "Ridimensiona l'albero dei file"
   },
   "updateOverlay": {
     "title": "Aggiornamento di Hivekeep",

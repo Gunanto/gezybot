@@ -225,7 +225,7 @@ Emitted when an Agent queues an outbound email that needs human approval.
 |-------|-------------|-------|
 | `version:update-available` | New Hivekeep version available on the active channel (`{ channel, latestVersion, releaseUrl, publishedAt }`) | Broadcast |
 | `update:progress` | Self-update step progress (`{ runId, step, status: 'running' \| 'done' \| 'error', message }`) | Broadcast |
-| `update:finished` | Self-update outcome (`{ runId, status: 'success' \| 'failed' \| 'rolled-back', version?, error? }`). `success`/`rolled-back` are emitted after the restart — clients should also poll `GET /api/version-check/last-update` while SSE reconnects | Broadcast |
+| `update:finished` | Self-update outcome (`{ runId, status: 'success' \| 'failed' \| 'rolled-back', version?, error? }`). `success`/`rolled-back` are emitted after the restart, so clients should also poll `GET /api/version-check/last-update` while SSE reconnects | Broadcast |
 
 ### System
 

@@ -3,10 +3,10 @@ title: Model Selection & Troubleshooting
 description: Choose the right model for your Agents and fix common issues like "text mode" and failed tool calls.
 ---
 
-The model you assign to an Agent has a **massive** impact on how well it performs — especially for autonomous tasks. This guide helps you choose the right model and debug common problems.
+The model you assign to an Agent has a **massive** impact on how well it performs, especially for autonomous tasks. This guide helps you choose the right model and debug common problems.
 
 :::note
-Which models are available to assign is governed by the [Model Registry](/docs/providers/model-registry/) — disable the ones you don't want, and each model's context window, capabilities and label come from there (auto-filled from models.dev).
+Which models are available to assign is governed by the [Model Registry](/docs/providers/model-registry/). Disable the ones you don't want, and each model's context window, capabilities and label come from there (auto-filled from models.dev).
 :::
 
 ## Recommended models
@@ -20,7 +20,7 @@ These Agents run crons, process webhooks, and work without human oversight. They
 | **Claude Sonnet 4** | Anthropic | ✅ Best choice | Excellent tool use, follows complex instructions |
 | **Claude Sonnet 3.5** | Anthropic | ✅ Excellent | Battle-tested, great cost/performance ratio |
 | **Claude Haiku 3.5** | Anthropic | ✅ Good for simple tasks | Fast and cheap, but less reliable on complex multi-step workflows |
-| **GPT-4o** | OpenAI | ⚠️ Usable with caveats | Sometimes falls into "text mode" — needs stronger prompting |
+| **GPT-4o** | OpenAI | ⚠️ Usable with caveats | Sometimes falls into "text mode", needs stronger prompting |
 | **GPT-4o-mini** | OpenAI | ⚠️ Limited | Struggles with complex tool sequences |
 | **Gemini 2.5 Pro** | Google | ✅ Good | Strong tool use, very large context window |
 | **Gemini 2.5 Flash** | Google | ⚠️ Usable | Fast but sometimes skips tool calls on complex tasks |
@@ -48,7 +48,7 @@ When in doubt, start with **Claude Sonnet 4** or **Claude Sonnet 3.5**. They hav
 
 ## The "text mode" problem
 
-The most common issue with autonomous Agents is the model falling into **text mode** — where it describes what it would do instead of actually calling tools.
+The most common issue with autonomous Agents is the model falling into **text mode**, where it describes what it would do instead of actually calling tools.
 
 ### What it looks like
 
@@ -60,16 +60,16 @@ No tool calls appear. The model writes a plausible-sounding response entirely fr
 
 ### Why it happens
 
-1. **Model capability** — Some models aren't trained for reliable function calling
-2. **Prompt ambiguity** — If the prompt sounds like a conversation, the model converses instead of acting
-3. **Missing instruction** — The model doesn't know it should USE tools rather than DESCRIBE tool usage
-4. **Context confusion** — Very long contexts can cause the model to "forget" it has tools available
+1. **Model capability**: Some models aren't trained for reliable function calling
+2. **Prompt ambiguity**: If the prompt sounds like a conversation, the model converses instead of acting
+3. **Missing instruction**: The model doesn't know it should USE tools rather than DESCRIBE tool usage
+4. **Context confusion**: Very long contexts can cause the model to "forget" it has tools available
 
 ### How to fix it
 
 #### 1. Use a recommended model
 
-Claude Sonnet models are specifically trained for tool use. If you're experiencing text mode with another model, switch to Claude Sonnet first — this fixes the problem in most cases.
+Claude Sonnet models are specifically trained for tool use. If you're experiencing text mode with another model, switch to Claude Sonnet first. This fixes the problem in most cases.
 
 #### 2. Add explicit execution instructions
 
@@ -117,7 +117,7 @@ In the Hivekeep UI, each message shows whether tool calls were made. Look for th
 3. Select **Anthropic**, paste your API key
 4. The connection test will verify models are accessible
 
-Anthropic also supports **OAuth via Claude Max** — no API key needed if you have a Claude Max subscription.
+Anthropic also supports **OAuth via Claude Max** (no API key needed if you have a Claude Max subscription).
 
 :::note
 Anthropic models are the most thoroughly tested with Hivekeep's tool system. The platform's core principles prompt and tool-call discipline instructions are optimized for Claude models.
@@ -169,19 +169,19 @@ A working Agent will call `web_search` and return real, current data. A text-mod
 
 1. Create a simple cron job: "Search the web for 'Hivekeep' and summarize what you find"
 2. Trigger it manually
-3. Check the task result — does it contain actual search results or fabricated content?
+3. Check the task result: does it contain actual search results or fabricated content?
 4. Look at the task detail for tool call indicators
 
 ### What to check in the UI
 
 - **Tool call sections**: Each message shows collapsible tool call blocks. No blocks = no tools were called
 - **Task status**: Autonomous tasks should end with `completed` and a meaningful result
-- **Cron journal**: Check `get_cron_journal` for execution history — failed runs often indicate tool issues
+- **Cron journal**: Check `get_cron_journal` for execution history (failed runs often indicate tool issues)
 
 ## Cost considerations
 
 :::tip
-Track actual token spend per model, provider or Agent — with an estimated USD cost — in [Settings → Token Usage](/docs/features/token-usage/).
+Track actual token spend per model, provider or Agent (with an estimated USD cost) in [Settings → Token Usage](/docs/features/token-usage/).
 :::
 
 Autonomous Agents consume more tokens than conversational ones because:
@@ -195,7 +195,7 @@ Autonomous Agents consume more tokens than conversational ones because:
 
 | Tip | Impact |
 |---|---|
-| Use **Haiku** for simple, single-step crons | 5–10x cheaper than Sonnet |
+| Use **Haiku** for simple, single-step crons | 5 to 10x cheaper than Sonnet |
 | Add **webhook payload filters** | Avoid processing irrelevant events |
 | Set **concurrency limits** on webhook tasks | Prevent burst cost spikes |
 | Use **concise task descriptions** | Fewer input tokens per run |

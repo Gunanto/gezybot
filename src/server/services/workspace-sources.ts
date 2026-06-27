@@ -4,6 +4,7 @@ import { resolveAgentByIdOrSlug } from '@/server/services/agent-resolver'
 import { agentTarget, WorkspaceFilesError, type WorkspaceTarget } from '@/server/services/workspace-files'
 import { getWorkspaceFolder } from '@/server/services/workspace-folders'
 import { getProject } from '@/server/services/projects'
+import { getMiniApp, getAppDir } from '@/server/services/mini-apps'
 import { getCloneDir } from '@/server/services/repo-clone'
 import { getWorktreesDir } from '@/server/services/worktree'
 import { listProjectWorktrees } from '@/server/services/workspace-git'
@@ -87,6 +88,19 @@ export async function resolveWorkspaceSource(
         throw new WorkspaceSourceError('SOURCE_NOT_FOUND', 'Folder no longer exists on disk')
       }
       return { root, source: { type: 'folder', id } }
+    }
+    case 'miniapp': {
+      // id = the mini-app id; its on-disk dir is keyed by the (reassignable)
+      // maintainer agent, so resolve the maintainer from the row each time.
+      const app = await getMiniApp(id)
+      if (!app) throw new WorkspaceSourceError('SOURCE_NOT_FOUND', 'Mini-app not found')
+      let root: string
+      try {
+        root = realpathSync(getAppDir(app.maintainerAgentId, app.id))
+      } catch {
+        throw new WorkspaceSourceError('SOURCE_NOT_FOUND', 'Mini-app directory no longer exists on disk')
+      }
+      return { root, source: { type: 'miniapp', id } }
     }
     default:
       throw new WorkspaceSourceError('SOURCE_INVALID', `Unknown source type: ${type}`)

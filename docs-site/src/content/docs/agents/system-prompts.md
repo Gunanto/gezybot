@@ -9,22 +9,22 @@ Every Agent's behavior is shaped by its **system prompt**, which Hivekeep assemb
 
 Hivekeep builds the system prompt from these blocks (in order):
 
-1. **Platform context** — explains that the Agent lives on Hivekeep, has a continuous session, and sees multiple users
-2. **Identity** — name, slug, and role
-3. **Core principles** — universal baseline behaviors (genuine helpfulness, resourcefulness, privacy, calibrated responses, tool-call discipline). Includes instructions to never narrate or predict tool results before execution, and to never batch dependent tool calls — each must be called one at a time across separate steps. Injected for all main Agents, not sub-Agents or quick sessions
-4. **Personality** — the `character` field you define
-5. **Expertise** — the `expertise` field you define
-6. **Platform directives** — optional global prompt that applies to all Agents (set in Settings)
-7. **Contacts directory** — shared contacts across the platform
-8. **Agent directory** — other Agents available for collaboration, with delegation instructions (Hub Agents get an enriched view with expertise summaries)
-9. **Relevant memories** — automatically retrieved via semantic search based on the current message
-10. **Relevant knowledge** — excerpts from uploaded knowledge base documents, when applicable
-11. **Internal instructions** — tool usage guidelines, memory management, contact resolution, secrets handling, response calibration, mini-app creation. Includes a **file & code tool selection table** that steers Agents toward structured tools (`grep`, `multi_edit`, `edit_file`) over `run_shell` for file operations. Mini-app instructions direct Agents to call `get_mini_app_docs` for the full SDK reference rather than embedding it inline. MCP tool sections show server-level summaries only (individual tool descriptions are provided via the LLM's `tools` parameter). Channel instructions include guidance on using `attach_file()` to send files back to external platforms
-12. **Workspace** — when an Agent has a workspace directory configured, shows the absolute path and a file tree of its contents. Instructs the Agent to use the workspace for all file operations (repos, scripts, data) and avoid writing to the home folder or other system paths. Empty workspaces get a hint to start organizing
-13. **Current speaker profile** — name, role, and contact notes (both global/shared and per-Agent private notes) for the user who sent the current message. If the user has a linked contact but no notes yet, includes a gentle nudge to discover them naturally. Also resolves channel senders (Telegram, Discord, WhatsApp) to their contact records via platform ID
-14. **Channel origin context** — when the current turn is part of a causal chain originating from an external channel (e.g. inter-Agent reply or task result), informs the Agent that delivery is automatic and advises adapting formatting for the target platform
-15. **Language** — response language from the user's **Agent language** setting in account settings (falls back to the interface language when unset). Agents can speak nearly any language, independent of the UI translation.
-16. **Date and context** — current timestamp
+1. **Platform context**: explains that the Agent lives on Hivekeep, has a continuous session, and sees multiple users
+2. **Identity**: name, slug, and role
+3. **Core principles**: universal baseline behaviors (genuine helpfulness, resourcefulness, privacy, calibrated responses, tool-call discipline). Includes instructions to never narrate or predict tool results before execution, and to never batch dependent tool calls, each of which must be called one at a time across separate steps. Injected for all main Agents, not sub-Agents or quick sessions
+4. **Personality**: the `character` field you define
+5. **Expertise**: the `expertise` field you define
+6. **Platform directives**: optional global prompt that applies to all Agents (set in Settings)
+7. **Contacts directory**: shared contacts across the platform
+8. **Agent directory**: other Agents available for collaboration, with delegation instructions (Hub Agents get an enriched view with expertise summaries)
+9. **Relevant memories**: automatically retrieved via semantic search based on the current message
+10. **Relevant knowledge**: excerpts from uploaded knowledge base documents, when applicable
+11. **Internal instructions**: tool usage guidelines, memory management, contact resolution, secrets handling, response calibration, mini-app creation. Includes a **file & code tool selection table** that steers Agents toward structured tools (`grep`, `multi_edit`, `edit_file`) over `run_shell` for file operations. Mini-app instructions direct Agents to call `get_mini_app_docs` for the full SDK reference rather than embedding it inline. MCP tool sections show server-level summaries only (individual tool descriptions are provided via the LLM's `tools` parameter). Channel instructions include guidance on using `attach_file()` to send files back to external platforms
+12. **Workspace**: when an Agent has a workspace directory configured, shows the absolute path and a file tree of its contents. Instructs the Agent to use the workspace for all file operations (repos, scripts, data) and avoid writing to the home folder or other system paths. Empty workspaces get a hint to start organizing
+13. **Current speaker profile**: name, role, and contact notes (both global/shared and per-Agent private notes) for the user who sent the current message. If the user has a linked contact but no notes yet, includes a gentle nudge to discover them naturally. Also resolves channel senders (Telegram, Discord, WhatsApp) to their contact records via platform ID
+14. **Channel origin context**: when the current turn is part of a causal chain originating from an external channel (e.g. inter-Agent reply or task result), informs the Agent that delivery is automatic and advises adapting formatting for the target platform
+15. **Language**: response language from the user's **Agent language** setting in account settings (falls back to the interface language when unset). Agents can speak nearly any language, independent of the UI translation.
+16. **Date and context**: current timestamp
 
 ## Writing effective characters
 
@@ -37,7 +37,7 @@ When you're not sure, you say so clearly.
 You occasionally use dry humor but never at the user's expense.
 ```
 
-Avoid vague descriptions like "You are helpful and friendly" — every AI is that by default.
+Avoid vague descriptions like "You are helpful and friendly", every AI is that by default.
 
 ## Writing effective expertise
 
@@ -65,7 +65,7 @@ When an Agent spawns a sub-agent (via `spawn_self` or `spawn_agent`), the sub-Ag
 
 - Mission-focused: the task description is front and center
 - Constrained: must call `update_task_status()` to complete
-- Tool-call discipline: same rules as main Agents — never narrate or predict tool results, and never batch dependent tool calls
+- Tool-call discipline: same rules as main Agents (never narrate or predict tool results, and never batch dependent tool calls)
 - Can request input from the parent via `request_input()`
 - Can communicate with other Agents via `send_message` and `list_kins` (Agent directory included in prompt)
 - For cron tasks: previous run results are injected for continuity

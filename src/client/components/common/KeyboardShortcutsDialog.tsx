@@ -60,6 +60,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ['Del'], labelKey: 'shortcuts.filesDelete' },
       { keys: [MOD, 'C/X/V'], labelKey: 'shortcuts.filesClipboard' },
       { keys: ['Alt', 'W'], labelKey: 'shortcuts.filesCloseTab' },
+      { keys: [MOD, 'Shift', 'T'], labelKey: 'shortcuts.filesReopenTab' },
     ],
   },
   {

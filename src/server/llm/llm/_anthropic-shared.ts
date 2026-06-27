@@ -39,6 +39,7 @@ import {
   ProviderServerError,
   HivekeepProviderError,
 } from '@/server/llm/core/types'
+import { parseToolArguments } from '@/server/llm/core/parse-tool-args'
 import type {
   ChatRequest,
   ChatChunk,
@@ -354,20 +355,11 @@ export async function* streamChat(
         case 'content_block_stop': {
           const state = blocks.get(event.index)
           if (state?.type === 'tool_use' && state.toolId && state.toolName) {
-            let args: unknown = {}
-            const buf = state.argsBuffer ?? ''
-            if (buf.length > 0) {
-              try {
-                args = JSON.parse(buf)
-              } catch {
-                args = { _raw: buf }
-              }
-            }
             yield {
               type: 'tool-use',
               id: state.toolId,
               name: state.toolName,
-              args,
+              args: parseToolArguments(state.argsBuffer ?? ''),
             }
           }
           blocks.delete(event.index)

@@ -11,7 +11,7 @@ Telegram integration uses the [Bot API](https://core.telegram.org/bots/api) with
 2. Copy the bot token
 3. In Hivekeep, go to your Agent's **Channels** tab
 4. Click **Add Channel**, select **Telegram**
-5. Paste your bot token — it will be encrypted in Hivekeep's vault
+5. Paste your bot token. It will be encrypted in Hivekeep's vault
 6. Optionally, restrict to specific chat IDs with the allowlist
 
 Hivekeep automatically selects the best transport mode based on your configuration.
@@ -45,7 +45,7 @@ When `PUBLIC_URL` is not set or is not HTTPS, Hivekeep automatically falls back 
 - No public URL or HTTPS is required
 
 :::tip
-Long polling mode is selected automatically — no manual configuration needed. Just leave `PUBLIC_URL` unset or set it to a non-HTTPS URL.
+Long polling mode is selected automatically, no manual configuration needed. Just leave `PUBLIC_URL` unset or set it to a non-HTTPS URL.
 :::
 
 ## How It Works

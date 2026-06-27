@@ -102,7 +102,8 @@
     "agentLanguageFollowUi": "Wie die Oberfläche",
     "clearFilters": "Zurücksetzen",
     "perPage": "Pro Seite",
-    "listRange": "{{from}}-{{to}} von {{total}}"
+    "listRange": "{{from}}-{{to}} von {{total}}",
+    "clear": "Löschen"
   },
   "errors": {
     "backendUnavailable": "Server nicht erreichbar. Bitte prüfe, ob das Backend läuft, und versuche es erneut.",
@@ -2049,6 +2050,8 @@
       "dispatchTaskWarning": "Eine Aufgabe läuft in einer isolierten Session OHNE Unterhaltungsverlauf. Packe alles, was der Agent zum Handeln braucht, in den Prompt unten.",
       "active": "Aktiv",
       "pendingApproval": "Wartet auf Freigabe",
+      "oneShot": "Einmalig",
+      "oneShotHint": "Deaktiviert sich nach der ersten passenden E-Mail.",
       "deleteTitle": "Trigger löschen",
       "deleteConfirm": "Diesen Trigger löschen? Das kann nicht rückgängig gemacht werden.",
       "errorName": "Name ist erforderlich.",
@@ -3069,7 +3072,8 @@
     "filesRename": "Ausgewählten Eintrag umbenennen (Baum fokussiert)",
     "filesDelete": "Ausgewählten Eintrag löschen (Baum fokussiert)",
     "filesClipboard": "Kopieren / Ausschneiden / Einfügen (Baum fokussiert)",
-    "filesCloseTab": "Aktiven Tab schließen"
+    "filesCloseTab": "Aktiven Tab schließen",
+    "filesReopenTab": "Geschlossenen Tab wieder öffnen"
   },
   "theme": {
     "palette": "Palette",
@@ -3752,7 +3756,11 @@
       "agents": "Agenten",
       "projects": "Projekte",
       "folders": "Ordner",
-      "addFolder": "Ordner hinzufügen…"
+      "addFolder": "Ordner hinzufügen…",
+      "all": "Alle",
+      "searchPlaceholder": "Quellen suchen…",
+      "empty": "Keine Quelle gefunden",
+      "miniapps": "Mini-Apps"
     },
     "addFolder": {
       "title": "Ordner",
@@ -3769,7 +3777,9 @@
       "ticket": "#{{number}} · {{branch}}"
     },
     "git": {
-      "dirty": "{{count}} nicht committete Änderung(en)"
+      "dirty": "{{count}} nicht committete Änderung(en)",
+      "changedTitle": "Geänderte Dateien",
+      "clean": "Arbeitsverzeichnis sauber"
     },
     "empty": {
       "title": "Dieser Workspace ist leer",
@@ -3805,7 +3815,20 @@
         "title": "„{{name}}“ löschen?",
         "fileDescription": "Diese Datei wird dauerhaft aus dem Workspace gelöscht.",
         "folderDescription": "Dieser Ordner und alles darin wird dauerhaft gelöscht."
-      }
+      },
+      "filter": "Dateien filtern",
+      "collapseAll": "Alle einklappen",
+      "expandAll": "Alle ausklappen",
+      "noMatch": "Keine Datei passt"
+    },
+    "tabs": {
+      "menu": "Tab-Aktionen",
+      "close": "Schließen",
+      "closeOthers": "Andere schließen",
+      "closeToRight": "Rechts davon schließen",
+      "closeAll": "Alle schließen",
+      "copyPath": "Relativen Pfad kopieren",
+      "reveal": "Im Baum anzeigen"
     },
     "editor": {
       "download": "Herunterladen",
@@ -3821,7 +3844,14 @@
         "message": "Die Datei hat sich auf der Festplatte geändert, seit du sie geöffnet hast (wahrscheinlich vom Agenten geschrieben).",
         "reload": "Neu laden",
         "overwrite": "Überschreiben"
-      }
+      },
+      "wrap": "Zeilenumbruch",
+      "lineCol": "Z {{line}}, Sp {{col}}",
+      "diff": "Diff",
+      "noChanges": "Keine Änderungen gegenüber HEAD",
+      "zoomIn": "Vergrößern",
+      "zoomOut": "Verkleinern",
+      "fit": "An Bildschirm anpassen"
     },
     "browseWorkspace": "Dateien durchsuchen",
     "share": {
@@ -3834,7 +3864,8 @@
       "placeholder": "Datei nach Name oder Pfad suchen…",
       "noResults": "Keine passende Datei",
       "open": "Schnell öffnen (Ctrl+P)"
-    }
+    },
+    "resizeTree": "Dateibaum-Breite ändern"
   },
   "updateOverlay": {
     "title": "Hivekeep wird aktualisiert",

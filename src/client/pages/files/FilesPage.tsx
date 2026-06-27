@@ -22,6 +22,7 @@ import {
 import { useAgentList } from '@/client/hooks/useAgentList'
 import { useWorkspaceFolders } from '@/client/hooks/useWorkspaceFolders'
 import { useProjects } from '@/client/hooks/useProjects'
+import { useMiniApps } from '@/client/hooks/useMiniApps'
 import { useWorkspaceGit } from '@/client/hooks/useWorkspaceGit'
 import { appendToDraft } from '@/client/hooks/useDraftMessage'
 import {
@@ -37,7 +38,8 @@ import { WorkspaceProjectBar } from '@/client/components/files/WorkspaceProjectB
 import { AddFolderDialog } from '@/client/components/files/AddFolderDialog'
 import { FileStorageFormDialog } from '@/client/components/file-storage/FileStorageFormDialog'
 import { WorkspaceEditor, workspaceRawUrl } from '@/client/components/files/WorkspaceEditor'
-import { FileTabs } from '@/client/components/files/FileTabs'
+import { FileTabs, type FileTabActions } from '@/client/components/files/FileTabs'
+import { ResizableSidebar } from '@/client/components/files/ResizableSidebar'
 import { WorkspaceQuickOpen } from '@/client/components/files/WorkspaceQuickOpen'
 import { sameSource } from '@/client/lib/workspace-source'
 import type { WorkspaceEntry, WorkspaceSourceRef } from '@/shared/types'
@@ -70,6 +72,7 @@ export function FilesPage() {
   const { agents, isLoading: agentsLoading } = useAgentList()
   const foldersApi = useWorkspaceFolders()
   const { projects } = useProjects()
+  const { apps: miniApps } = useMiniApps(null, 'all')
   const [addFolderOpen, setAddFolderOpen] = useState(false)
 
   // Only repos that finished cloning can be browsed.
@@ -78,9 +81,18 @@ export function FilesPage() {
     [projects],
   )
 
+  const miniAppOptions = useMemo(
+    () => miniApps.map((a) => ({ id: a.id, title: a.name, sub: a.maintainerAgentName })),
+    [miniApps],
+  )
+
   // Source from the route: explicit project/folder, or legacy agent id/slug.
   const routeSource = useMemo<WorkspaceSourceRef | null>(() => {
-    if (params.sourceType && params.sourceId && (params.sourceType === 'project' || params.sourceType === 'folder')) {
+    if (
+      params.sourceType &&
+      params.sourceId &&
+      (params.sourceType === 'project' || params.sourceType === 'folder' || params.sourceType === 'miniapp')
+    ) {
       return { type: params.sourceType, id: params.sourceId, worktree: requestedWorktree }
     }
     if (params.agentId) {
@@ -97,6 +109,7 @@ export function FilesPage() {
       if (last.type === 'agent' && agents.some((a) => a.id === last.id)) return last
       if (last.type === 'folder' && foldersApi.folders.some((f) => f.id === last.id)) return last
       if (last.type === 'project') return last // validity re-checked server-side (P4)
+      if (last.type === 'miniapp') return last // validity re-checked server-side
     }
     return agents[0] ? { type: 'agent', id: agents[0].id } : null
   }, [agents, foldersApi.folders])
@@ -289,7 +302,10 @@ export function FilesPage() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey
-      if (mod && e.key.toLowerCase() === 'p') {
+      if (mod && e.shiftKey && e.key.toLowerCase() === 't') {
+        e.preventDefault()
+        tabsApiRef.current.reopenLastClosed()
+      } else if (mod && e.key.toLowerCase() === 'p') {
         e.preventDefault()
         setQuickOpenOpen(true)
       } else if (mod && e.key.toLowerCase() === 's') {
@@ -321,6 +337,29 @@ export function FilesPage() {
   const requestCloseTabRef = useRef(requestCloseTab)
   requestCloseTabRef.current = requestCloseTab
 
+  // Bulk close keeps dirty tabs open (no silent data loss); clean tabs close now.
+  const closeCleanTabs = (paths: string[]) => {
+    for (const p of paths) {
+      if (!tabsApi.states[p]?.dirty) tabsApi.forceCloseTab(p)
+    }
+  }
+  const tabActions: FileTabActions = {
+    closeOthers: (path) => closeCleanTabs(tabsApi.tabs.filter((p) => p !== path)),
+    closeToRight: (path) => closeCleanTabs(tabsApi.tabs.slice(tabsApi.tabs.indexOf(path) + 1)),
+    closeAll: () => closeCleanTabs([...tabsApi.tabs]),
+    copyPath: (path) => {
+      void navigator.clipboard.writeText(path)
+      toast.success(t('files.tree.pathCopied'))
+    },
+    reveal: (path) => {
+      setSelectedPath(path)
+      workspace.expandTo(path)
+      if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
+        setTreeSheetOpen(true)
+      }
+    },
+  }
+
   const rootState = workspace.dirs['']
   const workspaceIsEmpty = rootState?.entries != null && rootState.entries.length === 0
 
@@ -333,6 +372,7 @@ export function FilesPage() {
           agents={agents.map((a) => ({ id: a.id, name: a.name, role: a.role, avatarUrl: a.avatarUrl }))}
           folders={foldersApi.folders}
           projects={readyProjects}
+          miniapps={miniAppOptions}
           onAddFolder={() => setAddFolderOpen(true)}
           placeholder={t('files.selectWorkspace')}
         />
@@ -343,6 +383,7 @@ export function FilesPage() {
           gitStatus={gitStatus}
           worktrees={worktrees}
           onSelectWorktree={handleSelectWorktree}
+          onOpenFile={openPath}
         />
       )}
       <WorkspaceTree
@@ -354,6 +395,8 @@ export function FilesPage() {
         onSelectDir={(entry) => setSelectedPath(entry.path)}
         onRetryDir={(path) => void workspace.loadDir(path)}
         onRefresh={workspace.refresh}
+        onCollapseAll={workspace.collapseAll}
+        onExpandAll={workspace.expandAllLoaded}
         actions={treeActions}
       />
       {workspaceIsEmpty && (
@@ -400,7 +443,7 @@ export function FilesPage() {
       />
 
       <div className="flex min-h-0 flex-1">
-        <aside className="hidden w-64 shrink-0 border-r border-border md:flex md:flex-col lg:w-72">{treePanel}</aside>
+        <ResizableSidebar storageKey="files.treeWidth">{treePanel}</ResizableSidebar>
         <Sheet open={treeSheetOpen} onOpenChange={setTreeSheetOpen}>
           <SheetContent side="left" className="w-80 p-0 md:hidden">
             <SheetTitle className="sr-only">{t('activityBar.files')}</SheetTitle>
@@ -428,6 +471,8 @@ export function FilesPage() {
                   tabsApi.focusTab(path)
                 }}
                 onClose={requestCloseTab}
+                onReorder={tabsApi.reorderTabs}
+                actions={tabActions}
               />
               {activeTab && activeState && source ? (
                 <WorkspaceEditor
@@ -437,6 +482,21 @@ export function FilesPage() {
                   onChangeDraft={(value) => tabsApi.updateDraft(activeTab, value)}
                   onSave={(opts) => void tabsApi.save(activeTab, opts)}
                   onReload={() => void tabsApi.reload(activeTab)}
+                  gitRepo={!!gitStatus}
+                  onRevealDir={(dir) => {
+                    setSelectedPath(dir)
+                    workspace.expandTo(`${dir}/x`)
+                    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
+                      setTreeSheetOpen(true)
+                    }
+                  }}
+                  onRevealFile={(p) => {
+                    setSelectedPath(p)
+                    workspace.expandTo(p)
+                    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
+                      setTreeSheetOpen(true)
+                    }
+                  }}
                 />
               ) : (
                 <div className="flex flex-1 items-center justify-center p-6">

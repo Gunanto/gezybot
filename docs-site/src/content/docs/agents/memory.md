@@ -3,15 +3,15 @@ title: Agent Memory
 description: How Agents remember and learn across conversations.
 ---
 
-Hivekeep gives every Agent **persistent long-term memory** — a dual-channel system that combines automatic extraction with explicit storage, searchable via hybrid vector + full-text search.
+Hivekeep gives every Agent **persistent long-term memory**: a dual-channel system that combines automatic extraction with explicit storage, searchable via hybrid vector + full-text search.
 
 ## How it works
 
 ### Automatic extraction
 
-After every LLM turn, Hivekeep runs an **extraction pipeline** that identifies important information from the conversation and saves it as memories. This happens silently in the background — the Agent doesn't need to do anything.
+After every LLM turn, Hivekeep runs an **extraction pipeline** that identifies important information from the conversation and saves it as memories. This happens silently in the background, so the Agent doesn't need to do anything.
 
-Each extracted memory includes a **source context** — a brief description of the conversational context in which the fact was mentioned (e.g. *"While discussing weekend plans, user mentioned..."*). This gives memories episodic flavor, helping the Agent understand not just *what* was said but *when and why*.
+Each extracted memory includes a **source context**: a brief description of the conversational context in which the fact was mentioned (e.g. *"While discussing weekend plans, user mentioned..."*). This gives memories episodic flavor, helping the Agent understand not just *what* was said but *when and why*.
 
 ### Explicit memorization
 
@@ -51,9 +51,9 @@ This means the Agent always has relevant context without needing to explicitly r
 
 Agents can also search memory explicitly:
 
-- `recall("Nicolas's infrastructure setup")` — semantic + keyword search
-- `list_memories(category: "decision")` — browse by category
-- `search_history("kubernetes deployment")` — search past conversation messages
+- `recall("Nicolas's infrastructure setup")`: semantic + keyword search
+- `list_memories(category: "decision")`: browse by category
+- `search_history("kubernetes deployment")`: search past conversation messages
 
 ## Memory tools
 
@@ -79,14 +79,14 @@ Memories default to **private** (only the owning Agent can see them), but Agents
 
 When context usage exceeds the threshold (default: 75% of the model's context window), Hivekeep **compacts** older messages into dated summaries. Key points:
 
-- Original messages are **never deleted** — they're preserved in the database
-- Summaries **accumulate chronologically** — each compaction creates a new summary, not a single overwritten snapshot
+- Original messages are **never deleted**, they're preserved in the database
+- Summaries **accumulate chronologically**: each compaction creates a new summary, not a single overwritten snapshot
 - When summaries exceed the budget, the oldest merge **telescopically** into higher-level summaries
 - Compacting is configurable **per-Agent** (threshold, keep window, summary budget, max summaries, model)
 - Users can **force compact** from the Agent's settings at any time
 
 ## Memory and privacy
 
-- Memories are **per-Agent** by default — each Agent has its own memory store
+- Memories are **per-Agent** by default: each Agent has its own memory store
 - **Shared** memories are readable by all Agents but still owned by the creator
 - Vault secrets are **never** stored in memories (redaction prevents leaking into compacted summaries)

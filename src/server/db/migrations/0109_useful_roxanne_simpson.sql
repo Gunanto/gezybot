@@ -1,0 +1,1 @@
+ALTER TABLE `account_triggers` ADD `disable_after_fire` integer DEFAULT false NOT NULL;

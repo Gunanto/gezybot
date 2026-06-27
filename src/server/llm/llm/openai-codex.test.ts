@@ -3,22 +3,46 @@ import { STATIC_CODEX_MODELS, mapCodexModel } from './openai-codex'
 import { codexAccountIdFromTokens } from './_codex-auth'
 import type { PkceTokenResponse } from './_oauth-pkce'
 
-describe('STATIC_CODEX_MODELS (CLI-free fallback catalog)', () => {
-  it('ships the GPT-5 family Codex slugs', () => {
-    const slugs = STATIC_CODEX_MODELS.map((m) => m.slug)
-    expect(slugs).toContain('gpt-5-codex')
-    expect(slugs).toContain('gpt-5')
-    // All entries must be API-listable so resolveCodexModels surfaces them.
+describe('STATIC_CODEX_MODELS (last-resort fallback catalog)', () => {
+  it('ships at least one API-listable Codex slug', () => {
+    expect(STATIC_CODEX_MODELS.length).toBeGreaterThan(0)
     expect(STATIC_CODEX_MODELS.every((m) => m.supported_in_api && m.visibility === 'list')).toBe(true)
   })
+})
 
-  it('maps to reasoning-capable LLMModels', () => {
-    const m = mapCodexModel(STATIC_CODEX_MODELS[0]!)
-    expect(m.id).toBe('gpt-5-codex')
-    expect(m.name.length).toBeGreaterThan(0)
-    expect(m.contextWindow).toBeGreaterThan(0)
+describe('mapCodexModel', () => {
+  it('derives reasoning levels, image support and context window from backend metadata', () => {
+    // Shape returned by GET /codex/models (verified against the live backend).
+    const m = mapCodexModel({
+      slug: 'gpt-5.5',
+      display_name: 'GPT-5.5',
+      context_window: 272000,
+      supported_in_api: true,
+      visibility: 'list',
+      input_modalities: ['text', 'image'],
+      supports_parallel_tool_calls: true,
+      supported_reasoning_levels: [{ effort: 'low' }, { effort: 'medium' }, { effort: 'high' }, { effort: 'xhigh' }],
+    })
+    expect(m.id).toBe('gpt-5.5')
+    expect(m.name).toBe('GPT-5.5')
+    expect(m.contextWindow).toBe(272000)
+    expect(m.thinking?.efforts).toEqual(['low', 'medium', 'high', 'xhigh'])
+    expect(m.supportsImageInput).toBe(true)
+  })
+
+  it('falls back to GPT-5 defaults when the entry omits reasoning/modalities', () => {
+    const m = mapCodexModel({ slug: 'gpt-5.4-mini', supported_in_api: true, visibility: 'list' })
     expect(m.thinking?.efforts).toEqual(['low', 'medium', 'high'])
     expect(m.supportsImageInput).toBe(true)
+    expect(m.name).toBe('gpt-5.4-mini')
+  })
+
+  it('drops reasoning levels the registry does not recognise', () => {
+    const m = mapCodexModel({
+      slug: 'x',
+      supported_reasoning_levels: [{ effort: 'medium' }, { effort: 'bogus' }, {}],
+    })
+    expect(m.thinking?.efforts).toEqual(['medium'])
   })
 })
 

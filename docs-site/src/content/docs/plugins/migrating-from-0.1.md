@@ -5,7 +5,7 @@ description: Update plugins written against @hivekeep/sdk 0.1 to the 0.2 contrac
 
 If you wrote a plugin against `@hivekeep/sdk@0.1` (or against Hivekeep before that, when plugins reached into `@/server/...` paths), here's what changed and how to bring it forward to 0.2.
 
-Most of these are mechanical edits — the runtime behaviour is identical or strictly improved. The only "you have to think about it" item is providers (see [§ Providers](#providers)).
+Most of these are mechanical edits: the runtime behaviour is identical or strictly improved. The only "you have to think about it" item is providers (see [§ Providers](#providers)).
 
 ## TL;DR
 
@@ -19,7 +19,7 @@ Most of these are mechanical edits — the runtime behaviour is identical or str
 | Plugin providers | `{ definition, displayName, capabilities, noApiKey?, apiKeyUrl? }` legacy `ProviderDefinition` | Native `LLMProvider` / `EmbeddingProvider` / `ImageProvider` (same shape as built-ins) |
 | `PluginExports.providers` | `Record<string, PluginProviderRegistration>` | `PluginProvider[]` (flat list of native providers) |
 | Card primitives | `Record<string, unknown>` | Strict `PluginCardPrimitive` discriminated union + `card.*` builders |
-| `manifest.permissions` `http:*` | broken — silently rejected every call | works as a catch-all |
+| `manifest.permissions` `http:*` | broken, silently rejected every call | works as a catch-all |
 
 ## Imports
 
@@ -40,7 +40,7 @@ If you reached into Hivekeep internals (`from '@/server/channels/adapter'`, `fro
 + import type { ChannelAdapter, IncomingMessage } from '@hivekeep/sdk'
 ```
 
-`@/server/...` paths are Hivekeep-internal — only the host can resolve them. Third-party plugins published on npm will fail to load if they import from there.
+`@/server/...` paths are Hivekeep-internal: only the host can resolve them. Third-party plugins published on npm will fail to load if they import from there.
 
 ## Tools
 
@@ -69,7 +69,7 @@ The zod schema field on `tool()` is now `inputSchema`, not `parameters`:
   }
 ```
 
-The runtime never validates against the generic — Hivekeep already validated against your manifest's `config` schema. The generic is purely for autocomplete.
+The runtime never validates against the generic. Hivekeep already validated against your manifest's `config` schema. The generic is purely for autocomplete.
 
 ## Vault
 
@@ -81,7 +81,7 @@ If you read secrets via the internal vault module, switch to `ctx.vault`:
 + const token = await ctx.vault.getSecret(cfg.authTokenVaultKey)
 ```
 
-`ctx.vault.getSecret(key)` is permissive — you read any vault key you know about (typically a key reference Hivekeep persisted from a `password`-type config field).
+`ctx.vault.getSecret(key)` is permissive: you read any vault key you know about (typically a key reference Hivekeep persisted from a `password`-type config field).
 
 `ctx.vault.setSecret(key, value)` / `deleteSecret(key)` / `listKeys()` are scoped to a `plugin:<your-name>:` namespace. You cannot touch another plugin's secrets, even by guessing the prefix.
 
@@ -106,7 +106,7 @@ If you read secrets via the internal vault module, switch to `ctx.vault`:
   }
 ```
 
-The four hook names that were declared but never fired in 0.1 (`beforeCompacting`, `afterCompacting`, `onTaskSpawn`, `onCronTrigger`) have been removed from the type. They never actually ran — handlers registered against them were silently dead. If you had such a handler, delete it.
+The four hook names that were declared but never fired in 0.1 (`beforeCompacting`, `afterCompacting`, `onTaskSpawn`, `onCronTrigger`) have been removed from the type. They never actually ran: handlers registered against them were silently dead. If you had such a handler, delete it.
 
 ## Providers
 
@@ -160,11 +160,11 @@ export default function (ctx) {
 
 `PluginExports.providers` is now a **flat array** (`PluginProvider[]`) instead of a `Record`. The loader detects each provider's family by inspecting which method it implements (`chat` → LLM, `embed` → embedding, `generate` → image).
 
-Why bother: a native `LLMProvider` does streaming, prompt caching, thinking, tool calls — the same surface the built-in Anthropic / OpenAI providers use. The legacy `{ testConnection, listModels }` shape only supported basic chat-completions, with no way to declare advanced features.
+Why bother: a native `LLMProvider` does streaming, prompt caching, thinking, tool calls, the same surface the built-in Anthropic / OpenAI providers use. The legacy `{ testConnection, listModels }` shape only supported basic chat-completions, with no way to declare advanced features.
 
 ## Cards
 
-If you emitted cards with `Record<string, unknown>[]` layouts, you can keep doing that — the new `PluginCardPrimitive` union accepts any object that matches one of the known `type` discriminants. But you'll get autocomplete and compile-time validation by switching to the `card.*` builders:
+If you emitted cards with `Record<string, unknown>[]` layouts, you can keep doing that: the new `PluginCardPrimitive` union accepts any object that matches one of the known `type` discriminants. But you'll get autocomplete and compile-time validation by switching to the `card.*` builders:
 
 ```diff
 + import { card } from '@hivekeep/sdk'
@@ -182,11 +182,11 @@ If you emitted cards with `Record<string, unknown>[]` layouts, you can keep doin
   })
 ```
 
-Hand-written literals still work — the builders are sugar, not gatekeepers.
+Hand-written literals still work: the builders are sugar, not gatekeepers.
 
 ## Permissions
 
-`manifest.permissions: ["http:*"]` was silently broken in 0.1 — the matcher only recognized exact hosts and `*.domain.tld` subdomain patterns. In 0.2 the catch-all works:
+`manifest.permissions: ["http:*"]` was silently broken in 0.1: the matcher only recognized exact hosts and `*.domain.tld` subdomain patterns. In 0.2 the catch-all works:
 
 ```json
 {
@@ -198,13 +198,13 @@ Hand-written literals still work — the builders are sugar, not gatekeepers.
 }
 ```
 
-`ctx.http.fetch()` enforces these. A blocked call throws `PluginPermissionError` (`code: 'PLUGIN_PERMISSION_DENIED'`) with a message that suggests the right declaration. Raw `globalThis.fetch()` from inside your plugin is not blocked — `ctx.http.fetch` is opt-in hardening, not a sandbox.
+`ctx.http.fetch()` enforces these. A blocked call throws `PluginPermissionError` (`code: 'PLUGIN_PERMISSION_DENIED'`) with a message that suggests the right declaration. Raw `globalThis.fetch()` from inside your plugin is not blocked. `ctx.http.fetch` is opt-in hardening, not a sandbox.
 
 ## Manifest
 
 Two small ergonomic improvements:
 
-1. **JSON Schema** — add the `$schema` line to your `plugin.json` and any editor with JSON-Schema support (VSCode, JetBrains) autocompletes the manifest fields and surfaces typos inline.
+1. **JSON Schema**: add the `$schema` line to your `plugin.json` and any editor with JSON-Schema support (VSCode, JetBrains) autocompletes the manifest fields and surfaces typos inline.
 
    ```diff
     {
@@ -213,7 +213,7 @@ Two small ergonomic improvements:
       "version": "0.1.0",
    ```
 
-2. **`hivekeep` range** — declare which Hivekeep host versions your plugin targets so users don't try to load incompatible builds. `>=0.40.0` is the floor for the 0.2 SDK.
+2. **`hivekeep` range**: declare which Hivekeep host versions your plugin targets so users don't try to load incompatible builds. `>=0.40.0` is the floor for the 0.2 SDK.
 
 ## Checklist
 
@@ -228,4 +228,4 @@ Done with your migration when:
 - [ ] `plugin.json` has a `$schema` line and an explicit `hivekeep` range.
 - [ ] `bun typecheck` passes.
 
-Stuck on something not covered here? Open an issue at <https://github.com/MarlBurroW/hivekeep/issues> with the plugin's source — the SDK's tests run against the `hello-agent` reference example, so anything matching that shape is guaranteed to load.
+Stuck on something not covered here? Open an issue at <https://github.com/MarlBurroW/hivekeep/issues> with the plugin's source. The SDK's tests run against the `hello-agent` reference example, so anything matching that shape is guaranteed to load.

@@ -1,10 +1,20 @@
-import { useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, Download, Eye, FileWarning, Loader2, Pencil, Save } from 'lucide-react'
+import { AlertTriangle, Crosshair, Download, Eye, FileWarning, GitCompare, Loader2, Pencil, Save, WrapText } from 'lucide-react'
 import { Button } from '@/client/components/ui/button'
 import { CodeEditor } from '@/client/components/ui/code-editor'
 import { ScrollArea } from '@/client/components/ui/scroll-area'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/client/components/ui/breadcrumb'
 import { MarkdownContent } from '@/client/components/chat/MarkdownContent'
+import { WorkspaceDiffView } from '@/client/components/files/WorkspaceDiffView'
+import { WorkspaceImageView } from '@/client/components/files/WorkspaceImageView'
 import { cn } from '@/client/lib/utils'
 import { getFileIcon, formatFileSize } from '@/client/lib/file-icons'
 import { workspaceRawUrl } from '@/client/lib/workspace-source'
@@ -18,11 +28,18 @@ interface WorkspaceEditorProps {
   onChangeDraft: (value: string) => void
   onSave: (opts?: { force?: boolean }) => void
   onReload: () => void
+  /** Reveal a parent directory of the file in the tree (breadcrumb segment click). */
+  onRevealDir?: (dirPath: string) => void
+  /** Reveal the active file itself in the tree (select + expand ancestors). */
+  onRevealFile?: (path: string) => void
+  /** Source is a git repo: enables the per-file Diff toggle. */
+  gitRepo?: boolean
 }
 
 export { workspaceRawUrl }
 
 const isMarkdown = (name: string) => /\.(md|markdown)$/i.test(name)
+const WRAP_KEY = 'files.editor.wrap'
 
 /**
  * Center pane of the Files section (files.md § 3.5): viewer picked from the
@@ -30,9 +47,22 @@ const isMarkdown = (name: string) => /\.(md|markdown)$/i.test(name)
  * deleted-on-disk banners, status bar. The text editor IS the shared
  * CodeEditor (extended with filename/onSave), not a fork.
  */
-export function WorkspaceEditor({ source, path, state, onChangeDraft, onSave, onReload }: WorkspaceEditorProps) {
+export function WorkspaceEditor({ source, path, state, onChangeDraft, onSave, onReload, onRevealDir, onRevealFile, gitRepo }: WorkspaceEditorProps) {
   const { t } = useTranslation()
   const [mdView, setMdView] = useState<'edit' | 'preview'>('edit')
+  const [wrap, setWrap] = useState(() => localStorage.getItem(WRAP_KEY) !== 'false')
+  const [cursor, setCursor] = useState<{ line: number; col: number; selLen: number } | null>(null)
+  const [language, setLanguage] = useState<string | null>(null)
+  const [showDiff, setShowDiff] = useState(false)
+
+  useEffect(() => {
+    localStorage.setItem(WRAP_KEY, String(wrap))
+  }, [wrap])
+
+  // Drop diff mode when switching files.
+  useEffect(() => {
+    setShowDiff(false)
+  }, [path])
 
   const { info } = state
   const name = path.split('/').pop() ?? path
@@ -103,11 +133,17 @@ export function WorkspaceEditor({ source, path, state, onChangeDraft, onSave, on
             onChange={onChangeDraft}
             filename={name}
             height="100%"
+            search
+            lineWrapping={wrap}
+            onCursorChange={setCursor}
+            onLanguageChange={setLanguage}
             className="h-full rounded-none border-0 [&:has(.cm-focused)]:ring-0 [&:has(.cm-focused)]:border-0"
             onSave={() => onSave()}
           />
         )
-        body = isMarkdown(name) && mdView === 'preview' ? (
+        body = showDiff ? (
+          <WorkspaceDiffView source={source} path={path} />
+        ) : isMarkdown(name) && mdView === 'preview' ? (
           <ScrollArea className="h-full">
             <MarkdownContent content={state.draft} disableChatPlugins className="max-w-3xl p-4" />
           </ScrollArea>
@@ -117,15 +153,7 @@ export function WorkspaceEditor({ source, path, state, onChangeDraft, onSave, on
         break
       }
       case 'image':
-        body = (
-          <div className="flex h-full items-center justify-center overflow-auto bg-muted/30 p-4">
-            <img
-              src={workspaceRawUrl(source, path, true)}
-              alt={name}
-              className="max-h-full max-w-full rounded-md border border-border object-contain"
-            />
-          </div>
-        )
+        body = <WorkspaceImageView src={workspaceRawUrl(source, path, true)} alt={name} />
         break
       case 'pdf':
         body = <iframe src={workspaceRawUrl(source, path, true)} title={name} className="h-full w-full border-0" />
@@ -152,9 +180,56 @@ export function WorkspaceEditor({ source, path, state, onChangeDraft, onSave, on
 
   const isText = info?.kind === 'text'
 
+  const segments = path.split('/')
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       {banner}
+      {info && (
+        <div className="flex shrink-0 items-center gap-1 border-b border-border px-2.5 py-1">
+          <Breadcrumb className="min-w-0 flex-1 overflow-x-auto">
+            <BreadcrumbList className="flex-nowrap gap-1 text-[11px] sm:gap-1.5">
+              {segments.map((seg, i) => {
+                const isLast = i === segments.length - 1
+                const dirPath = segments.slice(0, i + 1).join('/')
+                return (
+                  <Fragment key={dirPath}>
+                    <BreadcrumbItem>
+                      {isLast ? (
+                        <BreadcrumbPage className="flex items-center gap-1 whitespace-nowrap">
+                          <Icon className="size-3.5 shrink-0" />
+                          {seg}
+                        </BreadcrumbPage>
+                      ) : onRevealDir ? (
+                        <BreadcrumbLink asChild>
+                          <button type="button" className="whitespace-nowrap" onClick={() => onRevealDir(dirPath)}>
+                            {seg}
+                          </button>
+                        </BreadcrumbLink>
+                      ) : (
+                        <span className="whitespace-nowrap text-muted-foreground">{seg}</span>
+                      )}
+                    </BreadcrumbItem>
+                    {!isLast && <BreadcrumbSeparator />}
+                  </Fragment>
+                )
+              })}
+            </BreadcrumbList>
+          </Breadcrumb>
+          {onRevealFile && (
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              className="shrink-0"
+              onClick={() => onRevealFile(path)}
+              title={t('files.tabs.reveal')}
+              aria-label={t('files.tabs.reveal')}
+            >
+              <Crosshair className="size-3.5" />
+            </Button>
+          )}
+        </div>
+      )}
       {isText && (
         <div className="flex shrink-0 items-center gap-1 border-b border-border px-2 py-1">
           {isMarkdown(name) && (
@@ -164,6 +239,30 @@ export function WorkspaceEditor({ source, path, state, onChangeDraft, onSave, on
             </div>
           )}
           <div className="ml-auto flex items-center gap-1.5">
+            {gitRepo && (
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                aria-pressed={showDiff}
+                className={cn(showDiff && 'text-primary')}
+                onClick={() => setShowDiff((d) => !d)}
+                title={t('files.editor.diff')}
+                aria-label={t('files.editor.diff')}
+              >
+                <GitCompare className="size-4" />
+              </Button>
+            )}
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-pressed={wrap}
+              className={cn(wrap && 'text-primary')}
+              onClick={() => setWrap((w) => !w)}
+              title={t('files.editor.wrap')}
+              aria-label={t('files.editor.wrap')}
+            >
+              <WrapText className="size-4" />
+            </Button>
             <Button
               size="sm"
               variant={state.dirty ? 'default' : 'ghost'}
@@ -184,8 +283,14 @@ export function WorkspaceEditor({ source, path, state, onChangeDraft, onSave, on
           <span className="min-w-0 flex-1 truncate" title={path}>
             {path}
           </span>
+          {isText && cursor && (
+            <span className="shrink-0 tabular-nums max-sm:hidden">
+              {t('files.editor.lineCol', { line: cursor.line, col: cursor.col })}
+            </span>
+          )}
+          {isText && language && <span className="shrink-0 max-sm:hidden">{language}</span>}
           <span className="shrink-0">{formatFileSize(info.size)}</span>
-          <span className="shrink-0 max-sm:hidden">{new Date(info.modifiedAt).toLocaleString()}</span>
+          <span className="shrink-0 max-md:hidden">{new Date(info.modifiedAt).toLocaleString()}</span>
         </div>
       )}
     </div>

@@ -86,7 +86,7 @@ Two derivation transforms are available where APIs need them: `{{secret:KEY|base
 
 ### Revealing a value, with your approval
 
-In the rare case where the placeholder genuinely cannot work, an Agent can call `reveal_secret(key, reason)`. You see an approval card with the Agent's reason; nothing happens until you decide. If you approve, the raw value is given to the model for **that turn only**, then automatically redacted from the history (including anything the value touched in tool calls during the turn; a crashed turn is cleaned up at the next boot). If you deny, the Agent is told not to ask again. This approval can never be bypassed or automated — a prompt-injected Agent cannot exfiltrate a value by politely asking for it.
+In the rare case where the placeholder genuinely cannot work, an Agent can call `reveal_secret(key, reason)`. You see an approval card with the Agent's reason; nothing happens until you decide. If you approve, the raw value is given to the model for **that turn only**, then automatically redacted from the history (including anything the value touched in tool calls during the turn; a crashed turn is cleaned up at the next boot). If you deny, the Agent is told not to ask again. This approval can never be bypassed or automated: a prompt-injected Agent cannot exfiltrate a value by politely asking for it.
 
 For shell commands and scripts, the recommended pattern is environment variables, and Agents are taught it: write the script to read `process.env.GITHUB_TOKEN`, then run it with `GITHUB_TOKEN={{secret:GITHUB_TOKEN}} bun run script.ts`. The secret never appears in the script file or in the command the model wrote.
 
@@ -113,7 +113,7 @@ The flow when you paste a secret in chat: the Agent stores it with `create_secre
 
 ## How mini-apps access secrets
 
-A mini-app backend reads a secret with `ctx.secrets.get('KEY')`, gated by a per-secret permission (`"secrets:KEY"` in its `app.json`) that **you approve explicitly**. The value flows server-side into the app's backend, never through the model — and any value read this way joins the redaction watchlist, so if the app ever echoes it into logs or a response an Agent later reads, it is replaced by the placeholder before reaching the model. See [Mini-app backend](/docs/mini-apps/backend/) for the runtime API.
+A mini-app backend reads a secret with `ctx.secrets.get('KEY')`, gated by a per-secret permission (`"secrets:KEY"` in its `app.json`) that **you approve explicitly**. The value flows server-side into the app's backend, never through the model, and any value read this way joins the redaction watchlist, so if the app ever echoes it into logs or a response an Agent later reads, it is replaced by the placeholder before reaching the model. See [Mini-app backend](/docs/mini-apps/backend/) for the runtime API.
 
 ## How plugins access secrets
 

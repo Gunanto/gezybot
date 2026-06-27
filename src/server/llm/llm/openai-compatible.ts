@@ -60,15 +60,26 @@ import {
   ProviderServerError,
   HivekeepProviderError,
 } from '@/server/llm/core/types'
+import { parseToolArguments } from '@/server/llm/core/parse-tool-args'
+import {
+  buildToolProtocolPrompt,
+  renderToolCall,
+  renderToolResult,
+  parseToolCallsFromText,
+} from '@/server/llm/core/prompt-tool-protocol'
+import { createLogger } from '@/server/logger'
 import type {
   LLMProvider,
   LLMModel,
   ChatRequest,
   ChatChunk,
   HivekeepMessage,
+  HivekeepTool,
   ThinkingEffort,
 } from '@/server/llm/llm/types'
 import { downgradeEffort } from '@/server/llm/llm/types'
+
+const log = createLogger('openai-compatible')
 
 // ─── Config schema ───────────────────────────────────────────────────────────
 
@@ -404,17 +415,14 @@ async function* streamChat(
     throw mapApiError(err)
   }
 
-  for (const state of toolsByIndex.values()) {
-    if (!state.id || !state.name) continue
-    let args: unknown = {}
-    if (state.args.length > 0) {
-      try {
-        args = JSON.parse(state.args)
-      } catch {
-        args = { _raw: state.args }
-      }
+  for (const [idx, state] of toolsByIndex) {
+    if (!state.name) continue
+    yield {
+      type: 'tool-use',
+      id: state.id || `call_${idx}`,
+      name: state.name,
+      args: parseToolArguments(state.args),
     }
-    yield { type: 'tool-use', id: state.id, name: state.name, args }
   }
 
   yield {
@@ -422,6 +430,182 @@ async function* streamChat(
     reason: mapFinishReason(finishReason),
     usage,
   }
+}
+
+// ─── Prompt-based tool protocol (backends without native tool support) ────────
+
+// Remembered per (endpoint, model): a backend that 400s on native `tools` once
+// (e.g. Ollama's "does not support tools") goes straight to the text protocol on
+// later turns. Process-local; a restart re-detects via a single 400.
+const promptProtocolModels = new Set<string>()
+
+function promptKey(config: ProviderConfig, model: LLMModel): string {
+  return `${getBaseUrl(config)}::${model.id}`
+}
+
+function isNativeToolsUnsupported(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err)
+  return /does not support tool|tools?\s+(?:are|is)\s+not\s+supported|function calling is not supported|tool use is not supported|no endpoints found that support tool use/i.test(
+    message,
+  )
+}
+
+function toUsage(u: ChatCompletionChunk['usage'] | undefined | null): Usage {
+  if (!u) return {}
+  return {
+    inputTokens: u.prompt_tokens,
+    outputTokens: u.completion_tokens,
+    cacheReadTokens: u.prompt_tokens_details?.cached_tokens,
+    reasoningTokens: u.completion_tokens_details?.reasoning_tokens,
+  }
+}
+
+function protocolSystemMessage(
+  system: ChatCompletionSystemMessageParam | undefined,
+  tools: HivekeepTool[],
+): ChatCompletionSystemMessageParam {
+  const protocol = buildToolProtocolPrompt(tools)
+  const base = typeof system?.content === 'string' ? system.content : ''
+  return { role: 'system', content: base ? `${base}\n\n${protocol}` : protocol }
+}
+
+/**
+ * Like `messagesToOpenAI`, but prior tool calls and tool results are rendered as
+ * text (`<tool_call>` / `<tool_response>`) instead of native `tool_calls` / `role:
+ * tool` messages, so a backend that rejects native tools still sees the full tool
+ * conversation on replay.
+ */
+function messagesToOpenAIPrompt(
+  messages: HivekeepMessage[],
+  system: ChatCompletionSystemMessageParam,
+): ChatCompletionMessageParam[] {
+  const out: ChatCompletionMessageParam[] = [system]
+
+  // Tool results carry only a tool-use id; map it back to the tool name so the
+  // <tool_response> can be labelled for the model.
+  const nameById = new Map<string, string>()
+  for (const m of messages) {
+    for (const b of m.content) {
+      if (b.type === 'tool-use') nameById.set(b.id, b.name)
+    }
+  }
+
+  for (const m of messages) {
+    if (m.role === 'assistant') {
+      let text = ''
+      for (const b of m.content) {
+        if (b.type === 'text') text += b.text
+        else if (b.type === 'tool-use') text += (text ? '\n' : '') + renderToolCall(b.name, b.args)
+      }
+      if (text) out.push({ role: 'assistant', content: text })
+      continue
+    }
+    const userContent = userBlocksToContent(m.content)
+    if (userContent !== null) out.push({ role: 'user', content: userContent })
+    const responses: string[] = []
+    for (const b of m.content) {
+      if (b.type === 'tool-result') responses.push(renderToolResult(b.content, nameById.get(b.toolUseId)))
+    }
+    if (responses.length > 0) out.push({ role: 'user', content: responses.join('\n\n') })
+  }
+  return out
+}
+
+// Globally-unique ids for prompt-protocol calls so cross-step history replay never
+// collides on the tool-use id (the text protocol has no id of its own).
+let promptCallSeq = 0
+
+async function* streamChatPromptProtocol(
+  client: OpenAI,
+  model: LLMModel,
+  request: ChatRequest,
+  system: ChatCompletionSystemMessageParam | undefined,
+  signal: AbortSignal | undefined,
+): AsyncIterable<ChatChunk> {
+  const params: ChatCompletionCreateParamsStreaming = {
+    model: model.id,
+    messages: messagesToOpenAIPrompt(
+      request.messages,
+      protocolSystemMessage(system, request.tools ?? []),
+    ),
+    stream: true,
+    stream_options: { include_usage: true },
+  }
+  if (request.maxOutputTokens != null) params.max_tokens = request.maxOutputTokens
+  if (request.temperature != null) params.temperature = request.temperature
+  if (request.metadata?.userId) params.user = request.metadata.userId
+
+  let stream
+  try {
+    stream = await client.chat.completions.create(params, { signal })
+  } catch (err) {
+    throw mapApiError(err)
+  }
+
+  let content = ''
+  let finishReason: ChatCompletionChunk.Choice['finish_reason'] = null
+  let usage: Usage = {}
+  try {
+    for await (const chunk of stream) {
+      if (chunk.usage) usage = toUsage(chunk.usage)
+      const choice = chunk.choices[0]
+      if (!choice) continue
+      const delta = choice.delta as
+        | (ChatCompletionChunk.Choice['delta'] & {
+            reasoning_content?: string | null
+            reasoning?: string | null
+          })
+        | undefined
+      const reasoning = delta?.reasoning_content ?? delta?.reasoning
+      if (reasoning) yield { type: 'thinking-delta', text: reasoning }
+      if (delta?.content) content += delta.content
+      if (choice.finish_reason) finishReason = choice.finish_reason
+    }
+  } catch (err) {
+    throw mapApiError(err)
+  }
+
+  const { text, calls } = parseToolCallsFromText(content)
+  if (text) yield { type: 'text-delta', text }
+  for (const call of calls) {
+    yield { type: 'tool-use', id: `call_${promptCallSeq++}`, name: call.name, args: call.args }
+  }
+  yield {
+    type: 'finish',
+    reason: calls.length > 0 ? 'tool-calls' : mapFinishReason(finishReason),
+    usage,
+  }
+}
+
+/**
+ * Native tool calling, falling back to the prompt protocol the first time a backend
+ * reports it does not support tools. The fallback only fires before any chunk has
+ * been emitted, so a mid-stream failure is never mistaken for "no tool support".
+ */
+async function* streamChatNativeOrProtocol(
+  client: OpenAI,
+  model: LLMModel,
+  request: ChatRequest,
+  system: ChatCompletionSystemMessageParam | undefined,
+  params: ChatCompletionCreateParamsStreaming,
+  key: string,
+): AsyncIterable<ChatChunk> {
+  let started = false
+  try {
+    for await (const chunk of streamChat(client, params, request.signal)) {
+      started = true
+      yield chunk
+    }
+    return
+  } catch (err) {
+    if (started || !isNativeToolsUnsupported(err)) throw err
+  }
+  log.info(
+    { model: model.id },
+    'Backend does not support native tools; switching to the prompt-based tool protocol',
+  )
+  promptProtocolModels.add(key)
+  yield* streamChatPromptProtocol(client, model, request, system, request.signal)
 }
 
 // ─── Provider implementation ─────────────────────────────────────────────────
@@ -493,6 +677,13 @@ export const openaiCompatibleProvider: LLMProvider = {
   chat(model, request, config) {
     const client = createClient(config)
     const system = systemPromptToMessage(request.system)
+    const hasTools = !!(request.tools && request.tools.length > 0)
+
+    // A backend already known to reject native tools for this model skips the
+    // wasted 400 and goes straight to the prompt protocol.
+    if (hasTools && promptProtocolModels.has(promptKey(config, model))) {
+      return streamChatPromptProtocol(client, model, request, system, request.signal)
+    }
 
     const params: ChatCompletionCreateParamsStreaming = {
       model: model.id,
@@ -525,6 +716,11 @@ export const openaiCompatibleProvider: LLMProvider = {
       params.user = request.metadata.userId
     }
 
-    return streamChat(client, params, request.signal)
+    // No tools → plain native streaming. With tools → native, falling back to the
+    // prompt protocol if the backend reports it does not support tools.
+    if (!hasTools) {
+      return streamChat(client, params, request.signal)
+    }
+    return streamChatNativeOrProtocol(client, model, request, system, params, promptKey(config, model))
   },
 }

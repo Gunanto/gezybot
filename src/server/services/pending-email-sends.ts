@@ -34,6 +34,7 @@ export async function createPendingSend(input: {
   agentId: string
   taskId?: string
   params: SendEmailParams
+  watchReply?: { prompt?: string }
 }): Promise<string> {
   const id = uuid()
   const summary = summarize(input.params)
@@ -44,6 +45,7 @@ export async function createPendingSend(input: {
     taskId: input.taskId ?? null,
     payload: JSON.stringify(input.params),
     summary,
+    watchReply: input.watchReply ? JSON.stringify(input.watchReply) : null,
     status: 'pending',
     error: null,
     createdAt: new Date(),
@@ -108,13 +110,32 @@ export async function approvePendingSend(id: string): Promise<{ ok: boolean; err
     // Re-resolve with the requesting Agent's id (it passed the allow-list at
     // request time), then send for real.
     const { provider, config } = await resolveEmailProvider({ slug: row.accountId, agentId: row.agentId })
-    await provider.sendMessage(params, config)
+    const sent = await provider.sendMessage(params, config)
     await db
       .update(pendingEmailSends)
       .set({ status: 'sent', resolvedAt: new Date() })
       .where(eq(pendingEmailSends.id, id))
     sseManager.broadcast({ type: 'email:pending-resolved', agentId: row.agentId, data: { pendingId: id, status: 'sent' } })
     log.info({ id, agentId: row.agentId }, 'Approved email sent')
+
+    // The send was deferred for approval, so the reply-watch trigger is created
+    // now that the threadId exists. A failure here must not fail the send.
+    if (row.watchReply) {
+      try {
+        const { prompt } = JSON.parse(row.watchReply) as { prompt?: string }
+        const { createReplyWatchTrigger } = await import('@/server/services/account-triggers')
+        await createReplyWatchTrigger({
+          accountId: row.accountId,
+          targetAgentId: row.agentId,
+          threadId: sent.threadId,
+          messageId: sent.id,
+          subject: params.subject,
+          prompt,
+        })
+      } catch (err) {
+        log.warn({ id, err }, 'reply-watch trigger creation failed after approved send')
+      }
+    }
     return { ok: true }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

@@ -104,7 +104,8 @@
     "agentLanguageFollowUi": "Taki sam jak interfejs",
     "clearFilters": "Wyczyść",
     "perPage": "Na stronę",
-    "listRange": "{{from}}-{{to}} z {{total}}"
+    "listRange": "{{from}}-{{to}} z {{total}}",
+    "clear": "Wyczyść"
   },
   "errors": {
     "backendUnavailable": "Nie można połączyć się z serwerem. Sprawdź, czy backend działa, i spróbuj ponownie.",
@@ -2065,6 +2066,8 @@
       "dispatchTaskWarning": "Zadanie działa w izolowanej sesji BEZ historii rozmowy. Umieść w poniższym prompcie wszystko, czego agent potrzebuje do działania.",
       "active": "Aktywny",
       "pendingApproval": "Oczekuje na zatwierdzenie",
+      "oneShot": "Jednorazowo",
+      "oneShotHint": "Wyłącza się po pierwszym pasującym e-mailu.",
       "deleteTitle": "Usuń wyzwalacz",
       "deleteConfirm": "Usunąć ten wyzwalacz? Tej operacji nie można cofnąć.",
       "errorName": "Nazwa jest wymagana.",
@@ -3087,7 +3090,8 @@
     "filesRename": "Zmień nazwę zaznaczonego elementu (fokus na drzewie)",
     "filesDelete": "Usuń zaznaczony element (fokus na drzewie)",
     "filesClipboard": "Kopiuj / wytnij / wklej (fokus na drzewie)",
-    "filesCloseTab": "Zamknij aktywną kartę"
+    "filesCloseTab": "Zamknij aktywną kartę",
+    "filesReopenTab": "Otwórz ponownie zamkniętą kartę"
   },
   "theme": {
     "palette": "Paleta",
@@ -3790,7 +3794,11 @@
       "agents": "Agenci",
       "projects": "Projekty",
       "folders": "Foldery",
-      "addFolder": "Dodaj folder…"
+      "addFolder": "Dodaj folder…",
+      "all": "Wszystkie",
+      "searchPlaceholder": "Szukaj źródeł…",
+      "empty": "Nie znaleziono źródła",
+      "miniapps": "Miniaplikacje"
     },
     "addFolder": {
       "title": "Foldery",
@@ -3807,7 +3815,9 @@
       "ticket": "#{{number}} · {{branch}}"
     },
     "git": {
-      "dirty": "{{count}} niezacommitowanych zmian"
+      "dirty": "{{count}} niezacommitowanych zmian",
+      "changedTitle": "Zmienione pliki",
+      "clean": "Drzewo robocze czyste"
     },
     "empty": {
       "title": "Ta przestrzeń robocza jest pusta",
@@ -3843,7 +3853,20 @@
         "title": "Usunąć „{{name}}”?",
         "fileDescription": "Ten plik zostanie trwale usunięty z przestrzeni roboczej.",
         "folderDescription": "Ten folder wraz z całą zawartością zostanie trwale usunięty."
-      }
+      },
+      "filter": "Filtruj pliki",
+      "collapseAll": "Zwiń wszystko",
+      "expandAll": "Rozwiń wszystko",
+      "noMatch": "Brak pasujących plików"
+    },
+    "tabs": {
+      "menu": "Akcje karty",
+      "close": "Zamknij",
+      "closeOthers": "Zamknij pozostałe",
+      "closeToRight": "Zamknij po prawej",
+      "closeAll": "Zamknij wszystkie",
+      "copyPath": "Kopiuj ścieżkę względną",
+      "reveal": "Pokaż w drzewie"
     },
     "editor": {
       "download": "Pobierz",
@@ -3859,7 +3882,14 @@
         "message": "Plik zmienił się na dysku od momentu otwarcia (prawdopodobnie zapisał go agent).",
         "reload": "Wczytaj ponownie",
         "overwrite": "Nadpisz"
-      }
+      },
+      "wrap": "Zawijanie wierszy",
+      "lineCol": "Wrsz {{line}}, Kol {{col}}",
+      "diff": "Diff",
+      "noChanges": "Brak zmian względem HEAD",
+      "zoomIn": "Powiększ",
+      "zoomOut": "Pomniejsz",
+      "fit": "Dopasuj do ekranu"
     },
     "browseWorkspace": "Przeglądaj pliki",
     "share": {
@@ -3872,7 +3902,8 @@
       "placeholder": "Szukaj pliku po nazwie lub ścieżce…",
       "noResults": "Brak pasujących plików",
       "open": "Szybkie otwieranie (Ctrl+P)"
-    }
+    },
+    "resizeTree": "Zmień szerokość drzewa plików"
   },
   "updateOverlay": {
     "title": "Aktualizowanie Hivekeep",

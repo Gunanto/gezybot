@@ -67,6 +67,7 @@ import {
   ProviderServerError,
   HivekeepProviderError,
 } from '@/server/llm/core/types'
+import { parseToolArguments } from '@/server/llm/core/parse-tool-args'
 import type {
   LLMProvider,
   LLMModel,
@@ -493,17 +494,14 @@ async function* streamChat(
     throw mapApiError(err)
   }
 
-  for (const state of toolsByIndex.values()) {
-    if (!state.id || !state.name) continue
-    let args: unknown = {}
-    if (state.args.length > 0) {
-      try {
-        args = JSON.parse(state.args)
-      } catch {
-        args = { _raw: state.args }
-      }
+  for (const [idx, state] of toolsByIndex) {
+    if (!state.name) continue
+    yield {
+      type: 'tool-use',
+      id: state.id || `call_${idx}`,
+      name: state.name,
+      args: parseToolArguments(state.args),
     }
-    yield { type: 'tool-use', id: state.id, name: state.name, args }
   }
 
   yield {

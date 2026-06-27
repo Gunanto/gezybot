@@ -24,11 +24,11 @@ Mini-apps must work in both themes. The design system CSS handles this automatic
 
 Mini-apps typically run in a side panel (320-600px wide). Design accordingly:
 
-- **Mobile-first layout** — single column by default, expand with breakpoints
-- **Use responsive utilities** — `md:grid-cols-2` for wider views
+- **Mobile-first layout**: single column by default, expand with breakpoints
+- **Use responsive utilities**: `md:grid-cols-2` for wider views
 - **Use `useBreakpoint()`** or `useMediaQuery()` for JS-level responsive logic
-- **Support full-page mode** — use `isFullPage` from `useHivekeep()` to adjust layout
-- **Avoid horizontal scrolling** — keep content within the panel width
+- **Support full-page mode**: use `isFullPage` from `useHivekeep()` to adjust layout
+- **Avoid horizontal scrolling**: keep content within the panel width
 
 ```jsx
 function App() {
@@ -65,10 +65,10 @@ Look at existing mini-apps and templates for patterns:
 
 ## Performance
 
-- **Lazy load heavy content** — use `useInfiniteScroll` or `usePagination` for large datasets
-- **Debounce search inputs** — use `useDebounce` to avoid excessive API calls
+- **Lazy load heavy content**: use `useInfiniteScroll` or `usePagination` for large datasets
+- **Debounce search inputs**: use `useDebounce` to avoid excessive API calls
 - **Use `useLocalStorage`** for UI state that doesn't need server sync (collapsed panels, sort preferences)
-- **Avoid unnecessary re-renders** — use `usePrevious` to compare state changes
+- **Avoid unnecessary re-renders**: use `usePrevious` to compare state changes
 
 ## React Patterns
 
@@ -76,11 +76,11 @@ Look at existing mini-apps and templates for patterns:
 - **Use `useStorage`** for persistent state, `useState` for ephemeral UI state
 - **Use `useAsync`** for mutations (POST, DELETE) to get loading/error states
 - **Use `useApi`** for GET requests that auto-fetch on mount
-- **Use JSX** with `<script type="text/jsx">` — it's transpiled server-side, no build step needed
+- **Use JSX** with `<script type="text/jsx">`: it's transpiled server-side, no build step needed
 
 ## Backend Best Practices
 
-- Keep `_server.js` focused — one backend per app
+- Keep `_server.js` focused: one backend per app
 - Use `ctx.storage` for data persistence (same namespace as frontend)
 - Use `ctx.events.emit()` for real-time updates instead of polling
 - Use `ctx.log` for debugging (tagged with app name in server logs)

@@ -1,6 +1,6 @@
 ---
 title: Model Registry
-description: "The admin Models view — every model your providers expose, with metadata auto-filled from models.dev, plus curation, labels and overrides."
+description: "The admin Models view: every model your providers expose, with metadata auto-filled from models.dev, plus curation, labels and overrides."
 ---
 
 The **Model Registry** is the source of truth for per-model metadata in Hivekeep:
@@ -14,7 +14,7 @@ every model across every configured provider.
 
 ## Where the metadata comes from
 
-Metadata is auto-filled from [models.dev](https://models.dev) — an MIT-licensed,
+Metadata is auto-filled from [models.dev](https://models.dev), an MIT-licensed,
 community-maintained database of LLM model metadata. On reconcile, each
 `(provider, model id)` is matched against models.dev and the matched entry's
 fields are baked into the registry row.
@@ -25,8 +25,8 @@ Match confidence is one of:
 |---|---|
 | **exact** | The id is in models.dev verbatim. |
 | **normalized** | Matched after stripping release markers (dates like `-2025-08-07`, `-preview`, `-latest`). |
-| **family** | Only a base-family match (low confidence) — flagged for review. |
-| **none** | Not in models.dev — flagged for review. |
+| **family** | Only a base-family match (low confidence), flagged for review. |
+| **none** | Not in models.dev, flagged for review. |
 
 The priority for each field is **admin override (pinned) → the provider's own
 API hint → models.dev → default**, with one exception: when models.dev carries
@@ -40,25 +40,25 @@ Agent gets at runtime.
 
 Models are shown by a human-readable **label** (the models.dev `name`, e.g.
 *Claude Haiku 4.5*) instead of the raw id (`claude-haiku-4-5-20251001`),
-everywhere a model name appears — the model picker, the conversation header, etc.
+everywhere a model name appears: the model picker, the conversation header, etc.
 The id is always still visible as a secondary line. Set a custom label in a
 model's edit dialog; leave it blank to fall back to the models.dev label (and
 then the id).
 
 ## Curation: enable / disable
 
-Toggle any model on or off — directly in the table or in its edit dialog.
+Toggle any model on or off, directly in the table or in its edit dialog.
 **Disabled models are hidden from every model picker**, so you can switch off the
 ones you don't want and keep only those you care about.
 
 - Disabling is safe: the chat path never blocks, so an Agent already configured
-  on a disabled model keeps working — the model is only hidden from pickers.
+  on a disabled model keeps working: the model is only hidden from pickers.
 - A newly-discovered model with an **uncertain match lands disabled** and flagged
   *to review*. Confirming it (the ✓ on the row, or saving its dialog) clears the
   flag **and enables it**.
 
 Use the **status filter** (enabled / disabled / to-review / unmapped) with the
-**bulk actions** (Enable all, Disable all, Confirm reviews) to curate at scale —
+**bulk actions** (Enable all, Disable all, Confirm reviews) to curate at scale:
 e.g. filter *To review* then confirm them all, or filter a provider then disable
 the lot.
 
@@ -67,9 +67,9 @@ the lot.
 When a match is low-confidence (`family`) or absent (`none`), the row is flagged
 **review** and disabled. To resolve it:
 
-- **Confirm** (✓) if the auto-match looks right — clears the flag and enables it.
-- **Remap** (in the edit dialog) to point the row at the correct models.dev entry
-  — searchable across the whole catalogue. Useful for subscription/CLI providers
+- **Confirm** (✓) if the auto-match looks right: clears the flag and enables it.
+- **Remap** (in the edit dialog) to point the row at the correct models.dev entry,
+  searchable across the whole catalogue. Useful for subscription/CLI providers
   (Claude Pro/Max, Codex) whose ids map onto the base provider's entries.
 
 Models genuinely absent from models.dev (niche or brand-new) stay unmapped; set
@@ -77,12 +77,12 @@ their metadata manually, or refresh the snapshot once models.dev has them.
 
 ## Overriding metadata
 
-Open a model to edit any field — label, context window, max output, pricing,
+Open a model to edit any field: label, context window, max output, pricing,
 image / PDF / tool-call support, reasoning. Each field you change is **pinned**:
 it survives future resyncs (everything else keeps tracking models.dev). Saving an
 unchanged dialog pins nothing.
 
-- **Manual mode** freezes the whole row — nothing auto-syncs.
+- **Manual mode** freezes the whole row: nothing auto-syncs.
 - **Reset to auto** drops every pin/override and re-derives the row from
   models.dev.
 
@@ -91,9 +91,9 @@ unchanged dialog pins nothing.
 The bundled models.dev snapshot is baked into the build. Two buttons keep things
 current without a release:
 
-- **Resync** — re-match every provider against the current snapshot (picks up new
+- **Resync**: re-match every provider against the current snapshot (picks up new
   model ids the provider now lists, clears stale rows).
-- **Update models.dev** — download the latest models.dev catalogue (persisted to
+- **Update models.dev**: download the latest models.dev catalogue (persisted to
   the data dir, so it survives restarts), then resync. Use this to pick up models
   that models.dev only just added.
 
@@ -122,8 +122,8 @@ clamps it to the nearest supported level.
 ## Capability-driven upload gating
 
 Because the registry knows each model's image / PDF support, the chat composer
-**won't let you attach an image or PDF to a model that explicitly can't read it**
-— it skips the file and tells you. Files of a type the model accepts (and plain
+**won't let you attach an image or PDF to a model that explicitly can't read it**:
+it skips the file and tells you. Files of a type the model accepts (and plain
 text files, always) pass through. Capability *unknown* fails open (no block).
 
 ## API

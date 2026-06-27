@@ -73,6 +73,7 @@ All configurable values of the platform, grouped by domain. These values are def
 |---|---|---|---|
 | `tools.maxSteps` | `TOOLS_MAX_STEPS` | `0` | Max number of tool-calling steps per LLM turn. 0 = unlimited (capped at 100 internally) |
 | `tools.concurrencyCap` | `TOOLS_CONCURRENCY_CAP` | `5` | Max number of parallel read-only tool executions. When all tool calls in a step are read-only, they run in parallel (limited to this value). Mixed batches with at least one mutating tool stay sequential |
+| `tools.temperature` | `TOOLS_TEMPERATURE` | `0` | Sampling temperature applied on tool-enabled turns. Local backends (Ollama, llama.cpp, LM Studio) default to ~0.7-0.8, which makes small models emit unreliable tool-call JSON; a low value steadies it. Reasoning models are exempted automatically (they reject a custom temperature). Set to `off` to defer to the backend default |
 | `shell.defaultTimeoutMs` | `HIVEKEEP_SHELL_TIMEOUT` | `30000` | Default timeout for a `run_shell` command (ms), used when the Agent does not provide a `timeout` |
 | `shell.maxTimeoutMs` | `HIVEKEEP_SHELL_MAX_TIMEOUT` | `600000` | Maximum timeout an Agent can request per `run_shell` call (ms). The tool's `timeout` parameter is capped at this value (10 min by default, raise it for longer test suites/builds) |
 

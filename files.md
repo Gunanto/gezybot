@@ -568,10 +568,12 @@ Chaque phase est commitable indépendamment (conventional commits), `typecheck` 
 
 ## 13. Hors périmètre v1 (notés pour v2)
 
+> **Lot UX post-v1 livré** (branche `ux-loop-improvements`) : réordonnancement d'onglets (drag), menu contextuel d'onglet, sélecteur de source recherchable + segments, **mini-apps comme source éditable**, fil d'Ariane cliquable, recherche dans le fichier + go-to-line, barre de statut (curseur/langage) + toggle word-wrap, filtre d'arbre + tout déplier/replier, **panneau gauche redimensionnable** (splitter maison, sans `react-resizable-panels`), **vue diff git par fichier** + **panneau des fichiers modifiés**, rouvrir l'onglet fermé (`Ctrl+Shift+T`), révéler le fichier actif, visionneuse image (zoom/pan/fit). Les lignes ci-dessous restent ouvertes.
+
 - **Unification file-storage dans l'explorateur** (racine supplémentaire) — le file-storage est plat et a une sémantique partage/expiry différente ; on garde l'idée.
 - `fs.watch` temps réel par workspace (couvrir les mutations `run_shell`) — design d'abonnement nécessaire.
 - Onglets « preview » (simple clic remplaçable, italique) — pas d'équivalent tactile du double-clic d'épinglage.
-- Multi-sélection dans le tree ; split view ; réordonnancement d'onglets ; auto-save ; panneau redimensionnable (`react-resizable-panels`).
+- Multi-sélection dans le tree ; split view ; auto-save ; auto-révélation du fichier actif au changement d'onglet (bouton manuel livré, auto jugé intrusif).
 - Recherche **dans le contenu** des fichiers (grep UI) — seul le nom/chemin est cherché en v1.
 - Chips de chemins hors conversations (TaskResultCard, panels projet…) — nécessite un provider par surface.
 - Tool agent `notify_file` — probablement couvert par la convention prompt.

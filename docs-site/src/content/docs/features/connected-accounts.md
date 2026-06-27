@@ -17,7 +17,7 @@ Once an account is connected and an Agent is allowed to use it, the Agent gets a
 - `list_emails`: list a folder (default INBOX) as compact summaries.
 - `read_email`: read one full message by id (headers, plain-text body, attachment metadata).
 - `search_emails`: search with structured filters (from, to, subject, text, unread, has_attachment, after, before) or a provider-native `raw` query (for example Gmail operators).
-- `send_email`: send a new message or reply in-thread, with optional CC, BCC, HTML body, and workspace-file attachments.
+- `send_email`: send a new message or reply in-thread, with optional CC, BCC, HTML body, and workspace-file attachments. Set `watch_reply` to be woken up on the first reply (see below).
 - `download_email_attachment`: save an attachment into the Agent workspace.
 
 **Calendar** (the `calendar` toolbox)
@@ -106,6 +106,19 @@ An Agent asked to "reply to the latest unread email from Marie and confirm Frida
 3. `send_email` with `reply_to_message_id` set, so the reply stays in the same thread.
 
 If that account is in approval mode, step 3 queues the reply and you approve it before it actually goes out.
+
+## Waiting for a reply
+
+When an Agent sends an email and needs to act on the answer, it can set `watch_reply` on `send_email`. That creates a **one-shot email trigger** for the first reply: it starts a new turn for the Agent, then disables itself. Any reply counts, even one from a different person than the original recipient (a colleague in copy, an alias, a forwarded thread). A plain "wait for an email from `<recipient>`" condition would miss those.
+
+How the reply is recognized depends on the provider:
+
+- **Gmail and Microsoft** thread messages server-side, so the trigger matches on the thread id of the sent message.
+- **IMAP and iCloud** have no thread id, so the trigger matches on the `In-Reply-To` header: a reply references the sent message's `Message-ID`. (If your SMTP server rewrites the `Message-ID` on send, the match can miss; most do not.)
+
+`watch_reply_prompt` sets the instruction the Agent receives when the reply arrives; omit it for a sensible default. The trigger shows up in the account's trigger list like any other (tagged one-shot) and can be edited or removed there. If the account is in approval mode, the trigger is created once you approve and the email is actually sent.
+
+This is built on the same per-account email triggers you can create by hand, which match new mail against a condition tree (sender, subject, body, labels, attachments, thread, in-reply-to) and dispatch to an Agent. `watch_reply` is just the common "follow up on my own email" case wired into the send.
 
 ## Related
 

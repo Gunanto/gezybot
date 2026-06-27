@@ -5,6 +5,7 @@ import {
   treeNeedsBody,
   evaluateConditions,
   summarizeConditions,
+  stripMessageId,
   MAX_CONDITION_DEPTH,
   type EmailMatchContext,
 } from './account-triggers'
@@ -20,6 +21,8 @@ const baseCtx: EmailMatchContext = {
   hasAttachment: true,
   unread: true,
   labels: ['INBOX', 'IMPORTANT'],
+  threadId: 'thread-abc123',
+  inReplyTo: 'sent-msg-id@hivekeep.example',
   body: 'Total due: 42 EUR',
   attachmentNames: ['invoice.pdf'],
   attachmentTypes: ['application/pdf'],
@@ -61,9 +64,33 @@ describe('evaluateConditions', () => {
     expect(evaluateConditions(g('and', leaf('label', 'in', ['important'])), baseCtx)).toBe(true)
   })
 
+  it('thread_id equals matches the reply-watch thread (any sender)', () => {
+    expect(evaluateConditions(g('and', leaf('thread_id', 'equals', 'thread-abc123')), baseCtx)).toBe(true)
+    expect(evaluateConditions(g('and', leaf('thread_id', 'equals', 'other-thread')), baseCtx)).toBe(false)
+    expect(evaluateConditions(g('and', leaf('thread_id', 'in', ['x', 'thread-abc123'])), baseCtx)).toBe(true)
+  })
+
+  it('in_reply_to equals matches an IMAP reply by Message-ID (case-insensitive)', () => {
+    expect(evaluateConditions(g('and', leaf('in_reply_to', 'equals', 'sent-msg-id@hivekeep.example')), baseCtx)).toBe(true)
+    expect(evaluateConditions(g('and', leaf('in_reply_to', 'equals', 'SENT-MSG-ID@Hivekeep.Example')), baseCtx)).toBe(true)
+    expect(evaluateConditions(g('and', leaf('in_reply_to', 'equals', 'other-id@host')), baseCtx)).toBe(false)
+  })
+
   it('matches uses regex (case-insensitive)', () => {
     expect(evaluateConditions(g('and', leaf('subject', 'matches', 'invoice #\\d+')), baseCtx)).toBe(true)
     expect(evaluateConditions(g('and', leaf('subject', 'matches', '^refund')), baseCtx)).toBe(false)
+  })
+})
+
+describe('stripMessageId', () => {
+  it('drops angle brackets so a sent id and an incoming In-Reply-To compare equal', () => {
+    expect(stripMessageId('<abc@host>')).toBe('abc@host')
+    expect(stripMessageId('abc@host')).toBe('abc@host')
+  })
+  it('keeps the first id when the header lists several, and tolerates empty input', () => {
+    expect(stripMessageId('<a@host> <b@host>')).toBe('a@host')
+    expect(stripMessageId(undefined)).toBe('')
+    expect(stripMessageId('')).toBe('')
   })
 })
 

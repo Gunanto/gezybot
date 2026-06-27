@@ -102,7 +102,8 @@
     "agentLanguageFollowUi": "インターフェースと同じ",
     "clearFilters": "クリア",
     "perPage": "ページあたり",
-    "listRange": "{{total}} 件中 {{from}}-{{to}}"
+    "listRange": "{{total}} 件中 {{from}}-{{to}}",
+    "clear": "クリア"
   },
   "errors": {
     "backendUnavailable": "サーバーに接続できません。バックエンドが起動していることを確認して、もう一度お試しください。",
@@ -2049,6 +2050,8 @@
       "dispatchTaskWarning": "タスクは会話履歴のない隔離されたセッションで実行されます。エージェントが行動するのに必要なすべてを下のプロンプトに含めてください。",
       "active": "有効",
       "pendingApproval": "承認待ち",
+      "oneShot": "一度のみ",
+      "oneShotHint": "最初に一致したメールの後に無効になります。",
       "deleteTitle": "トリガーを削除",
       "deleteConfirm": "このトリガーを削除しますか?この操作は元に戻せません。",
       "errorName": "名前は必須です。",
@@ -3069,7 +3072,8 @@
     "filesRename": "選択中の項目の名前を変更(ツリーにフォーカス時)",
     "filesDelete": "選択中の項目を削除(ツリーにフォーカス時)",
     "filesClipboard": "コピー / 切り取り / 貼り付け(ツリーにフォーカス時)",
-    "filesCloseTab": "アクティブなタブを閉じる"
+    "filesCloseTab": "アクティブなタブを閉じる",
+    "filesReopenTab": "閉じたタブを再度開く"
   },
   "theme": {
     "palette": "パレット",
@@ -3752,7 +3756,11 @@
       "agents": "エージェント",
       "projects": "プロジェクト",
       "folders": "フォルダ",
-      "addFolder": "フォルダを追加…"
+      "addFolder": "フォルダを追加…",
+      "all": "すべて",
+      "searchPlaceholder": "ソースを検索…",
+      "empty": "ソースが見つかりません",
+      "miniapps": "ミニアプリ"
     },
     "addFolder": {
       "title": "フォルダ",
@@ -3769,7 +3777,9 @@
       "ticket": "#{{number}} · {{branch}}"
     },
     "git": {
-      "dirty": "未コミットの変更 {{count}} 件"
+      "dirty": "未コミットの変更 {{count}} 件",
+      "changedTitle": "変更されたファイル",
+      "clean": "作業ツリーはクリーンです"
     },
     "empty": {
       "title": "このワークスペースは空です",
@@ -3805,7 +3815,20 @@
         "title": "「{{name}}」を削除しますか?",
         "fileDescription": "このファイルはワークスペースから完全に削除されます。",
         "folderDescription": "このフォルダーとその中のすべてが完全に削除されます。"
-      }
+      },
+      "filter": "ファイルを絞り込み",
+      "collapseAll": "すべて折りたたむ",
+      "expandAll": "すべて展開",
+      "noMatch": "一致するファイルがありません"
+    },
+    "tabs": {
+      "menu": "タブの操作",
+      "close": "閉じる",
+      "closeOthers": "他を閉じる",
+      "closeToRight": "右側を閉じる",
+      "closeAll": "すべて閉じる",
+      "copyPath": "相対パスをコピー",
+      "reveal": "ツリーで表示"
     },
     "editor": {
       "download": "ダウンロード",
@@ -3821,7 +3844,14 @@
         "message": "ファイルを開いた後にディスク上で変更されました(おそらくエージェントによる書き込み)。",
         "reload": "再読み込み",
         "overwrite": "上書き"
-      }
+      },
+      "wrap": "折り返し",
+      "lineCol": "行 {{line}}, 列 {{col}}",
+      "diff": "差分",
+      "noChanges": "HEAD との差分なし",
+      "zoomIn": "拡大",
+      "zoomOut": "縮小",
+      "fit": "画面に合わせる"
     },
     "browseWorkspace": "ファイルを参照",
     "share": {
@@ -3834,7 +3864,8 @@
       "placeholder": "名前またはパスでファイルを検索…",
       "noResults": "一致するファイルがありません",
       "open": "クイックオープン(Ctrl+P)"
-    }
+    },
+    "resizeTree": "ファイルツリーの幅を変更"
   },
   "updateOverlay": {
     "title": "Hivekeep を更新中",

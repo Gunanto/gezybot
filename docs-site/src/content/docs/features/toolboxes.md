@@ -78,9 +78,9 @@ Custom (user-created) toolboxes can be edited with `update_toolbox` and removed 
 
 ## Individual grants & agents requesting tools
 
-Toolboxes are the fast way to hand an Agent a coherent set, but they are not the only way anymore. Each Agent also carries **individual grants** — single tools added on top of its toolboxes. You manage them from the Agent's **Tools tab → Individual grants** (add from the full catalogue, remove with one click), and they resolve as `core floor ∪ toolboxes ∪ grants`.
+Toolboxes are the fast way to hand an Agent a coherent set, but they are not the only way anymore. Each Agent also carries **individual grants**: single tools added on top of its toolboxes. You manage them from the Agent's **Tools tab → Individual grants** (add from the full catalogue, remove with one click), and they resolve as `core floor ∪ toolboxes ∪ grants`.
 
-Agents can also ask for tools themselves. Every Agent's core floor includes `list_tools` (discover everything the platform offers) and `request_tool_access`: when a capability is missing, the Agent names the exact tools it needs and why, and an **approval card** appears in the conversation — one pre-checked checkbox per tool plus the Agent's reason. Grant everything, a subset, or deny; any workspace user can respond. Approved tools become permanent individual grants (revocable from the Tools tab), and the Agent resumes immediately with the verdict.
+Agents can also ask for tools themselves. Every Agent's core floor includes `list_tools` (discover everything the platform offers) and `request_tool_access`: when a capability is missing, the Agent names the exact tools it needs and why, and an **approval card** appears in the conversation, one pre-checked checkbox per tool plus the Agent's reason. Grant everything, a subset, or deny; any workspace user can respond. Approved tools become permanent individual grants (revocable from the Tools tab), and the Agent resumes immediately with the verdict.
 
 ## Main Agents vs sub-Agents
 

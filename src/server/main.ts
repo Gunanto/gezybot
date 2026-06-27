@@ -67,11 +67,6 @@ process.on('uncaughtException', (err) => {
 // estimation uses the accurate path instead of falling back to chars/4.
 preloadTokenizer().catch((err) => log.warn({ err }, 'Tokenizer preload failed; estimator will fall back to chars/4 until first async call'))
 
-// Wire log entries to SSE broadcast for real-time frontend viewer
-logStore.setOnEntry((entry) => {
-  sseManager.broadcast({ type: 'log:entry', data: entry as unknown as Record<string, unknown> })
-})
-
 // Run Drizzle migrations (creates tables if DB is fresh)
 log.info('Running database migrations...')
 migrate(db, { migrationsFolder: './src/server/db/migrations' })

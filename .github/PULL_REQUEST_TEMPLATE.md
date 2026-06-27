@@ -22,7 +22,6 @@
 <!-- Steps to verify this change works correctly. -->
 
 - [ ] Unit tests (`bun test`)
-- [ ] E2E tests (`bun run e2e`)
 - [ ] Manual testing
 - [ ] N/A (docs only)
 

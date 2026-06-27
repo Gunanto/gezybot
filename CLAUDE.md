@@ -155,7 +155,7 @@ bun run dev         # Start dev servers (Vite + Hono)
 bun run build       # Production build (Vite → dist/client/)
 bun run start       # Production server (Hono serves API + static)
 bun run typecheck   # tsc --noEmit (also run by the pre-commit hook)
-bun run test        # Unit tests (bun test); test:e2e for Playwright
+bun run test        # Unit tests (bun test)
 bun run db:generate # Generate a Drizzle migration from schema changes
 bun run db:migrate  # Apply pending migrations
 bun run db:snapshot # Snapshot the DB (db:snapshot:list / db:snapshot:restore)

@@ -41,6 +41,7 @@ import {
   ProviderServerError,
   HivekeepProviderError,
 } from '@/server/llm/core/types'
+import { parseToolArguments } from '@/server/llm/core/parse-tool-args'
 import type {
   LLMProvider,
   LLMModel,
@@ -49,7 +50,7 @@ import type {
   HivekeepMessage,
   ThinkingEffort,
 } from '@/server/llm/llm/types'
-import { downgradeEffort } from '@/server/llm/llm/types'
+import { downgradeEffort, THINKING_EFFORT_ORDER } from '@/server/llm/llm/types'
 
 // ─── Config schema ───────────────────────────────────────────────────────────
 
@@ -96,11 +97,61 @@ interface CodexModelCacheEntry {
   priority?: number
   context_window?: number
   max_output_tokens?: number
+  input_modalities?: string[]
+  supports_parallel_tool_calls?: boolean
+  supported_reasoning_levels?: Array<{ effort?: string }>
   upgrade?: unknown
 }
 
 interface CodexModelsCacheFile {
   models?: CodexModelCacheEntry[]
+}
+
+/**
+ * The Codex backend gates its catalog by client version: too old a value
+ * returns an empty `models` array. Kept reasonably current and sent as the
+ * required `client_version` query param when fetching the live catalog.
+ * (Verified empirically: 0.39.0 → [], 0.142.2 → full catalog.)
+ */
+const CODEX_CLIENT_VERSION = '0.142.2'
+
+/** Keep only API-listable models, drop superseded ones, order by priority. */
+function selectCodexEntries(models: CodexModelCacheEntry[] | undefined): CodexModelCacheEntry[] {
+  if (!models || !Array.isArray(models)) return []
+  const filtered = models.filter(
+    (m) =>
+      typeof m.slug === 'string' &&
+      m.slug.length > 0 &&
+      m.supported_in_api === true &&
+      m.visibility === 'list' &&
+      m.upgrade == null,
+  )
+  filtered.sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999))
+  return filtered
+}
+
+/**
+ * Fetch the live, per-account Codex catalog from the backend. This is the
+ * authoritative source: the available model slugs (gpt-5.4, gpt-5.5, …) change
+ * over time and vary by plan, so they must never be hardcoded. Returns null on
+ * any failure or an empty catalog so the caller can fall back.
+ */
+async function fetchCodexModelsFromApi(config: ProviderConfig): Promise<CodexModelCacheEntry[] | null> {
+  try {
+    const { accessToken, accountId } = await getCodexOAuthCredentials(config)
+    const res = await fetch(`${CODEX_BASE_URL}/models?client_version=${CODEX_CLIENT_VERSION}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'ChatGPT-Account-ID': accountId,
+      },
+    })
+    if (!res.ok) return null
+    const parsed = (await res.json()) as CodexModelsCacheFile
+    const selected = selectCodexEntries(parsed.models)
+    return selected.length > 0 ? selected : null
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -113,54 +164,49 @@ function readCodexModelsFromCache(): CodexModelCacheEntry[] | null {
     if (!existsSync(MODELS_CACHE_PATH)) return null
     const raw = readFileSync(MODELS_CACHE_PATH, 'utf8')
     const parsed = JSON.parse(raw) as CodexModelsCacheFile
-    if (!parsed.models || !Array.isArray(parsed.models)) return null
-    const filtered = parsed.models.filter(
-      (m) =>
-        typeof m.slug === 'string' &&
-        m.slug.length > 0 &&
-        m.supported_in_api === true &&
-        m.visibility === 'list' &&
-        m.upgrade == null,
-    )
-    filtered.sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999))
-    return filtered
+    const selected = selectCodexEntries(parsed.models)
+    return selected.length > 0 ? selected : null
   } catch {
     return null
   }
 }
 
 /**
- * Static fallback catalog used in CLI-free (sign-in) mode, or whenever the CLI
- * cache (`~/.codex/models_cache.json`) is absent. Without this, `listModels()`
- * hard-failed and the provider couldn't list a single model. The slugs are the
- * stable ids the Codex backend accepts; per-model metadata (context window,
- * pricing, label) is auto-filled from the model registry / models.dev, so the
- * coarse values here are only a floor for when enrichment is unavailable.
+ * Last-resort catalog for when both the live API and the CLI cache are
+ * unavailable (e.g. a transient network failure during onboarding). These
+ * slugs go stale (the API is the real source), so this only exists so the
+ * provider degrades to something rather than listing zero models.
  */
 export const STATIC_CODEX_MODELS: CodexModelCacheEntry[] = [
-  { slug: 'gpt-5-codex', display_name: 'GPT-5-Codex', context_window: 400000, max_output_tokens: 128000, supported_in_api: true, visibility: 'list' },
-  { slug: 'gpt-5', display_name: 'GPT-5', context_window: 400000, max_output_tokens: 128000, supported_in_api: true, visibility: 'list' },
+  { slug: 'gpt-5.5', display_name: 'GPT-5.5', context_window: 272000, supported_in_api: true, visibility: 'list' },
 ]
 
-/** Catalog entries from the CLI cache when present, else the static fallback. */
-function resolveCodexModels(): CodexModelCacheEntry[] {
-  return readCodexModelsFromCache() ?? STATIC_CODEX_MODELS
+/**
+ * Resolve the Codex catalog: live API (authoritative) → CLI cache → static
+ * floor. The API path works in every mode (in-app sign-in and CLI), which is
+ * why a stale hardcoded list is no longer the primary source.
+ */
+async function resolveCodexModels(config: ProviderConfig): Promise<CodexModelCacheEntry[]> {
+  return (await fetchCodexModelsFromApi(config)) ?? readCodexModelsFromCache() ?? STATIC_CODEX_MODELS
 }
 
 /**
- * Codex serves GPT-5 family reasoning models. Every model in the catalog
- * accepts `reasoning_effort` — the cache does not expose the supported
- * levels explicitly, so we assume the standard OpenAI set (no `max`).
+ * Map a catalog entry to an LLMModel. Reasoning levels, image support and the
+ * context window come straight from the backend metadata when present, with
+ * conservative GPT-5-family defaults as a fallback.
  */
 export function mapCodexModel(entry: CodexModelCacheEntry): LLMModel {
+  const efforts = (entry.supported_reasoning_levels ?? [])
+    .map((r) => r.effort)
+    .filter((e): e is ThinkingEffort => (THINKING_EFFORT_ORDER as readonly string[]).includes(e ?? ''))
   const model: LLMModel = {
     id: entry.slug,
     name: entry.display_name && entry.display_name.length > 0 ? entry.display_name : entry.slug,
     contextWindow: entry.context_window ?? 0,
-    supportsImageInput: true,
+    supportsImageInput: entry.input_modalities ? entry.input_modalities.includes('image') : true,
     supportsPromptCaching: true,
-    supportsParallelTools: true,
-    thinking: { efforts: ['low', 'medium', 'high'] },
+    supportsParallelTools: entry.supports_parallel_tool_calls ?? true,
+    thinking: { efforts: efforts.length > 0 ? efforts : ['low', 'medium', 'high'] },
   }
   if (entry.max_output_tokens != null) model.maxOutput = entry.max_output_tokens
   return model
@@ -445,17 +491,14 @@ async function* streamCodex(
   }
 
   // Flush accumulated tool calls before the finish chunk.
-  for (const state of functionCalls.values()) {
-    if (!state.id || !state.name) continue
-    let args: unknown = {}
-    if (state.args.length > 0) {
-      try {
-        args = JSON.parse(state.args)
-      } catch {
-        args = { _raw: state.args }
-      }
+  for (const [outputIndex, state] of functionCalls) {
+    if (!state.name) continue
+    yield {
+      type: 'tool-use',
+      id: state.id || `call_${outputIndex}`,
+      name: state.name,
+      args: parseToolArguments(state.args),
     }
-    yield { type: 'tool-use', id: state.id, name: state.name, args }
   }
 
   yield { type: 'finish', reason: finishReason, usage }
@@ -479,7 +522,7 @@ export const openaiCodexProvider: LLMProvider = {
   async authenticate(config: ProviderConfig): Promise<AuthResult> {
     try {
       const { accessToken, accountId } = await getCodexOAuthCredentials(config)
-      const testModel = resolveCodexModels()[0]?.slug
+      const testModel = (await resolveCodexModels(config))[0]?.slug
       if (!testModel) {
         return { valid: false, error: 'No Codex models available to test against.' }
       }
@@ -519,10 +562,10 @@ export const openaiCodexProvider: LLMProvider = {
     }
   },
 
-  async listModels(_config: ProviderConfig): Promise<LLMModel[]> {
-    // CLI cache when present (file mode), else the static fallback so sign-in
-    // (CLI-free) setups still list models without `codex login`.
-    return resolveCodexModels().map(mapCodexModel)
+  async listModels(config: ProviderConfig): Promise<LLMModel[]> {
+    // Live per-account catalog from the backend (works in both sign-in and CLI
+    // modes), falling back to the CLI cache then the static floor.
+    return (await resolveCodexModels(config)).map(mapCodexModel)
   },
 
   chat(model, request, config) {

@@ -16,6 +16,8 @@ import { sseManager } from '@/server/sse/index'
 import { config } from '@/server/config'
 import { createLogger } from '@/server/logger'
 import { HIVEKEEP_MAX_TOOL_USE_CONCURRENCY_DEFAULT } from '@/shared/constants'
+import { validateToolArgs } from '@/server/services/tool-arg-validation'
+import { isRawToolArgs } from '@/server/llm/core/parse-tool-args'
 
 const log = createLogger('tool-executor')
 
@@ -255,6 +257,28 @@ export async function executeSingleTool(
   }
   if (abortController.signal.aborted) {
     return { error: 'Tool execution was aborted' }
+  }
+
+  // ── Argument validation (fail early with a correctable message) ──
+  // Catch malformed arguments before the tool runs so a weak model gets a precise
+  // error it can fix on the next step, instead of the tool throwing on a missing
+  // field or acting on the `{ _raw }` salvage of an unparseable JSON stream. The
+  // step loop re-prompts after a tool error, so this is the repair-retry path.
+  // Skipped for secret-expanding tools: a `{{secret:...}}` placeholder can fail a
+  // refinement like `.url()` even though the call is legitimate (the real value is
+  // only substituted below).
+  if (!toolExpandsSecrets(tc.name)) {
+    if (isRawToolArgs(tc.args)) {
+      log.debug({ toolName: tc.name }, 'Rejected tool call: arguments were not parseable JSON')
+      return {
+        error: `The arguments for tool "${tc.name}" were not valid JSON and could not be parsed. Re-call the tool with a single well-formed JSON object matching its parameters.`,
+      }
+    }
+    const validation = validateToolArgs(toolDef.inputSchema, tc.args, tc.name)
+    if (!validation.ok) {
+      log.debug({ toolName: tc.name }, 'Rejected tool call: arguments failed schema validation')
+      return { error: validation.message }
+    }
   }
 
   // ── Secret placeholder expansion (input direction) ──

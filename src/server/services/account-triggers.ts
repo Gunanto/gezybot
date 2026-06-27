@@ -19,7 +19,7 @@ import { config } from '@/server/config'
 import { listEmailAccounts } from '@/server/services/email-accounts'
 import { getAgentTriggersRequireApproval } from '@/server/services/app-settings'
 import { agentAvatarUrl } from '@/server/services/field-validator'
-import { validateConditionTree, treeNeedsBody, summarizeConditions } from '@/shared/account-triggers'
+import { validateConditionTree, treeNeedsBody, summarizeConditions, stripMessageId } from '@/shared/account-triggers'
 import type {
   AccountTriggerSummary,
   ConditionNode,
@@ -78,6 +78,7 @@ function serializeTrigger(row: TriggerRow, account: AccountInfo | undefined, age
     targetAgentAvatarUrl: agent ? agentAvatarUrl(row.targetAgentId, agent.avatarPath, agent.updatedAt) : null,
     dispatchMode: row.dispatchMode as TriggerDispatchMode,
     maxConcurrentTasks: row.maxConcurrentTasks,
+    disableAfterFire: row.disableAfterFire,
     triggerCount: row.triggerCount,
     lastTriggeredAt: row.lastTriggeredAt ? row.lastTriggeredAt.getTime() : null,
     createdBy: (row.createdBy as 'user' | 'agent') ?? 'user',
@@ -118,6 +119,7 @@ export interface CreateTriggerParams {
   targetAgentId: string
   dispatchMode?: TriggerDispatchMode
   maxConcurrentTasks?: number
+  disableAfterFire?: boolean
   createdBy: 'user' | 'agent'
 }
 
@@ -157,6 +159,7 @@ export async function createAccountTrigger(params: CreateTriggerParams): Promise
     targetAgentId: params.targetAgentId,
     dispatchMode: params.dispatchMode ?? 'conversation',
     maxConcurrentTasks: params.maxConcurrentTasks ?? 1,
+    disableAfterFire: params.disableAfterFire ?? false,
     needsBody: treeNeedsBody(params.conditions),
     triggerCount: 0,
     createdBy: params.createdBy,
@@ -175,6 +178,48 @@ export async function createAccountTrigger(params: CreateTriggerParams): Promise
 
   const { accounts: accLookup, agentsById } = await buildLookups([row])
   return serializeTrigger(row, accLookup.get(row.accountId), agentsById.get(row.targetAgentId))
+}
+
+/**
+ * Create a one-shot trigger that watches for the first reply to a sent message.
+ * Used by `send_email`'s `watch_reply` option. The match strategy depends on
+ * what the provider returned for the sent message:
+ *  - `threadId` set (Gmail/Microsoft): `thread_id equals <threadId>`, so any
+ *    reply in the thread fires it, whoever sends it.
+ *  - no threadId but a RFC `messageId` (IMAP/iCloud): `in_reply_to equals
+ *    <messageId>`, matching a reply that references the sent Message-ID.
+ * Returns null when neither is available (reply-watch can't be set up).
+ */
+export async function createReplyWatchTrigger(params: {
+  accountId: string
+  targetAgentId: string
+  threadId: string | undefined
+  messageId: string | undefined
+  subject: string
+  prompt?: string
+}): Promise<AccountTriggerSummary | null> {
+  const messageId = stripMessageId(params.messageId)
+  const leaf: ConditionNode | null = params.threadId
+    ? { type: 'leaf', field: 'thread_id', op: 'equals', value: params.threadId }
+    : messageId
+      ? { type: 'leaf', field: 'in_reply_to', op: 'equals', value: messageId }
+      : null
+  if (!leaf) return null
+  const subject = params.subject.trim() || '(no subject)'
+  const conditions: ConditionNode = { type: 'group', op: 'and', children: [leaf] }
+  const prompt =
+    params.prompt?.trim() ||
+    `A reply arrived to the email you sent ("${subject}"). Read it and continue the exchange.`
+  return createAccountTrigger({
+    accountId: params.accountId,
+    name: `Reply to "${subject}"`,
+    conditions,
+    prompt,
+    targetAgentId: params.targetAgentId,
+    dispatchMode: 'conversation',
+    disableAfterFire: true,
+    createdBy: 'agent',
+  })
 }
 
 export interface UpdateTriggerPatch {
@@ -347,13 +392,22 @@ export async function fireTrigger(trigger: TriggerRow, ref: TriggerEmailRef): Pr
     })
   }
 
+  // One-shot triggers (the send_email reply-watch) deactivate on first match so
+  // they only catch the first reply, then surface like any other inactive trigger.
   await db
     .update(accountTriggers)
-    .set({ triggerCount: trigger.triggerCount + 1, lastTriggeredAt: new Date() })
+    .set({
+      triggerCount: trigger.triggerCount + 1,
+      lastTriggeredAt: new Date(),
+      ...(trigger.disableAfterFire ? { isActive: false } : {}),
+    })
     .where(eq(accountTriggers.id, trigger.id))
   await insertTriggerLog(trigger.id, `${ref.from} · ${ref.subject}`, true, mode)
   sseManager.broadcast({ type: 'trigger:fired', agentId: trigger.targetAgentId, data: { triggerId: trigger.id, accountId: trigger.accountId } })
-  log.info({ triggerId: trigger.id, agentId: trigger.targetAgentId, mode }, 'Trigger fired')
+  if (trigger.disableAfterFire) {
+    sseManager.broadcast({ type: 'trigger:updated', agentId: trigger.targetAgentId, data: { triggerId: trigger.id, accountId: trigger.accountId } })
+  }
+  log.info({ triggerId: trigger.id, agentId: trigger.targetAgentId, mode, oneShot: trigger.disableAfterFire }, 'Trigger fired')
 }
 
 // ─── Log cleanup (mirrors startWebhookLogCleanup) ─────────────────────────────
