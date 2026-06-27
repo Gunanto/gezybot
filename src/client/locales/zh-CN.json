@@ -3330,6 +3330,15 @@
       "initHelp": "会话打开时运行一次，如同手动输入。每行一个命令。",
       "deleteConfirmTitle": "删除 {{name}}？",
       "deleteConfirmDescription": "该预设将被移除。运行中的会话不受影响。"
+    },
+    "keys": {
+      "label": "特殊按键",
+      "ctrl": "Ctrl",
+      "ctrlHint": "点按 Ctrl，然后按一个键（Ctrl+C 中断）",
+      "up": "向上箭头",
+      "down": "向下箭头",
+      "left": "向左箭头",
+      "right": "向右箭头"
     }
   },
   "orphanTask": {

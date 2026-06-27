@@ -32,6 +32,14 @@ Restored sessions appear **dormant** (a moon badge) until you click one, which r
 
 Several tabs or devices can view the **same session at once**: output mirrors to every attached client and any of them can type, exactly like a shared tmux session. As in tmux, the terminal is sized to the smallest attached viewer so line wrapping stays coherent everywhere.
 
+## On a phone
+
+The terminal is built to be usable from a phone, not just a desktop:
+
+- **A key bar** sits below the terminal with the keys a soft keyboard lacks: `Esc`, `Tab`, the four arrows, and a `Ctrl` toggle. Tap `Ctrl`, then a letter, to send a control sequence (tap `Ctrl` then `C` to interrupt, `Ctrl` then `R` to search history, and so on).
+- **One-finger drag scrolls** the output back through the buffer.
+- **Auto-reconnect**: locking the phone or switching apps drops the connection, but the session keeps running on the server and reconnects on its own the moment you come back, so you land straight back at the prompt. The `Reconnect` button stays as a manual fallback.
+
 On hosts with tmux, sessions keep a large scrollback (50,000 lines). Selecting text with the mouse copies it natively (so copying long blocks works reliably), and `Ctrl+B [` enters tmux's scroll/copy mode to page back through that history. tmux runs on a dedicated socket, isolated from any personal tmux you run on the host.
 
 ## Session presets

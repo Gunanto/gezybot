@@ -3330,6 +3330,15 @@
       "initHelp": "Se ejecuta una vez al abrir, como si lo hubieras escrito. Un comando por línea.",
       "deleteConfirmTitle": "¿Eliminar {{name}}?",
       "deleteConfirmDescription": "Este preset se eliminará. Las sesiones en curso no se ven afectadas."
+    },
+    "keys": {
+      "label": "Teclas especiales",
+      "ctrl": "Ctrl",
+      "ctrlHint": "Pulsa Ctrl y luego una tecla (Ctrl+C interrumpe)",
+      "up": "Flecha arriba",
+      "down": "Flecha abajo",
+      "left": "Flecha izquierda",
+      "right": "Flecha derecha"
     }
   },
   "orphanTask": {

@@ -3330,6 +3330,15 @@
       "initHelp": "Exécuté une fois à l’ouverture, comme si vous l’aviez tapé. Une commande par ligne.",
       "deleteConfirmTitle": "Supprimer {{name}} ?",
       "deleteConfirmDescription": "Ce preset sera supprimé. Les sessions en cours ne sont pas affectées."
+    },
+    "keys": {
+      "label": "Touches spéciales",
+      "ctrl": "Ctrl",
+      "ctrlHint": "Touchez Ctrl, puis une touche (Ctrl+C interrompt)",
+      "up": "Flèche haut",
+      "down": "Flèche bas",
+      "left": "Flèche gauche",
+      "right": "Flèche droite"
     }
   },
   "orphanTask": {

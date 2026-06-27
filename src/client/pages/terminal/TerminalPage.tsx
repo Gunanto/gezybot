@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { SquareTerminal, Plus, Plug, MoreHorizontal, PanelLeft, Pencil, Trash2, Folder, Anchor, TriangleAlert, Moon, Play, Settings2 } from 'lucide-react'
+import { SquareTerminal, Plus, Plug, MoreHorizontal, PanelLeft, Pencil, Trash2, Folder, Anchor, TriangleAlert, Moon, Play, Settings2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from 'lucide-react'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -94,6 +94,74 @@ function shortenPath(path: string): string {
   return `…/${segments.slice(-2).join('/')}`
 }
 
+/** Map a single character to its Ctrl-modified control code (Ctrl+C → 0x03).
+ *  Used by the mobile key bar's Ctrl toggle, since a soft keyboard can't hold
+ *  a modifier. Covers @, A-Z and [ \ ] ^ _ (ASCII 64-95); anything else passes
+ *  through unchanged. */
+function toControlChar(ch: string): string {
+  if (ch.length !== 1) return ch
+  const code = ch.toUpperCase().charCodeAt(0)
+  if (code >= 64 && code <= 95) return String.fromCharCode(code - 64)
+  return ch
+}
+
+/** Touch-reachable bar of keys a phone keyboard lacks (Esc, Tab, arrows) plus a
+ *  Ctrl toggle that modifies the next typed letter. Rendered below the terminal
+ *  on small screens only; sends raw input through `onKey`. */
+function MobileKeyBar({
+  onKey,
+  ctrlArmed,
+  onToggleCtrl,
+}: {
+  onKey: (data: string) => void
+  ctrlArmed: boolean
+  onToggleCtrl: () => void
+}) {
+  const { t } = useTranslation()
+  const arrows = [
+    { icon: ArrowUp, data: '\x1b[A', label: t('terminal.keys.up') },
+    { icon: ArrowDown, data: '\x1b[B', label: t('terminal.keys.down') },
+    { icon: ArrowLeft, data: '\x1b[D', label: t('terminal.keys.left') },
+    { icon: ArrowRight, data: '\x1b[C', label: t('terminal.keys.right') },
+  ]
+  return (
+    <div
+      className="mt-2 flex shrink-0 items-center gap-1 overflow-x-auto md:hidden"
+      role="toolbar"
+      aria-label={t('terminal.keys.label')}
+    >
+      <Button variant="outline" size="sm" className="h-8 shrink-0 px-2.5" onClick={() => onKey('\x1b')}>
+        Esc
+      </Button>
+      <Button variant="outline" size="sm" className="h-8 shrink-0 px-2.5" onClick={() => onKey('\t')}>
+        Tab
+      </Button>
+      <Button
+        variant={ctrlArmed ? 'default' : 'outline'}
+        size="sm"
+        className="h-8 shrink-0 px-2.5"
+        title={t('terminal.keys.ctrlHint')}
+        aria-pressed={ctrlArmed}
+        onClick={onToggleCtrl}
+      >
+        {t('terminal.keys.ctrl')}
+      </Button>
+      {arrows.map((a) => (
+        <Button
+          key={a.data}
+          variant="outline"
+          size="icon-sm"
+          className="size-8 shrink-0"
+          aria-label={a.label}
+          onClick={() => onKey(a.data)}
+        >
+          <a.icon className="size-4" />
+        </Button>
+      ))}
+    </div>
+  )
+}
+
 function InlineRenameInput({ initial, onSubmit, onCancel }: { initial: string; onSubmit: (name: string) => void; onCancel: () => void }) {
   const [value, setValue] = useState(initial)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -181,6 +249,14 @@ export function TerminalPage() {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [closeTarget, setCloseTarget] = useState<TerminalSessionDTO | null>(null)
   const [tmuxAvailable, setTmuxAvailable] = useState(false)
+  // Mobile key bar: a soft keyboard can't hold Ctrl, so the bar arms it and the
+  // next typed letter (via term.onData) is folded into a control code.
+  const [ctrlArmed, setCtrlArmed] = useState(false)
+  const ctrlArmedRef = useRef(false)
+  const setCtrlArmedBoth = useCallback((v: boolean) => {
+    ctrlArmedRef.current = v
+    setCtrlArmed(v)
+  }, [])
   const [sidebarWidth, setSidebarWidthState] = useState(() => {
     const stored = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY))
     return stored >= SIDEBAR_WIDTH_MIN && stored <= SIDEBAR_WIDTH_MAX ? stored : SIDEBAR_WIDTH_DEFAULT
@@ -229,6 +305,12 @@ export function TerminalPage() {
     setActiveId(id)
     if (id) sessionStorage.setItem(SESSION_KEY, id)
     else sessionStorage.removeItem(SESSION_KEY)
+  }, [])
+
+  // Raw input from the mobile key bar (escape sequences, no Ctrl folding).
+  const sendInput = useCallback((data: string) => {
+    const ws = wsRef.current
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'input', data }))
   }, [])
 
   const refreshSessions = useCallback(async () => {
@@ -388,8 +470,14 @@ export function TerminalPage() {
     fitRef.current = fit
 
     term.onData((data) => {
+      let out = data
+      // A Ctrl tap on the mobile bar arms the modifier for exactly one keystroke.
+      if (ctrlArmedRef.current) {
+        out = toControlChar(data)
+        setCtrlArmedBoth(false)
+      }
       const ws = wsRef.current
-      if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'input', data }))
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'input', data: out }))
     })
     term.onResize(({ cols, rows }) => {
       const ws = wsRef.current
@@ -470,6 +558,30 @@ export function TerminalPage() {
     })
     observer.observe(el)
 
+    // Touch scrolling: xterm's viewport doesn't react to a one-finger drag on
+    // mobile, so the buffer feels frozen. Drive its scrollTop directly (xterm
+    // re-renders on the viewport's scroll event). A tap moves nothing, so
+    // tap-to-focus and selection still work.
+    let lastTouchY: number | null = null
+    const onTouchStart = (e: TouchEvent) => {
+      lastTouchY = e.touches.length === 1 ? (e.touches[0]?.clientY ?? null) : null
+    }
+    const onTouchMove = (e: TouchEvent) => {
+      const touch = e.touches[0]
+      if (lastTouchY === null || e.touches.length !== 1 || !touch) return
+      const viewport = el.querySelector('.xterm-viewport') as HTMLElement | null
+      if (!viewport) return
+      viewport.scrollTop += lastTouchY - touch.clientY
+      lastTouchY = touch.clientY
+      e.preventDefault()
+    }
+    const onTouchEnd = () => {
+      lastTouchY = null
+    }
+    el.addEventListener('touchstart', onTouchStart, { passive: true })
+    el.addEventListener('touchmove', onTouchMove, { passive: false })
+    el.addEventListener('touchend', onTouchEnd, { passive: true })
+
     // Confirm the feature is enabled before opening the socket (a WS rejection
     // carries no error body, the REST probe does), then resume the last-used
     // session if it is still alive, else the most recent one, else a new shell.
@@ -499,12 +611,32 @@ export function TerminalPage() {
     return () => {
       disposed = true
       observer.disconnect()
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchmove', onTouchMove)
+      el.removeEventListener('touchend', onTouchEnd)
       closeSocket()
       term.dispose()
       termRef.current = null
       fitRef.current = null
     }
-  }, [connect, closeSocket, setStatusBoth])
+  }, [connect, closeSocket, setStatusBoth, setCtrlArmedBoth])
+
+  // Auto-reconnect when the tab comes back to the foreground. Locking a phone or
+  // switching apps drops the WebSocket; without this the user is stranded on the
+  // "Reconnect" button every time they return. The button stays as a manual
+  // fallback for mid-session network blips.
+  useEffect(() => {
+    const onResume = () => {
+      if (document.visibilityState !== 'visible') return
+      if (statusRef.current === 'disconnected' && activeIdRef.current) connect(activeIdRef.current)
+    }
+    document.addEventListener('visibilitychange', onResume)
+    window.addEventListener('focus', onResume)
+    return () => {
+      document.removeEventListener('visibilitychange', onResume)
+      window.removeEventListener('focus', onResume)
+    }
+  }, [connect])
 
   if (user && user.role !== 'admin') return <Navigate to="/" replace />
 
@@ -758,13 +890,18 @@ export function TerminalPage() {
               {sessionsPanel}
             </SheetContent>
           </Sheet>
-          <main className="min-h-0 min-w-0 flex-1 p-2 sm:p-4">
+          <main className="flex min-h-0 min-w-0 flex-1 flex-col p-2 sm:p-4">
             <div
-              className="h-full overflow-hidden rounded-lg border border-border p-2"
+              className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border p-2"
               style={{ backgroundColor: TERMINAL_THEME.background }}
             >
               <div ref={containerRef} className="h-full w-full" />
             </div>
+            <MobileKeyBar
+              onKey={sendInput}
+              ctrlArmed={ctrlArmed}
+              onToggleCtrl={() => setCtrlArmedBoth(!ctrlArmedRef.current)}
+            />
           </main>
         </div>
       )}

@@ -3348,6 +3348,15 @@
       "initHelp": "Uruchamiany raz przy otwarciu, jakby wpisany ręcznie. Jedno polecenie w wierszu.",
       "deleteConfirmTitle": "Usunąć {{name}}?",
       "deleteConfirmDescription": "Ten preset zostanie usunięty. Trwające sesje nie są zmieniane."
+    },
+    "keys": {
+      "label": "Klawisze specjalne",
+      "ctrl": "Ctrl",
+      "ctrlHint": "Dotknij Ctrl, potem klawisz (Ctrl+C przerywa)",
+      "up": "Strzałka w górę",
+      "down": "Strzałka w dół",
+      "left": "Strzałka w lewo",
+      "right": "Strzałka w prawo"
     }
   },
   "orphanTask": {

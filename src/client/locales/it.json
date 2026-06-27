@@ -3330,6 +3330,15 @@
       "initHelp": "Eseguito una volta all’apertura, come se lo avessi digitato. Un comando per riga.",
       "deleteConfirmTitle": "Eliminare {{name}}?",
       "deleteConfirmDescription": "Questo preset verrà rimosso. Le sessioni in corso non sono interessate."
+    },
+    "keys": {
+      "label": "Tasti speciali",
+      "ctrl": "Ctrl",
+      "ctrlHint": "Tocca Ctrl, poi un tasto (Ctrl+C interrompe)",
+      "up": "Freccia su",
+      "down": "Freccia giù",
+      "left": "Freccia sinistra",
+      "right": "Freccia destra"
     }
   },
   "orphanTask": {

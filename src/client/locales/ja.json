@@ -3330,6 +3330,15 @@
       "initHelp": "セッションを開いたときに一度だけ、入力したかのように実行します。1行に1コマンド。",
       "deleteConfirmTitle": "{{name}} を削除しますか？",
       "deleteConfirmDescription": "このプリセットは削除されます。実行中のセッションには影響しません。"
+    },
+    "keys": {
+      "label": "特殊キー",
+      "ctrl": "Ctrl",
+      "ctrlHint": "Ctrl をタップしてからキーを押す（Ctrl+C で中断）",
+      "up": "上矢印",
+      "down": "下矢印",
+      "left": "左矢印",
+      "right": "右矢印"
     }
   },
   "orphanTask": {

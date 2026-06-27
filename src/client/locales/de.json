@@ -3330,6 +3330,15 @@
       "initHelp": "Wird einmal beim Öffnen ausgeführt, als hättest du es getippt. Ein Befehl pro Zeile.",
       "deleteConfirmTitle": "{{name}} löschen?",
       "deleteConfirmDescription": "Dieses Preset wird entfernt. Laufende Sitzungen sind nicht betroffen."
+    },
+    "keys": {
+      "label": "Sondertasten",
+      "ctrl": "Ctrl",
+      "ctrlHint": "Ctrl tippen, dann eine Taste (Ctrl+C bricht ab)",
+      "up": "Pfeil nach oben",
+      "down": "Pfeil nach unten",
+      "left": "Pfeil nach links",
+      "right": "Pfeil nach rechts"
     }
   },
   "orphanTask": {

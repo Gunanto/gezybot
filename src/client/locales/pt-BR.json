@@ -3330,6 +3330,15 @@
       "initHelp": "Executa uma vez ao abrir, como se você tivesse digitado. Um comando por linha.",
       "deleteConfirmTitle": "Excluir {{name}}?",
       "deleteConfirmDescription": "Este preset será removido. As sessões em andamento não são afetadas."
+    },
+    "keys": {
+      "label": "Teclas especiais",
+      "ctrl": "Ctrl",
+      "ctrlHint": "Toque em Ctrl e depois numa tecla (Ctrl+C interrompe)",
+      "up": "Seta para cima",
+      "down": "Seta para baixo",
+      "left": "Seta para a esquerda",
+      "right": "Seta para a direita"
     }
   },
   "orphanTask": {
