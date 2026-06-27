@@ -36,7 +36,7 @@ Several tabs or devices can view the **same session at once**: output mirrors to
 
 The terminal is built to be usable from a phone, not just a desktop:
 
-- **A key bar** sits below the terminal with the keys a soft keyboard lacks: `Esc`, `Tab`, the four arrows, and a `Ctrl` toggle. Tap `Ctrl`, then a letter, to send a control sequence (tap `Ctrl` then `C` to interrupt, `Ctrl` then `R` to search history, and so on).
+- **A key bar** with the keys a soft keyboard lacks: `Esc`, `Tab`, the four arrows, and a `Ctrl` toggle. Tap `Ctrl`, then a letter, to send a control sequence (tap `Ctrl` then `C` to interrupt, `Ctrl` then `R` to search history, and so on). The bar floats just above the on-screen keyboard while you type and rests at the bottom of the screen when the keyboard is closed, so it stays reachable without dismissing the keyboard.
 - **One-finger drag scrolls** the output back through the buffer.
 - **Auto-reconnect**: locking the phone or switching apps drops the connection, but the session keeps running on the server and reconnects on its own the moment you come back, so you land straight back at the prompt. The `Reconnect` button stays as a manual fallback.
 

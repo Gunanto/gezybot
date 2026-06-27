@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { Navigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -105,9 +106,21 @@ function toControlChar(ch: string): string {
   return ch
 }
 
+// Height reserved at the bottom of the terminal column for the fixed key bar, so
+// it never covers the last rows when the keyboard is closed. Matches the bar's
+// own height (button h-8 + py-1.5). Kept in sync with MOBILE_KEY_BAR below.
+const MOBILE_KEY_BAR_HEIGHT = 'h-12'
+
 /** Touch-reachable bar of keys a phone keyboard lacks (Esc, Tab, arrows) plus a
- *  Ctrl toggle that modifies the next typed letter. Rendered below the terminal
- *  on small screens only; sends raw input through `onKey`. */
+ *  Ctrl toggle that modifies the next typed letter.
+ *
+ *  It is `position: fixed` and portaled to <body>, then lifted to sit right on
+ *  top of the soft keyboard by tracking the VisualViewport: a soft keyboard
+ *  overlays the layout viewport (it doesn't push it up), so an in-flow bar would
+ *  hide behind it. `window.innerHeight - visualViewport.height - offsetTop` is
+ *  the height the keyboard covers; we translate the bar up by that much. When no
+ *  keyboard is shown the offset is 0 and the bar rests at the screen bottom.
+ *  Mobile only (`md:hidden`); sends raw input through `onKey`. */
 function MobileKeyBar({
   onKey,
   ctrlArmed,
@@ -118,22 +131,44 @@ function MobileKeyBar({
   onToggleCtrl: () => void
 }) {
   const { t } = useTranslation()
+  const barRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const update = () => {
+      const el = barRef.current
+      if (!el) return
+      const covered = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
+      el.style.transform = `translateY(-${covered}px)`
+    }
+    update()
+    vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update)
+    return () => {
+      vv.removeEventListener('resize', update)
+      vv.removeEventListener('scroll', update)
+    }
+  }, [])
+
   const arrows = [
     { icon: ArrowUp, data: '\x1b[A', label: t('terminal.keys.up') },
     { icon: ArrowDown, data: '\x1b[B', label: t('terminal.keys.down') },
     { icon: ArrowLeft, data: '\x1b[D', label: t('terminal.keys.left') },
     { icon: ArrowRight, data: '\x1b[C', label: t('terminal.keys.right') },
   ]
-  return (
+  return createPortal(
     <div
-      className="mt-2 flex shrink-0 items-center gap-1 overflow-x-auto md:hidden"
+      ref={barRef}
+      className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-1 overflow-x-auto border-t border-border bg-background/95 px-2 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden"
+      style={{ paddingBottom: 'max(0.375rem, env(safe-area-inset-bottom))' }}
       role="toolbar"
       aria-label={t('terminal.keys.label')}
     >
-      <Button variant="outline" size="sm" className="h-8 shrink-0 px-2.5" onClick={() => onKey('\x1b')}>
+      <Button variant="outline" size="sm" className="h-8 shrink-0 px-2.5" onMouseDown={(e) => e.preventDefault()} onClick={() => onKey('\x1b')}>
         Esc
       </Button>
-      <Button variant="outline" size="sm" className="h-8 shrink-0 px-2.5" onClick={() => onKey('\t')}>
+      <Button variant="outline" size="sm" className="h-8 shrink-0 px-2.5" onMouseDown={(e) => e.preventDefault()} onClick={() => onKey('\t')}>
         Tab
       </Button>
       <Button
@@ -142,6 +177,7 @@ function MobileKeyBar({
         className="h-8 shrink-0 px-2.5"
         title={t('terminal.keys.ctrlHint')}
         aria-pressed={ctrlArmed}
+        onMouseDown={(e) => e.preventDefault()}
         onClick={onToggleCtrl}
       >
         {t('terminal.keys.ctrl')}
@@ -153,12 +189,14 @@ function MobileKeyBar({
           size="icon-sm"
           className="size-8 shrink-0"
           aria-label={a.label}
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => onKey(a.data)}
         >
           <a.icon className="size-4" />
         </Button>
       ))}
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -558,29 +596,36 @@ export function TerminalPage() {
     })
     observer.observe(el)
 
-    // Touch scrolling: xterm's viewport doesn't react to a one-finger drag on
-    // mobile, so the buffer feels frozen. Drive its scrollTop directly (xterm
-    // re-renders on the viewport's scroll event). A tap moves nothing, so
-    // tap-to-focus and selection still work.
+    // Touch scrolling: a one-finger drag should page the buffer back through
+    // history. xterm's own touch handling is unreliable here (and can swallow
+    // the events), so we run in the capture phase, convert the pixel delta into
+    // rows, and drive xterm's own scroll. A tap moves nothing, so tap-to-focus
+    // still works; two-finger gestures (pinch-zoom) are left alone.
     let lastTouchY: number | null = null
+    let scrollRemainder = 0
     const onTouchStart = (e: TouchEvent) => {
       lastTouchY = e.touches.length === 1 ? (e.touches[0]?.clientY ?? null) : null
+      scrollRemainder = 0
     }
     const onTouchMove = (e: TouchEvent) => {
       const touch = e.touches[0]
       if (lastTouchY === null || e.touches.length !== 1 || !touch) return
-      const viewport = el.querySelector('.xterm-viewport') as HTMLElement | null
-      if (!viewport) return
-      viewport.scrollTop += lastTouchY - touch.clientY
+      const cellHeight = el.clientHeight / Math.max(1, term.rows)
+      scrollRemainder += lastTouchY - touch.clientY
       lastTouchY = touch.clientY
+      const lines = Math.trunc(scrollRemainder / cellHeight)
+      if (lines !== 0) {
+        term.scrollLines(lines)
+        scrollRemainder -= lines * cellHeight
+      }
       e.preventDefault()
     }
     const onTouchEnd = () => {
       lastTouchY = null
     }
-    el.addEventListener('touchstart', onTouchStart, { passive: true })
-    el.addEventListener('touchmove', onTouchMove, { passive: false })
-    el.addEventListener('touchend', onTouchEnd, { passive: true })
+    el.addEventListener('touchstart', onTouchStart, { capture: true, passive: true })
+    el.addEventListener('touchmove', onTouchMove, { capture: true, passive: false })
+    el.addEventListener('touchend', onTouchEnd, { capture: true, passive: true })
 
     // Confirm the feature is enabled before opening the socket (a WS rejection
     // carries no error body, the REST probe does), then resume the last-used
@@ -611,9 +656,9 @@ export function TerminalPage() {
     return () => {
       disposed = true
       observer.disconnect()
-      el.removeEventListener('touchstart', onTouchStart)
-      el.removeEventListener('touchmove', onTouchMove)
-      el.removeEventListener('touchend', onTouchEnd)
+      el.removeEventListener('touchstart', onTouchStart, { capture: true })
+      el.removeEventListener('touchmove', onTouchMove, { capture: true })
+      el.removeEventListener('touchend', onTouchEnd, { capture: true })
       closeSocket()
       term.dispose()
       termRef.current = null
@@ -897,6 +942,9 @@ export function TerminalPage() {
             >
               <div ref={containerRef} className="h-full w-full" />
             </div>
+            {/* Reserve the fixed key bar's height so it never sits over the last
+                rows when the keyboard is closed (the bar itself is portaled). */}
+            <div className={cn('shrink-0 md:hidden', MOBILE_KEY_BAR_HEIGHT)} aria-hidden />
             <MobileKeyBar
               onKey={sendInput}
               ctrlArmed={ctrlArmed}
