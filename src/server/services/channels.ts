@@ -527,6 +527,148 @@ export async function testChannel(channelId: string): Promise<{ valid: boolean; 
 
 // ─── Incoming message handling ──────────────────────────────────────────────
 
+/**
+ * Telegram access-control gate. Enforces the env-driven allowlist + DM/group
+ * rules described in `Catatanku/bottelegram.md`:
+ *
+ *  - Owner (`OWNER_TELEGRAM_USER_ID`, by user id only) always passes the
+ *    allowlist check.
+ *  - DM (`chatType === 'private'`): allow iff sender is owner or in the
+ *    allowlist (`TELEGRAM_ALLOWED_USERS` — entries are auto-detected as
+ *    numeric → Telegram user id, otherwise → username, case-insensitive).
+ *    Non-allowed senders receive a single reply
+ *    "Maaf, Anda belum terdaftar berkomunikasi dengan Saya." and are then
+ *    dropped silently for the rest of the session (in-memory rate-limit set).
+ *  - Group/supergroup: sender must be authorized (owner or allowlist) AND
+ *    either `ALLOW_ALL_USERS_IN_GROUPS=true` OR the message @mentions the bot
+ *    or replies to one of the bot's messages. Non-authorized group members
+ *    are dropped silently (no reply — would noise the group).
+ *  - Telegram Channel (`chatType === 'channel'`, broadcast posts): rejected.
+ *  - When access control is not configured (no owner + empty allowlist), the
+ *    gate is a no-op and the pre-existing behavior (per-channel
+ *    `allowedChatIds` + `channelUserMappings` approval) applies unchanged.
+ *
+ * Returns `{ allow: true }` to proceed, or `{ allow: false }` to drop. Side
+ * effects (the "not registered" DM reply) are fired before returning
+ * `{ allow: false }` so the caller just `return`s on a deny.
+ */
+
+/**
+ * Pure predicate: is this Telegram sender authorized? Owner is matched ONLY
+ * by user id (anti-spoof — usernames can be changed by anyone). Allowlist
+ * entries are auto-detected: pure-numeric → Telegram user id, otherwise →
+ * username (case-insensitive). Exported for unit testing.
+ */
+export function matchTelegramAllowlist(
+  senderUserId: string,
+  senderUsername: string | undefined,
+  ownerId: string | null,
+  allowlist: readonly string[],
+): boolean {
+  if (ownerId && senderUserId === ownerId) return true
+  if (allowlist.length === 0) return ownerId ? senderUserId === ownerId : false
+  const senderId = senderUserId.toLowerCase()
+  const senderUser = senderUsername?.toLowerCase()
+  for (const entry of allowlist) {
+    if (/^\d+$/.test(entry)) {
+      if (entry === senderId) return true
+    } else if (senderUser && entry === senderUser) {
+      return true
+    }
+  }
+  return false
+}
+
+/** In-memory set of `channelId:platformUserId` DM senders we already replied
+ *  to with the "not registered" message, so we don't spam the reply on every
+ *  DM. Cleared on process restart. */
+const telegramNotifiedUnregistered = new Set<string>()
+
+/** Outcome of the Telegram access-control decision. The async
+ *  `telegramAccessGate` performs the side effects implied by the outcome
+ *  (e.g. sending the "not registered" DM reply once). Exported for unit
+ *  testing. */
+export type TelegramAccessDecision =
+  | { allow: true }
+  | { allow: false; reason: 'channel-broadcast' | 'dm-unregistered' | 'group-unregistered' | 'group-no-mention' }
+
+/** Pure decision: should this Telegram inbound be processed? No side effects.
+ *  The `allow: true` outcome means proceed; `allow: false` outcomes describe
+ *  why, so the async wrapper can decide whether to reply or drop silently.
+ *  Non-Telegram platforms and the "no config" case both return `{ allow: true }`
+ *  (gate is a no-op, preserving legacy behavior). */
+export function telegramAccessDecision(
+  platform: string,
+  incoming: IncomingMessage,
+  opts: { ownerId: string | null; allowlist: readonly string[]; allowAllInGroups: boolean },
+): TelegramAccessDecision {
+  if (platform !== 'telegram') return { allow: true }
+  // If nothing is configured, the gate is a no-op (preserves legacy behavior).
+  if (!opts.ownerId && opts.allowlist.length === 0) return { allow: true }
+
+  const chatType = incoming.chatType
+  const authorized = matchTelegramAllowlist(incoming.platformUserId, incoming.platformUsername, opts.ownerId, opts.allowlist)
+
+  if (chatType === 'channel') return { allow: false, reason: 'channel-broadcast' }
+
+  if (chatType === 'private') {
+    if (authorized) return { allow: true }
+    return { allow: false, reason: 'dm-unregistered' }
+  }
+
+  // group / supergroup / unknown (treat unknown as group to be safe).
+  if (!authorized) return { allow: false, reason: 'group-unregistered' }
+  if (opts.allowAllInGroups) return { allow: true }
+  if (incoming.isMentioned || incoming.isReplyToBot) return { allow: true }
+  return { allow: false, reason: 'group-no-mention' }
+}
+
+async function telegramAccessGate(
+  channel: typeof channels.$inferSelect,
+  incoming: IncomingMessage,
+): Promise<boolean> {
+  const decision = telegramAccessDecision(
+    channel.platform,
+    incoming,
+    {
+      ownerId: config.channels.telegramOwnerUserId,
+      allowlist: config.channels.telegramAllowedUsers,
+      allowAllInGroups: config.channels.telegramAllowAllInGroups,
+    },
+  )
+  if (decision.allow) return true
+
+  // Side effects per reason.
+  if (decision.reason === 'dm-unregistered') {
+    const key = `${channel.id}:${incoming.platformUserId}`
+    if (!telegramNotifiedUnregistered.has(key)) {
+      telegramNotifiedUnregistered.add(key)
+      const adapter = channelAdapters.get('telegram')
+      if (adapter) {
+        const adapterCfg = JSON.parse(channel.platformConfig) as Record<string, unknown>
+        adapter.sendMessage(channel.id, adapterCfg, {
+          chatId: incoming.platformChatId,
+          content: 'Maaf, Anda belum terdaftar berkomunikasi dengan Saya.',
+        }).catch((err) => log.warn({ channelId: channel.id, err }, 'Failed to send Telegram "not registered" reply'))
+      }
+    }
+    log.debug({ channelId: channel.id, userId: incoming.platformUserId }, 'Telegram DM from unregistered user, dropping')
+    return false
+  }
+
+  if (decision.reason === 'group-unregistered') {
+    log.debug({ channelId: channel.id, userId: incoming.platformUserId, chatType: incoming.chatType }, 'Telegram group message from unregistered user, dropping')
+    return false
+  }
+  if (decision.reason === 'group-no-mention') {
+    log.debug({ channelId: channel.id, userId: incoming.platformUserId, chatType: incoming.chatType }, 'Telegram group message without mention/reply, dropping')
+    return false
+  }
+  // 'channel-broadcast' and 'unconfigured-noop' (the latter never reaches here
+  // because it returns allow:true) → silent drop.
+  return false
+}
+
 export async function handleIncomingChannelMessage(channelId: string, incoming: IncomingMessage) {
   const channel = await getChannel(channelId)
   if (!channel || channel.status !== 'active') return
@@ -538,6 +680,13 @@ export async function handleIncomingChannelMessage(channelId: string, incoming: 
     log.debug({ channelId, chatId: incoming.platformChatId }, 'Chat not in allowedChatIds, ignoring')
     return
   }
+
+  // ─── Telegram access-control gate ──────────────────────────────────────────
+  // Enforces OWNER_TELEGRAM_USER_ID / TELEGRAM_ALLOWED_USERS / ALLOW_ALL_USERS_IN_GROUPS
+  // before any contact creation, pending mapping, or LLM turn. Runs only for
+  // Telegram channels; other platforms are unaffected. See `telegramAccessGate`.
+  if (!(await telegramAccessGate(channel, incoming))) return
+  // ─── End Telegram access-control gate ──────────────────────────────────────
 
   // Resolve contact via contactPlatformIds or create pending mapping
   const { contact, pendingMappingId } = await resolveChannelContact(channel, incoming)

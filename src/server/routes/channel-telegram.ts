@@ -4,6 +4,8 @@ import { getSecretValue } from '@/server/services/vault'
 import { createLogger } from '@/server/logger'
 import type { IncomingAttachment } from '@/server/channels/adapter'
 import { extractAttachments } from '@/server/channels/telegram-utils'
+import { analyzeTelegramMessage } from '@/server/channels/telegram'
+import { channelAdapters } from '@/server/channels/index'
 
 const log = createLogger('routes:channel-telegram')
 
@@ -39,12 +41,25 @@ channelTelegramRoutes.post('/:channelId', async (c) => {
     return c.json({ ok: true })
   }
 
-  // Extract text content (support text and caption for photos/documents)
-  const text = (message.text ?? message.caption ?? '') as string
-
-  // Resolve bot token for file downloads
+  // Skip the bot's own messages (loop prevention).
   const cfg = JSON.parse(channel.platformConfig) as { botTokenVaultKey: string }
   const token = await getSecretValue(cfg.botTokenVaultKey)
+
+  // Resolve bot identity via the adapter cache so mention/reply detection is
+  // identical to the polling path.
+  const telegramAdapter = channelAdapters.get('telegram')
+  const botIdentity = telegramAdapter && 'getBotIdentity' in telegramAdapter
+    ? await (telegramAdapter as { getBotIdentity: (id: string, c: Record<string, unknown>) => Promise<{ botId: string; botUsername?: string } | null> }).getBotIdentity(channelId, cfg as Record<string, unknown>)
+    : null
+  if (botIdentity && String(from.id) === botIdentity.botId) {
+    return c.json({ ok: true })
+  }
+
+  // Derive access-control context (chat type, mention, reply-to-bot).
+  const { chatType, isMentioned, isReplyToBot } = analyzeTelegramMessage(message, botIdentity?.botId, botIdentity?.botUsername)
+
+  // Extract text content (support text and caption for photos/documents)
+  const text = (message.text ?? message.caption ?? '') as string
 
   // Extract file attachments
   let attachments: IncomingAttachment[] | undefined
@@ -67,6 +82,9 @@ channelTelegramRoutes.post('/:channelId', async (c) => {
       platformChatId: String(chat.id),
       content: text,
       attachments,
+      chatType,
+      isMentioned,
+      isReplyToBot,
     })
   } catch (err) {
     log.error({ channelId, err }, 'Error handling Telegram update')

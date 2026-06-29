@@ -62,3 +62,58 @@ Long polling mode is selected automatically, no manual configuration needed. Jus
 - Automatic message chunking at paragraph/line boundaries
 - Typing indicator (`sendChatAction`)
 - Group chat support (with optional chat ID filtering)
+
+## Access Control (DM vs Group + Allowlist)
+
+Hivekeep supports env-driven access control so you can restrict **who** may
+talk to the bot and **how** the bot responds in groups vs DMs. This is
+enforced server-side **before** any contact is created or LLM turn runs —
+rejected messages never reach the Agent.
+
+### Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `OWNER_TELEGRAM_USER_ID` | _(unset)_ | Telegram user id (numeric) of the owner. This user **always** has full access. Matched **only** by user id, never by username, so it cannot be spoofed by changing a Telegram username. |
+| `ALLOW_ALL_USERS_IN_GROUPS` | `false` | `true` → process every group/supergroup message from an authorized user (no `@mention`/reply needed). `false` → only process group messages that `@mention` the bot or reply to one of the bot's own messages. DMs are unaffected. |
+| `TELEGRAM_ALLOWED_USERS` | _(empty)_ | Comma-separated whitelist. Each entry is auto-detected: pure-numeric → Telegram user id (stable, recommended); otherwise → username (without `@`, case-insensitive). If empty, **only** the owner can interact. The owner is always implicitly allowed and does not need to be listed. Example: `TELEGRAM_ALLOWED_USERS=pgun75,aantriono,6468143001,ferilee` |
+
+:::note
+When **none** of these are set, the gate is a no-op and the pre-existing
+behavior applies (per-channel `allowedChatIds` + the `autoCreateContacts` /
+pending-approval workflow). Setting even one enables the gate.
+:::
+
+### Behaviour matrix
+
+`authorized` = sender is the owner or in `TELEGRAM_ALLOWED_USERS`.
+
+| `chat.type` | sender | mention/reply? | `ALLOW_ALL_USERS_IN_GROUPS` | result |
+|---|---|---|---|---|
+| `private` (DM) | owner | n/a | n/a | ✅ process |
+| `private` (DM) | allowlist | n/a | n/a | ✅ process |
+| `private` (DM) | other | n/a | n/a | ❌ reply once: "Maaf, Anda belum terdaftar berkomunikasi dengan Saya.", then silent drop |
+| `group` / `supergroup` | owner | yes | any | ✅ process |
+| `group` / `supergroup` | owner | no | `false` | ❌ silent drop |
+| `group` / `supergroup` | owner | no | `true` | ✅ process |
+| `group` / `supergroup` | allowlist | yes | any | ✅ process |
+| `group` / `supergroup` | allowlist | no | `false` | ❌ silent drop |
+| `group` / `supergroup` | allowlist | no | `true` | ✅ process |
+| `group` / `supergroup` | other | yes/no | any | ❌ silent drop (mention does not bypass the allowlist) |
+| `channel` | any | any | any | ❌ ignore (broadcast posts) |
+
+### Notes
+
+- The owner is **not** exempt from the group mention rule (unless
+  `ALLOW_ALL_USERS_IN_GROUPS=true`). This is intentional: in a group the bot
+  cannot otherwise tell when the owner is addressing it vs. just chatting.
+- The "not registered" DM reply is sent **once per session** per
+  `channelId:userId` (in-memory dedup, cleared on restart) to avoid spam.
+- In groups, unauthorized senders are dropped **silently** — replying would
+  noise the group and leak that the bot is filtering.
+- The bot's own messages are always skipped (loop prevention).
+- `chat.type === 'channel'` (Telegram Channel broadcast posts) is always
+  ignored — the bot is not a channel admin listener.
+- This gate is **global** (applies to every Telegram channel on the
+  instance). Per-channel `allowedChatIds` is a separate, complementary
+  filter that still applies.

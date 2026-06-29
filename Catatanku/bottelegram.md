@@ -96,7 +96,8 @@ Kalau nanti deploy ke production dengan HTTPS dan `PUBLIC_URL` yang valid, Hivek
 | **Dokumen** | PDF, ZIP, dll. |
 | **Audio & Voice note** | Didukung |
 | **Video** | Didukung |
-| **Allowlist chat ID** | Opsional — batasi siapa yang bisa chat dengan bot |
+| **Allowlist chat ID** | Opsional — batasi chat mana yang dilayani (per-chat, by `chat.id`) |
+| **Kontrol akses via env** | Batasi **siapa** (by user id / username) + aturan DM vs grup mention — lihat section "Kontrol Akses via Env" |
 | **Auto-create contacts** | Pengirim baru otomatis dibuatkan kontak di Hivekeep |
 | **Channel handoff** | Pindahkan bot dari satu Agent ke Agent lain tanpa ganti alamat |
 
@@ -183,7 +184,76 @@ Di form Add/Edit Channel, setelah field Bot Token ada field `allowedChatIds`. Is
 Bot Telegram bisa ditambahkan ke grup:
 1. Tambahkan bot ke grup Telegram
 2. Bot akan membaca semua pesan di grup (perlu `/start` dulu di private chat)
-3. Agent akan merespons mention ke bot atau pesan yang di-reply
+3. Secara **default** (`ALLOW_ALL_USERS_IN_GROUPS=false`), Agent hanya merespons pesan yang **`@mention` bot** atau **reply ke pesan bot** — pesan grup biasa diabaikan agar bot tidak ikut campur percakapan yang bukan ditujukan padanya. Set `ALLOW_ALL_USERS_IN_GROUPS=true` untuk membuat bot memproses semua pesan grup dari pengguna terdaftar.
+
+> Lihat juga section "Kontrol Akses via Env (DM vs Grup + Allowlist)" di bawah untuk aturan lengkap siapa yang boleh bicara dengan bot.
+
+### Kontrol Akses via Env (DM vs Grup + Allowlist)
+
+Selain filter per-channel `allowedChatIds` (batasi per **chat id**), Hivekeep mendukung **kontrol akses global** berbasis env vars: batasi **siapa** (by Telegram user id / username) yang boleh bicara dengan bot, dan **kapan** bot merespons di grup vs DM. Gerbang ini dijalankan **server-side, sebelum** kontak dibuat / LLM jalan — pesan yang ditolak tidak pernah sampai ke Agent.
+
+#### Env vars
+
+| Variable | Default | Deskripsi |
+|---|---|---|
+| `OWNER_TELEGRAM_USER_ID` | _(kosong)_ | User id Telegram (numerik) owner. User ini **selalu** punya akses penuh. Dicocokkan **hanya** by user id, bukan username, supaya tidak bisa di-spoof dengan ganti username. |
+| `ALLOW_ALL_USERS_IN_GROUPS` | `false` | `true` → proses **semua** pesan grup dari user terdaftar (tanpa perlu `@mention`/reply). `false` → hanya proses pesan grup yang `@mention` bot atau reply ke pesan bot. DM tidak terpengaruh. |
+| `TELEGRAM_ALLOWED_USERS` | _(kosong)_ | Whitelist comma-separated. Tiap entry auto-deteksi: angka murni → Telegram user id (stabil, direkomendasikan); selain itu → username (tanpa `@`, case-insensitive). Kalau **kosong** → hanya owner yang bisa interaksi. Owner selalu diizinkan implisit, tidak perlu didaftarkan. Contoh: `TELEGRAM_ALLOWED_USERS=pgun75,aantriono,6468143001,ferilee` |
+
+> **Jika ketiga env kosong**, gerbang nonaktif (no-op) dan perilaku lama berlaku: `allowedChatIds` per-channel + alur `autoCreateContacts` / pending-approval. Set salah satu untuk mengaktifkan gerbang.
+
+#### Contoh `.env`
+
+```bash
+# ── Telegram Access Control ──────────────────────────────
+OWNER_TELEGRAM_USER_ID=6468143001
+ALLOW_ALL_USERS_IN_GROUPS=false
+TELEGRAM_ALLOWED_USERS=pg957
+```
+
+#### Matriks perilaku
+
+`authorized` = sender adalah owner atau ada di `TELEGRAM_ALLOWED_USERS`.
+
+| `chat.type` | sender | mention/reply? | `ALLOW_ALL_USERS_IN_GROUPS` | hasil |
+|---|---|---|---|---|
+| `private` (DM) | owner | n/a | n/a | ✅ proses |
+| `private` (DM) | allowlist | n/a | n/a | ✅ proses |
+| `private` (DM) | lain | n/a | n/a | ❌ balas sekali "Maaf, Anda belum terdaftar berkomunikasi dengan Saya.", lalu drop diam |
+| `group`/`supergroup` | owner | ya | bebas | ✅ proses |
+| `group`/`supergroup` | owner | tidak | `false` | ❌ drop diam |
+| `group`/`supergroup` | owner | tidak | `true` | ✅ proses |
+| `group`/`supergroup` | allowlist | ya | bebas | ✅ proses |
+| `group`/`supergroup` | allowlist | tidak | `false` | ❌ drop diam |
+| `group`/`supergroup` | allowlist | tidak | `true` | ✅ proses |
+| `group`/`supergroup` | lain | ya/tidak | bebas | ❌ drop diam (mention tidak bypass allowlist) |
+| `channel` | * | * | * | ❌ ignore (post broadcast) |
+
+#### Catatan penting
+
+- **Owner tidak diistimewakan di grup** (kecuali `ALLOW_ALL_USERS_IN_GROUPS=true`). Alasannya: di grup bot tidak bisa tahu kapan owner berbicara padanya vs. sekadar chat; tanpa syarat mention, setiap pesan owner akan ditanggapi walau tidak ditujukan ke bot.
+- Balasan "Maaf, Anda belum terdaftar…" dikirim **sekali per session** per `channelId:userId` (dedup in-memory, di-clear saat restart) supaya tidak spam.
+- Di grup, sender tidak terdaftar di-drop **diam-diam** — membalas di grup hanya akan noise + bocor fakta bahwa bot sedang filter.
+- Pesan dari bot sendiri selalu di-skip (loop prevention).
+- `chat.type === 'channel'` (post broadcast Telegram Channel) selalu di-ignore.
+- Gerbang ini **global** (berlaku untuk semua channel Telegram di instance). `allowedChatIds` per-channel adalah filter terpisah yang tetap berlaku berdampingan.
+
+#### Cara dapatkan Telegram user id
+
+1. Buka Telegram → chat dengan [@userinfobot](https://t.me/userinfobot) → `/start` → balas dengan ID Anda (contoh: `6468143001`).
+2. Atau pakai [@RawDataBot](https://t.me/RawDataBot) / [@getidsbot](https://t.me/getidsbot).
+
+#### Referensi implementasi
+
+| File | Isi |
+|---|---|
+| `src/server/config.ts` (blok `channels`) | `telegramOwnerUserId`, `telegramAllowAllInGroups`, `telegramAllowedUsers` |
+| `src/server/channels/telegram.ts` → `analyzeTelegramMessage` | Deteksi `chatType` / `isMentioned` / `isReplyToBot` dari raw Telegram message |
+| `src/server/channels/telegram.ts` → `TelegramAdapter.getBotIdentity` | Cache `getMe()` (bot id + username) untuk deteksi mention/reply |
+| `src/server/services/channels.ts` → `matchTelegramAllowlist` | Pure predicate: cek owner (by id) + allowlist (id/username campuran) |
+| `src/server/services/channels.ts` → `telegramAccessDecision` | Pure decision: DM/group/channel + mention rule |
+| `src/server/services/channels.ts` → `telegramAccessGate` | Async wrapper + side effect (kirim balasan "not registered" sekali) |
+| `src/server/services/telegram-access.test.ts` | Unit test untuk semua rule di atas |
 
 ---
 

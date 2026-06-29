@@ -78,6 +78,65 @@ interface TelegramPollingState {
   stopped: boolean
   abortController: AbortController
   allowedChatIds: Set<string> | null
+  /** Cached bot identity from getMe — used for @mention + self-reply detection. */
+  botId?: string
+  botUsername?: string
+}
+
+/**
+ * Analyze a raw Telegram `message`/`edited_message` object and derive the
+ * access-control context needed by the service-layer gate:
+ *  - `chatType`: Telegram chat type (`private` | `group` | `supergroup` | `channel`).
+ *  - `isMentioned`: true when the message contains an `@<botUsername>` mention
+ *    entity OR a `text_mention` entity targeting `botId`.
+ *  - `isReplyToBot`: true when the message is a reply to one of the bot's own
+ *    messages (`reply_to_message.from.id === botId`).
+ *
+ * Exported so the webhook route (`routes/channel-telegram.ts`) and the polling
+ * adapter (`processUpdate`) share the exact same derivation logic.
+ */
+export function analyzeTelegramMessage(
+  message: Record<string, unknown>,
+  botId?: string,
+  botUsername?: string,
+): { chatType?: 'private' | 'group' | 'supergroup' | 'channel'; isMentioned: boolean; isReplyToBot: boolean } {
+  const chat = message.chat as Record<string, unknown> | undefined
+  const chatType = chat?.type as 'private' | 'group' | 'supergroup' | 'channel' | undefined
+
+  // Detect @mention via message.entities (Telegram pre-parses mentions).
+  let isMentioned = false
+  const entities = message.entities as Array<{ type: string; offset: number; length: number; user?: { id: number } }> | undefined
+  if (Array.isArray(entities)) {
+    const text = (message.text ?? '') as string
+    const lowerBot = botUsername?.toLowerCase()
+    for (const ent of entities) {
+      if (ent.type === 'mention' && lowerBot) {
+        const handle = text.slice(ent.offset, ent.offset + ent.length).toLowerCase()
+        // handle includes the leading '@'
+        if (handle === `@${lowerBot}`) {
+          isMentioned = true
+          break
+        }
+      } else if (ent.type === 'text_mention' && botId) {
+        if (String(ent.user?.id) === botId) {
+          isMentioned = true
+          break
+        }
+      }
+    }
+  }
+
+  // Detect reply-to-bot: reply_to_message.from.id === botId.
+  let isReplyToBot = false
+  if (botId) {
+    const replyTo = message.reply_to_message as Record<string, unknown> | undefined
+    const replyFrom = replyTo?.from as Record<string, unknown> | undefined
+    if (replyFrom && String(replyFrom.id) === botId) {
+      isReplyToBot = true
+    }
+  }
+
+  return { chatType, isMentioned, isReplyToBot }
 }
 
 // Dynamic config schema (issue #381).
@@ -110,10 +169,38 @@ export class TelegramAdapter implements ChannelAdapter {
   // known trade-off; documented in docs/channel-transfers.md.
   readonly identitySwitchMode = 'native' as const
   private pollers = new Map<string, TelegramPollingState>()
+  /** Cached bot identity per channel id (`{ botId, botUsername }`), populated
+   *  lazily by `getBotIdentity()` from `getMe`. Used by both the polling path
+   *  (`processUpdate`) and the webhook route (`routes/channel-telegram.ts`) so
+   *  mention/reply detection works identically in both transports. */
+  private botIdentityCache = new Map<string, { botId: string; botUsername?: string }>()
+
+  /** Resolve and cache the bot's own Telegram identity for `channelId`.
+   *  Returns `null` if the token is invalid / `getMe` fails (the caller will
+   *  simply skip mention detection in that case). The cache survives for the
+   *  process lifetime; identity rarely changes. */
+  async getBotIdentity(channelId: string, cfg: Record<string, unknown>): Promise<{ botId: string; botUsername?: string } | null> {
+    const cached = this.botIdentityCache.get(channelId)
+    if (cached) return cached
+    try {
+      const token = await resolveToken(cfg)
+      const result = await telegramApi(token, 'getMe') as { id: number; username?: string }
+      const identity = { botId: String(result.id), botUsername: result.username }
+      this.botIdentityCache.set(channelId, identity)
+      return identity
+    } catch (err) {
+      log.warn({ channelId, err }, 'Failed to fetch Telegram bot identity for access-control')
+      return null
+    }
+  }
 
   async start(channelId: string, cfg: Record<string, unknown>, onMessage?: IncomingMessageHandler): Promise<void> {
     const token = await resolveToken(cfg)
     const telegramCfg = cfg as unknown as TelegramChannelConfig
+
+    // Resolve bot identity once at start so mention/reply detection works from
+    // the very first inbound message (both polling and webhook paths).
+    const identity = await this.getBotIdentity(channelId, cfg)
 
     if (shouldUsePolling()) {
       // Delete any existing webhook (Telegram requirement before getUpdates)
@@ -129,6 +216,8 @@ export class TelegramAdapter implements ChannelAdapter {
         allowedChatIds: telegramCfg.allowedChatIds?.length
           ? new Set(telegramCfg.allowedChatIds)
           : null,
+        botId: identity?.botId,
+        botUsername: identity?.botUsername,
       }
 
       this.pollers.set(channelId, state)
@@ -149,6 +238,7 @@ export class TelegramAdapter implements ChannelAdapter {
       state.stopped = true
       state.abortController.abort()
       this.pollers.delete(channelId)
+      this.botIdentityCache.delete(channelId)
       log.info({ channelId }, 'Telegram polling stopped')
       return
     }
@@ -162,6 +252,7 @@ export class TelegramAdapter implements ChannelAdapter {
     } catch (err) {
       log.warn({ channelId, err }, 'Failed to delete Telegram webhook (token may be invalid)')
     }
+    this.botIdentityCache.delete(channelId)
     log.info({ channelId }, 'Telegram webhook removed')
   }
 
@@ -208,6 +299,9 @@ export class TelegramAdapter implements ChannelAdapter {
     const chat = message.chat as Record<string, unknown> | undefined
     if (!from || !chat) return
 
+    // Skip the bot's own messages (loop prevention).
+    if (state.botId && String(from.id) === state.botId) return
+
     const chatId = String(chat.id)
 
     // Filter by allowed chat IDs
@@ -221,6 +315,9 @@ export class TelegramAdapter implements ChannelAdapter {
     // Skip if no text AND no attachments
     if (!text && attachments.length === 0) return
 
+    // Derive access-control context (chat type, mention, reply-to-bot).
+    const { chatType, isMentioned, isReplyToBot } = analyzeTelegramMessage(message, state.botId, state.botUsername)
+
     await state.onMessage({
       platformUserId: String(from.id),
       platformUsername: from.username as string | undefined,
@@ -229,6 +326,9 @@ export class TelegramAdapter implements ChannelAdapter {
       platformChatId: chatId,
       content: text,
       attachments: attachments.length > 0 ? attachments : undefined,
+      chatType,
+      isMentioned,
+      isReplyToBot,
     })
   }
 

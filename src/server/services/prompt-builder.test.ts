@@ -36,7 +36,7 @@ describe('buildSystemPrompt', () => {
   it('includes platform context block for main agent', () => {
     const result = buildSystemPrompt(makeParams())
     expect(result).toContain('## Platform context')
-    expect(result).toContain('specialized AI agent (Agent) on Hivekeep')
+    expect(result).toContain('specialized AI agent (Agent) on Gezy')
     expect(result).toContain('session is continuous and permanent')
     expect(result).toContain('Multiple users may talk to you')
   })
@@ -149,7 +149,7 @@ describe('buildSystemPrompt', () => {
   it('includes date context', () => {
     const result = buildSystemPrompt(makeParams())
     expect(result).toContain('Current date:')
-    expect(result).toContain('Platform: Hivekeep')
+    expect(result).toContain('Platform: Gezy')
   })
 
   // --- Initiative ---
@@ -169,7 +169,7 @@ describe('buildSystemPrompt', () => {
       isSubAgent: true,
       taskDescription: 'Analyze the data and report findings.',
     }))
-    expect(result).toContain('specialized AI agent on Hivekeep')
+    expect(result).toContain('specialized AI agent on Gezy')
     expect(result).toContain('executing a delegated task')
     expect(result).toContain('## Your mission')
     expect(result).toContain('Analyze the data and report findings.')

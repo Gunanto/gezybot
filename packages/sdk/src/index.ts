@@ -316,6 +316,19 @@ export interface IncomingMessage {
    * block. Non-breaking: adapters can ignore this field.
    */
   metadata?: Record<string, unknown>
+  /**
+   * Telegram-specific inbound context, populated by the Telegram adapter
+   * (polling + webhook). Used by the access-control gate in
+   * `services/channels.ts` to decide DM-vs-group routing and mention rules.
+   * Other adapters leave these undefined.
+   */
+  chatType?: 'private' | 'group' | 'supergroup' | 'channel'
+  /** True when the message contains an @mention of the bot (entity `mention`
+   *  matching `@<botUsername>` or `text_mention` with `user.id === botId`). */
+  isMentioned?: boolean
+  /** True when the message is a reply to one of the bot's own messages
+   *  (`reply_to_message.from.id === botId`). */
+  isReplyToBot?: boolean
 }
 
 export type IncomingMessageHandler = (message: IncomingMessage) => Promise<void>

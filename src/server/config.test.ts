@@ -222,14 +222,14 @@ describe('config', () => {
       expect(c.port).toBe(9999)
     })
 
-    it('HIVEKEEP_DATA_DIR overrides dataDir and dependent paths', async () => {
-      const c = await loadConfigWithEnv({ HIVEKEEP_DATA_DIR: '/tmp/hivekeep-test-data' })
-      expect(c.dataDir).toBe('/tmp/hivekeep-test-data')
-      expect(c.db.path).toBe('/tmp/hivekeep-test-data/hivekeep.db')
-      expect(c.vault.attachmentDir).toBe('/tmp/hivekeep-test-data/vault')
-      expect(c.workspace.baseDir).toBe('/tmp/hivekeep-test-data/workspaces')
-      expect(c.upload.dir).toBe('/tmp/hivekeep-test-data/uploads')
-      expect(c.fileStorage.dir).toBe('/tmp/hivekeep-test-data/storage')
+    it('GEZY_DATA_DIR overrides dataDir and dependent paths', async () => {
+      const c = await loadConfigWithEnv({ GEZY_DATA_DIR: '/tmp/gezy-test-data' })
+      expect(c.dataDir).toBe('/tmp/gezy-test-data')
+      expect(c.db.path).toBe('/tmp/gezy-test-data/gezy.db')
+      expect(c.vault.attachmentDir).toBe('/tmp/gezy-test-data/vault')
+      expect(c.workspace.baseDir).toBe('/tmp/gezy-test-data/workspaces')
+      expect(c.upload.dir).toBe('/tmp/gezy-test-data/uploads')
+      expect(c.fileStorage.dir).toBe('/tmp/gezy-test-data/storage')
     })
 
     it('LOG_LEVEL override', async () => {
@@ -333,7 +333,7 @@ describe('config', () => {
     })
 
     it('versionCheck defaults', () => {
-      expect(config.versionCheck.repo).toBe('MarlBurroW/hivekeep')
+      expect(config.versionCheck.repo).toBe('pgun/gezy')
       expect(config.versionCheck.intervalHours).toBe(1)
     })
 

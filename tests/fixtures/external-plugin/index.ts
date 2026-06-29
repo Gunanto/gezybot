@@ -19,6 +19,7 @@ import {
   type PluginContext,
   type PluginExports,
   type ProviderConfig,
+  type TextBlock,
 } from "@gezy/sdk";
 
 interface ExternalConfig {
@@ -57,8 +58,8 @@ class ExternalLLMProvider implements LLMProvider {
     _config: ProviderConfig,
   ): AsyncIterable<ChatChunk> {
     const last = [...request.messages].reverse().find((m) => m.role === "user");
-    const text =
-      last?.content.find((b: any) => b.type === "text")?.text ?? "(no input)";
+    const textBlock = last?.content.find((b): b is TextBlock => b.type === "text");
+    const text = textBlock?.text ?? "(no input)";
     yield { type: "text-delta", text: `[external] ${text}` };
     yield {
       type: "finish",

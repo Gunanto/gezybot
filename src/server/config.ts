@@ -622,6 +622,28 @@ export const config = {
     // Per-channel WhatsApp-Web (Baileys) multi-file auth state. One subfolder
     // per channel id; survives restarts so a paired session reconnects.
     whatsappWebDir: process.env.WHATSAPP_WEB_DIR ?? `${dataDir}/whatsapp-web`,
+
+    // ── Telegram access control (global, applies to every Telegram channel) ──
+    // Owner Telegram user id (numeric string). This user ALWAYS has full access
+    // (DM + group, with the group mention rule still applying unless
+    // `telegramAllowAllInGroups` is true). Identified ONLY by user id, never by
+    // username, so it cannot be spoofed by changing a Telegram username.
+    telegramOwnerUserId: process.env.OWNER_TELEGRAM_USER_ID?.trim() || null,
+    // true  → process ALL group/supergroup messages (no @mention/reply required)
+    // false → only process group messages that @mention the bot OR reply to one
+    //         of the bot's own messages. DMs are unaffected (always processed
+    //         for authorized users).
+    telegramAllowAllInGroups: process.env.ALLOW_ALL_USERS_IN_GROUPS === 'true',
+    // Whitelist of Telegram identifiers allowed to interact with the bot.
+    // Comma-separated. Each entry is auto-detected: pure-numeric → Telegram
+    // user id (stable, recommended); otherwise → username (without @, case-
+    // insensitive). If empty, ONLY the owner can interact. Owner is always
+    // implicitly allowed and does not need to be listed here.
+    // Example: TELEGRAM_ALLOWED_USERS=pgun75,aantriono,6468143001,ferilee
+    telegramAllowedUsers: (process.env.TELEGRAM_ALLOWED_USERS ?? '')
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
   },
 
   quickSessions: {
