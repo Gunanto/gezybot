@@ -257,3 +257,111 @@ describe('markdownToTelegramHtml — nested structures', () => {
     expect(r.pages[0]).toContain('<li>nested item</li>')
   })
 })
+
+// ─── Math / LaTeX (Fase 1c) ─────────────────────────────────────────────────
+
+describe('markdownToTelegramHtml — inline math', () => {
+  it('renders $…$ as <tg-math> (raw LaTeX, no escape)', () => {
+    const r = markdownToTelegramHtml('The formula $x^2 + y^2$ is nice')
+    expect(r.hasBlocks).toBe(true) // inline math triggers rich path
+    expect(r.pages[0]).toContain('<tg-math>x^2 + y^2</tg-math>')
+    // The LaTeX content must NOT be HTML-escaped (Telegram treats it as raw)
+    expect(r.pages[0]).not.toContain('&gt;')
+    expect(r.pages[0]).not.toContain('&lt;')
+  })
+
+  it('does not escape <, >, & inside inline math', () => {
+    const r = markdownToTelegramHtml('$x < y \\& z > 0$')
+    expect(r.pages[0]).toContain('<tg-math>x < y \\& z > 0</tg-math>')
+  })
+
+  it('renders LaTeX with \\frac, \\sum, sub/sup', () => {
+    const r = markdownToTelegramHtml('$\\frac{a}{b}$ and $\\sum_{i=1}^{n} x_i$')
+    expect(r.pages[0]).toContain('<tg-math>\\frac{a}{b}</tg-math>')
+    expect(r.pages[0]).toContain('<tg-math>\\sum_{i=1}^{n} x_i</tg-math>')
+  })
+
+  it('renders inline math inside a paragraph with surrounding text', () => {
+    const r = markdownToTelegramHtml('For $n \\geq 1$, let $a_n = n^2$.')
+    expect(r.pages[0]).toContain('<tg-math>n \\geq 1</tg-math>')
+    expect(r.pages[0]).toContain('<tg-math>a_n = n^2</tg-math>')
+    expect(r.pages[0]).toContain('For ')
+    expect(r.pages[0]).toContain(', let ')
+  })
+
+  it('guards against literal </tg-math> in expression (falls back to escaped text)', () => {
+    const r = markdownToTelegramHtml('$x </tg-math evil$')
+    expect(r.pages[0]).not.toContain('<tg-math>x </tg-math')
+    expect(r.pages[0]).toContain('&lt;/tg-math')
+  })
+})
+
+describe('markdownToTelegramHtml — block math', () => {
+  it('renders $$…$$ as <tg-math-block> (raw LaTeX)', () => {
+    const r = markdownToTelegramHtml('$$\nE = mc^2\n$$')
+    expect(r.hasBlocks).toBe(true)
+    expect(r.pages[0]).toContain('<tg-math-block>')
+    expect(r.pages[0]).toContain('E = mc^2')
+    expect(r.pages[0]).not.toContain('&gt;')
+  })
+
+  it('renders ```math fenced block as <tg-math-block>', () => {
+    const r = markdownToTelegramHtml('```math\n\\int_0^1 x^2 dx = \\frac{1}{3}\n```')
+    expect(r.hasBlocks).toBe(true)
+    expect(r.pages[0]).toContain('<tg-math-block>')
+    expect(r.pages[0]).toContain('\\int_0^1 x^2 dx')
+  })
+
+  it('does not escape <, > inside block math', () => {
+    const r = markdownToTelegramHtml('$$\na < b > c\n$$')
+    expect(r.pages[0]).toContain('<tg-math-block>a < b > c</tg-math-block>')
+  })
+
+  it('guards against literal </tg-math-block> in expression', () => {
+    const r = markdownToTelegramHtml('$$\nx </tg-math-block evil\n$$')
+    expect(r.pages[0]).not.toContain('<tg-math-block>x </tg-math-block')
+    expect(r.pages[0]).toContain('&lt;/tg-math-block')
+  })
+})
+
+describe('markdownToTelegramHtml — math + other blocks combined', () => {
+  it('renders heading + block math + paragraph', () => {
+    const md = '# Trigonometri\n\n$$\n\\sin^2\\theta + \\cos^2\\theta = 1\n$$\n\nRumus dasar.'
+    const r = markdownToTelegramHtml(md)
+    expect(r.hasBlocks).toBe(true)
+    expect(r.pages[0]).toContain('<h1>Trigonometri</h1>')
+    expect(r.pages[0]).toContain('<tg-math-block>')
+    expect(r.pages[0]).toContain('\\sin^2\\theta')
+    expect(r.pages[0]).toContain('<p>Rumus dasar.</p>')
+  })
+
+  it('renders inline math inside list item', () => {
+    const r = markdownToTelegramHtml('- Item with $x^2$ math')
+    expect(r.pages[0]).toContain('<li>Item with <tg-math>x^2</tg-math> math</li>')
+  })
+
+  it('renders inline math inside table cell', () => {
+    const md = '| Rumus | Hasil |\n| --- | --- |\n| $a^2$ | $b^2$ |'
+    const r = markdownToTelegramHtml(md)
+    expect(r.pages[0]).toContain('<tg-math>a^2</tg-math>')
+    expect(r.pages[0]).toContain('<tg-math>b^2</tg-math>')
+  })
+})
+
+describe('markdownHasRichBlocks — math detection', () => {
+  it('returns true for inline math only', () => {
+    expect(markdownHasRichBlocks('just $x^2$ inline math')).toBe(true)
+  })
+
+  it('returns true for block math only', () => {
+    expect(markdownHasRichBlocks('$$\nE=mc^2\n$$')).toBe(true)
+  })
+
+  it('returns true for ```math fence', () => {
+    expect(markdownHasRichBlocks('```math\nx\n```')).toBe(true)
+  })
+
+  it('returns false for plain paragraph without math', () => {
+    expect(markdownHasRichBlocks('just a plain paragraph')).toBe(false)
+  })
+})

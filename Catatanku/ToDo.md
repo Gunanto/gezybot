@@ -26,21 +26,22 @@ Balasan Agent muncul real-time di Telegram (type-on animation seperti ChatGPT), 
 
 ## 2. LaTeX di Telegram + Dokumen Hasil (docx & PDF)
 
-### 2a. LaTeX di Telegram Rich Messages (Fase 1c)
-- [ ] Baca `Catatanku/bottelegram-latex.md` (analisis lengkap + syntax exact)
-- [ ] Tes syntax via `@richtextdemobot` (konfirmasi raw LaTeX di `<tg-math>` tidak perlu escape)
-- [ ] Tambah `remark-math` ke pipeline di `src/server/channels/telegram-rich.ts`
-- [ ] Tambah case `'inlineMath'` → `<tg-math>{value}</tg-math>` (raw, no escape)
-- [ ] Tambah case `'math'` (block) → `<tg-math-block>{value}</tg-math-block>` (raw, no escape)
-- [ ] Update `isBlockLevel()` + `markdownHasRichBlocks()` agar math memicu rich path
-- [ ] Unit test: inline math, block math, math + heading/list, karakter LaTeX khusus (`\frac`, `_`, `^`, `\sum`), edge case `</tg-math>` literal
-- [ ] Test end-to-end via VPS (Agent output trigonometri/fisika)
-- [ ] Estimasi: ~1.75 jam
+### 2a. LaTeX di Telegram Rich Messages (Fase 1c) ✅ DONE
+- [x] Baca `Catatanku/bottelegram-latex.md` (analisis lengkap + syntax exact)
+- [x] Tes syntax via `@richtextdemobot` — deferred ke test VPS (implementasi pakai syntax exact dari docs: `<tg-math>` / `<tg-math-block>`, raw LaTeX no escape)
+- [x] Tambah `remark-math` ke pipeline di `src/server/channels/telegram-rich.ts`
+- [x] Tambah case `'inlineMath'` → `<tg-math>{value}</tg-math>` (raw, no escape + guard `</tg-math>`)
+- [x] Tambah case `'math'` (block) → `<tg-math-block>{value}</tg-math-block>` (raw, no escape + guard)
+- [x] Handle ```` ```math ```` fence (remark-math tidak auto-convert; remap di `renderCodeBlock` saat `lang === 'math'`)
+- [x] Update `isBlockLevel()` (tambah `'math'`) + `markdownHasRichBlocks()` (tambah cek inline math via `hasInlineMath`)
+- [x] Unit test: 16 test math (inline, block, fence, raw LaTeX `\frac`/`\sum`/`<`/`>`/`&`, guard `</tg-math>`, math+heading/list/table kombinasi, detection)
+- [ ] Test end-to-end via VPS (Agent output trigonometri/fisika) — tunggu deploy
+- [x] Docs: docs-site channels/telegram.md updated
 
-**Keputusan desain pending (M1–M3 di dokumen LaTeX):**
-- M1: tidak escape di dalam math (raw) — recommended, tes demo bot dulu
-- M2: inline math tanpa block lain tetap rich path — recommended
-- M3: fallback ke `sendMessage` plain text kalau rich reject — recommended
+**Keputusan desain diterapkan:**
+- M1: tidak escape di dalam math (raw LaTeX) ✅ + guard `</tg-math>` literal
+- M2: inline math tanpa block lain tetap rich path (`hasInlineMath` check) ✅
+- M3: fallback ke `sendMessage` plain text kalau rich reject (sudah ada dari Fase 1) ✅
 
 ### 2b. LaTeX di dokumen yang dihasilkan Agent (docx & PDF)
 - [ ] Audit tool `store_file` / generator dokumen di Gezy sekarang — apakah Agent bisa buat docx/PDF? Cari tool terkait (`grep -r "docx\|pdf\|generate.*document\|store_file" src/server/tools/`)

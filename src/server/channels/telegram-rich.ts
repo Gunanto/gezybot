@@ -32,6 +32,7 @@
 import { unified } from 'unified'
 import remarkParse from 'remark-parse'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
 import type {
   Root,
   Paragraph,
@@ -96,12 +97,12 @@ export function markdownToTelegramHtml(
   md: string,
   opts: TelegramRichOptions = {},
 ): TelegramRichResult {
-  const tree = unified().use(remarkParse).use(remarkGfm).parse(md)
+  const tree = unified().use(remarkParse).use(remarkGfm).use(remarkMath).parse(md)
   const expandable = opts.expandableBlockquotes ?? false
   const maxPerPage = opts.maxBlocksPerPage ?? 40
 
   const blocks = tree.children
-  const hasBlocks = blocks.some(isBlockLevel)
+  const hasBlocks = blocks.some(isBlockLevel) || blocks.some(hasInlineMath)
 
   const htmlPages: string[] = []
   for (let i = 0; i < blocks.length; i += maxPerPage) {
@@ -119,8 +120,22 @@ export function markdownToTelegramHtml(
  *  would benefit from rich rendering? Exported so the adapter can decide
  *  rich-vs-plain without running the full converter. */
 export function markdownHasRichBlocks(md: string): boolean {
-  const tree = unified().use(remarkParse).use(remarkGfm).parse(md)
-  return tree.children.some(isBlockLevel)
+  const tree = unified().use(remarkParse).use(remarkGfm).use(remarkMath).parse(md)
+  return tree.children.some(isBlockLevel) || tree.children.some(hasInlineMath)
+}
+
+/** Does this top-level block contain an `inlineMath` node anywhere in its
+ *  phrasing content? Inline math (`$…$`) requires the rich path because
+ *  `<tg-math>` is only supported in `sendRichMessage`, not legacy
+ *  `sendMessage`. */
+function hasInlineMath(node: RootContent): boolean {
+  if (node.type === 'paragraph') {
+    return (node as Paragraph).children.some((c) => c.type === 'inlineMath')
+  }
+  // Block math already caught by isBlockLevel; other block types (list,
+  // blockquote, table) may contain inline math in their cells/items — be
+  // conservative and treat them as rich-triggering via isBlockLevel already.
+  return false
 }
 
 // ─── Block-level rendering ──────────────────────────────────────────────────
@@ -133,7 +148,8 @@ function isBlockLevel(node: RootContent): boolean {
     node.type === 'code' ||
     node.type === 'blockquote' ||
     node.type === 'thematicBreak' ||
-    node.type === 'html'
+    node.type === 'html' ||
+    node.type === 'math' // remark-math block-level ($$…$$ or ```math)
   )
 }
 
@@ -149,6 +165,12 @@ function renderBlock(node: RootContent, expandable: boolean): string {
       return renderTable(node as Table)
     case 'code':
       return renderCodeBlock(node as Code)
+    case 'math':
+      // remark-math block-level ($$…$$ or ```math fence). Telegram rich HTML
+      // tag: <tg-math-block>. The content is RAW LaTeX — do NOT escape (docs:
+      // "Formula source is treated as raw LaTeX"). Guard against the literal
+      // closing tag as a paranoia check (almost never in LLM output).
+      return renderMathBlock((node as { type: 'math'; value: string }).value)
     case 'blockquote':
       return renderBlockquote(node as Blockquote, expandable)
     case 'thematicBreak':
@@ -200,9 +222,28 @@ function renderListItem(node: ListItem): string {
 }
 
 function renderCodeBlock(node: Code): string {
+  // ```math fenced block → Telegram rich <tg-math-block>. remark-math only
+  // converts $$…$$ to a `math` MDAST node; a ```math fence stays a `code`
+  // node with lang="math", so we remap it here.
+  if (node.lang === 'math') {
+    return renderMathBlock(node.value)
+  }
   const lang = node.lang ? ` class="language-${escapeAttr(node.lang)}"` : ''
   // Code content is raw text — escape it but do NOT treat it as inline HTML.
   return `<pre><code${lang}>${escapeHtml(node.value)}</code></pre>`
+}
+
+/** Render a block-level LaTeX math node. The content is raw LaTeX — Telegram
+ *  treats the inside of `<tg-math-block>` as raw LaTeX (not HTML), so we do
+ *  NOT escape `<`, `>`, `&`. We only guard against the literal closing tag
+ *  `</tg-math-block>` appearing inside the expression (almost never in real
+ *  LaTeX output); in that pathological case we fall back to escaped text so
+ *  the Telegram parser doesn't break. */
+function renderMathBlock(value: string): string {
+  if (value.includes('</tg-math')) {
+    return `<p>${escapeHtml(value)}</p>`
+  }
+  return `<tg-math-block>${value}</tg-math-block>`
 }
 
 function renderBlockquote(node: Blockquote, expandable: boolean): string {
@@ -257,6 +298,16 @@ function renderInline(node: PhrasingContent): string {
       return `<s>${renderInlineList((node as Delete).children)}</s>`
     case 'inlineCode':
       return `<code>${escapeHtml((node as InlineCode).value)}</code>`
+    case 'inlineMath': {
+      // remark-math inline ($…$). Telegram rich HTML tag: <tg-math>. The
+      // content is raw LaTeX — do NOT escape. Guard against literal closing
+      // tag (paranoia; almost never in real LaTeX).
+      const expr = (node as { type: 'inlineMath'; value: string }).value
+      if (expr.includes('</tg-math')) {
+        return escapeHtml(expr)
+      }
+      return `<tg-math>${expr}</tg-math>`
+    }
     case 'link': {
       const link = node as Link
       const href = link.url
