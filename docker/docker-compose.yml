@@ -27,6 +27,11 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - GEZY_MODEL_REGISTRY=false
       - NODE_ENV=production
+      - GEZY_PUBLIC_URL=https://aios.gezytech.web.id
+      - GEZY_TIMEZONE=Asia/Jakarta
+      - GEZY_ADAPTIVE_THINKING=true
+    networks:
+      - pgunNet
     healthcheck:
       test:
         [
@@ -40,6 +45,10 @@ services:
       start_period: 10s
       retries: 3
     restart: unless-stopped
+
+networks:
+  pgunNet:
+    external: true
 
 volumes:
   gezy-data:
