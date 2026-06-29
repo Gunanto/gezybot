@@ -153,6 +153,15 @@ export interface StreamStepContext {
   /** Called when this step's buffered text is dropped (intermediate step,
    *  error, or abort). Use for debug logging — never expose `droppedText` on SSE. */
   onDroppedText?: (droppedText: string, stepIndex: number) => void
+  /** Called for every text-delta chunk as it arrives (before the step-level
+   *  commit/drop decision). `delta` is the new chunk text; `accumulated` is
+   *  the full buffered text for this step so far. Used by Fase 2 streaming
+   *  draft to forward incremental updates to channel adapters (e.g. Telegram
+   *  `sendRichMessageDraft`). Optional — when omitted, deltas are silently
+   *  buffered as before. Note: this fires for ALL text-deltas including
+   *  pre-narration that may later be dropped; the caller must handle
+   *  `onDroppedText` to discard any draft content pushed via this hook. */
+  onTextDelta?: (delta: string, accumulated: string) => void
 }
 
 /**
@@ -267,6 +276,11 @@ export async function runStreamStep(
           // BUFFER ONLY — no SSE emission, no mutation of contentSnapshot.
           // The decision to flush or drop happens at step finish.
           buffered += chunk.text
+          // Fase 2: forward the delta to the channel streaming-draft hook
+          // (if any). The caller is responsible for throttling and for
+          // discarding pushed content via onDroppedText if this step is
+          // later dropped (pre-narration guard).
+          ctx.onTextDelta?.(chunk.text, buffered)
           break
         }
         case 'tool-use': {

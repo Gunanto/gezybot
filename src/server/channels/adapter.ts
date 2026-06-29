@@ -17,6 +17,7 @@ export type {
   ChannelAdapterMeta,
   ChannelConfigField,
   ChannelConfigSchema,
+  ChannelDraftStream,
   ChannelEndpoint,
   ChannelPairingEvent,
   ChannelStartHandlers,

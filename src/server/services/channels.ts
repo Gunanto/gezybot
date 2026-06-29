@@ -13,7 +13,7 @@ import { config } from '@/server/config'
 import { agentAvatarUrl } from '@/server/services/field-validator'
 import { getContactDisplayName } from '@/shared/contact-display'
 import { applyAgentNamePrefix } from '@/server/services/channel-prefix'
-import type { IncomingMessage, OutboundAttachment, DeliveryStatusUpdate, ChannelPairingEvent } from '@/server/channels/adapter'
+import type { IncomingMessage, OutboundAttachment, OutboundMessageResult, ChannelDraftStream, DeliveryStatusUpdate, ChannelPairingEvent } from '@/server/channels/adapter'
 import type { ChannelPlatform, ChannelStatus } from '@/shared/types'
 import QRCode from 'qrcode'
 
@@ -1239,6 +1239,109 @@ export async function deliverChannelResponse(
   } catch (err) {
     log.error({ channelId: meta.channelId, err }, 'Failed to deliver channel response')
   }
+}
+
+// ─── Streaming draft (Fase 2) ───────────────────────────────────────────────
+
+/**
+ * Open a streaming-draft session on the channel that originated the current
+ * turn, if the adapter supports it (`streamDraft?`). Returns the
+ * {@link ChannelDraftStream} handle on success, or `null` when:
+ *  - the channel is missing/inactive,
+ *  - the adapter doesn't implement `streamDraft` (host falls back to
+ *    one-shot {@link deliverChannelResponse} at turn end),
+ *  - opening the draft throws (caller falls back to one-shot too).
+ *
+ * The returned stream is fed deltas by the agent engine via `update()` and
+ * finalized with `commit()` / `abort()`. The caller is responsible for the
+ * full lifecycle; this helper only opens the session.
+ */
+export async function openChannelDraftStream(
+  meta: ChannelQueueMeta,
+): Promise<{ stream: ChannelDraftStream; channel: typeof channels.$inferSelect; cfg: Record<string, unknown> } | null> {
+  const channel = await getChannel(meta.channelId)
+  if (!channel || channel.status !== 'active') return null
+
+  const adapter = channelAdapters.get(channel.platform)
+  if (!adapter?.streamDraft) return null
+
+  const cfg = JSON.parse(channel.platformConfig) as Record<string, unknown>
+  const locale = resolveChannelLocale(meta.channelId)
+  try {
+    const stream = await adapter.streamDraft(meta.channelId, cfg, {
+      chatId: meta.platformChatId,
+      content: '',
+      replyToMessageId: meta.platformMessageId,
+      locale,
+    })
+    log.info({ channelId: meta.channelId, platform: channel.platform }, 'Channel streaming draft opened')
+    return { stream, channel, cfg }
+  } catch (err) {
+    log.warn({ channelId: meta.channelId, err }, 'Failed to open channel streaming draft, will fall back to one-shot')
+    return null
+  }
+}
+
+/**
+ * Finalize a streaming draft that was committed successfully: persist the
+ * channel-message link, delivery metadata, stats, and emit the
+ * `channel:message-sent` SSE — the same post-delivery bookkeeping that
+ * {@link deliverChannelResponse} does for the one-shot path.
+ */
+export async function recordChannelDraftCommitted(
+  meta: ChannelQueueMeta,
+  assistantMessageId: string,
+  result: OutboundMessageResult,
+): Promise<void> {
+  const channel = await getChannel(meta.channelId)
+  if (!channel) return
+  await db.insert(channelMessageLinks).values({
+    id: uuid(),
+    channelId: meta.channelId,
+    messageId: assistantMessageId,
+    platformMessageId: result.platformMessageId,
+    platformChatId: meta.platformChatId,
+    direction: 'outbound',
+    sentByAgentId: channel.agentId,
+    createdAt: new Date(),
+  })
+  if (result.contextLine || result.deliveryMeta) {
+    try {
+      const existing = await db
+        .select({ metadata: messages.metadata })
+        .from(messages)
+        .where(eq(messages.id, assistantMessageId))
+        .get()
+      let merged: Record<string, unknown> = {}
+      if (existing?.metadata) {
+        try { merged = JSON.parse(existing.metadata as string) as Record<string, unknown> } catch { /* corrupted, overwrite */ }
+      }
+      merged.channelDelivery = {
+        platform: channel.platform,
+        ...(result.contextLine ? { contextLine: result.contextLine } : {}),
+        ...(result.deliveryMeta ? { meta: result.deliveryMeta } : {}),
+      }
+      await db.update(messages).set({ metadata: JSON.stringify(merged) }).where(eq(messages.id, assistantMessageId))
+    } catch (err) {
+      log.warn({ messageId: assistantMessageId, err }, 'Failed to persist channelDelivery metadata (draft commit)')
+    }
+  }
+  await db.update(channels).set({
+    messagesSent: channel.messagesSent + 1,
+    lastActivityAt: new Date(),
+    updatedAt: new Date(),
+  }).where(eq(channels.id, meta.channelId))
+  sseManager.sendToAgent(channel.agentId, {
+    type: 'channel:message-sent',
+    agentId: channel.agentId,
+    data: {
+      channelId: meta.channelId,
+      platform: channel.platform,
+      messageId: assistantMessageId,
+      contextLine: result.contextLine ?? null,
+    },
+  })
+  log.info({ channelId: meta.channelId, agentId: channel.agentId, platform: channel.platform }, 'Channel streaming draft committed')
 }
 
 // ─── Asynchronous delivery-status updates (webhook status callbacks) ─────────

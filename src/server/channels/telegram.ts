@@ -1,4 +1,4 @@
-import type { ChannelAdapter, ChannelConfigSchema, IncomingMessageHandler, OutboundMessageParams, OutboundAttachment } from '@/server/channels/adapter'
+import type { ChannelAdapter, ChannelConfigSchema, ChannelDraftStream, IncomingMessageHandler, OutboundMessageParams, OutboundMessageResult, OutboundAttachment } from '@/server/channels/adapter'
 import { readAttachmentBlob, attachmentFileName, isImageAttachment } from '@/server/channels/adapter'
 import type { ChannelAdapterMeta } from '@/server/channels/adapter'
 import { getSecretValue } from '@/server/services/vault'
@@ -464,7 +464,169 @@ export class TelegramAdapter implements ChannelAdapter {
       )
     }
   }
+
+  /**
+   * Open a streaming-draft session (Bot API 10.1 `sendRichMessageDraft`).
+   * Returns a {@link ChannelDraftStream} that the host feeds text deltas to
+   * as the LLM streams, then commits (persist) or aborts (discard).
+   *
+   * Throttling: flushes to Telegram at most once every 400ms (D7 = time-based).
+   * The draft is ephemeral (Telegram auto-expires it after ~30s); the host
+   * MUST call `commit()` at turn end to persist it as a real message.
+   *
+   * `draft_id` is a per-stream integer (same id across updates animates the
+   * same bubble; Telegram requires a non-zero value).
+   */
+  async streamDraft(
+    channelId: string,
+    cfg: Record<string, unknown>,
+    params: OutboundMessageParams,
+  ): Promise<ChannelDraftStream> {
+    const token = await resolveToken(cfg)
+    const chatId = params.chatId
+    const replyTo = params.replyToMessageId
+    // Per-process monotonic draft id; Telegram only requires it be non-zero
+    // and reused across updates for the same draft bubble.
+    const draftId = ++telegramDraftIdCounter
+    const THROTTLE_MS = 400
+    let accumulated = ''
+    let lastFlushAt = 0
+    let flushTimer: ReturnType<typeof setTimeout> | null = null
+    let finished = false
+    // Track the platform message id returned by commit() so the result is
+    // shaped like OutboundMessageResult.
+    let committedMessageId = ''
+
+    async function flushToTelegram(): Promise<void> {
+      if (finished) return
+      if (!accumulated) return
+      const html = markdownToTelegramHtml(accumulated).pages[0] ?? ''
+      // Empty html (e.g. only whitespace) — skip to avoid sending an empty
+      // draft that Telegram would reject.
+      if (!html) return
+      try {
+        await telegramApi(token, 'sendRichMessageDraft', {
+          chat_id: chatId,
+          draft_id: draftId,
+          rich_message: { html },
+        })
+        lastFlushAt = Date.now()
+      } catch (err) {
+        // Draft update failures are non-fatal — the draft is ephemeral and
+        // the final commit will retry via sendRichMessage (with fallback to
+        // sendMessage). Log for debugging but don't throw.
+        log.debug({ channelId, draftId, err }, 'Telegram draft update failed (non-fatal)')
+      }
+    }
+
+    function scheduleFlush(): void {
+      if (flushTimer || finished) return
+      const elapsed = Date.now() - lastFlushAt
+      const wait = Math.max(0, THROTTLE_MS - elapsed)
+      flushTimer = setTimeout(() => {
+        flushTimer = null
+        void flushToTelegram()
+      }, wait)
+    }
+
+    return {
+      async update(_delta: string, acc: string): Promise<void> {
+        if (finished) return
+        accumulated = acc
+        // Throttle: if enough time elapsed since last flush, flush now;
+        // otherwise schedule a flush. This keeps per-token updates cheap
+        // while still showing progress ~every 400ms.
+        const elapsed = Date.now() - lastFlushAt
+        if (elapsed >= THROTTLE_MS) {
+          await flushToTelegram()
+        } else {
+          scheduleFlush()
+        }
+      },
+
+      async commit(): Promise<OutboundMessageResult> {
+        if (finished) {
+          // Already finalized — return a best-effort empty result so the
+          // caller doesn't crash. This shouldn't happen in normal flow.
+          return { platformMessageId: committedMessageId }
+        }
+        finished = true
+        // Cancel any pending throttled flush — we'll send the final content
+        // via the commit path below.
+        if (flushTimer) { clearTimeout(flushTimer); flushTimer = null }
+        // Final flush of any remaining buffered text is NOT needed —
+        // commit sends the full final content via sendRichMessage.
+
+        // Commit: send the final accumulated text as a persistent rich
+        // message. The ephemeral draft bubble is replaced by this real
+        // message. Reuse the rich-vs-plain logic from sendMessage by
+        // building the payload here (we can't call sendMessage directly
+        // because it resolves the token again + we already have it).
+        const useRich = markdownHasRichBlocks(accumulated)
+        try {
+          if (useRich) {
+            const { pages } = markdownToTelegramHtml(accumulated)
+            let lastId = ''
+            for (let i = 0; i < pages.length; i++) {
+              const body: Record<string, unknown> = {
+                chat_id: chatId,
+                rich_message: { html: pages[i] },
+              }
+              if (i === 0 && replyTo) {
+                body.reply_parameters = { message_id: Number(replyTo) }
+              }
+              const result = await telegramApi(token, 'sendRichMessage', body) as { message_id: number }
+              lastId = String(result.message_id)
+            }
+            committedMessageId = lastId
+            return { platformMessageId: committedMessageId }
+          }
+        } catch (richErr) {
+          log.warn({ channelId, err: richErr }, 'Telegram draft commit sendRichMessage failed, falling back to sendMessage')
+        }
+        // Fallback / plain-text path
+        const chunks = splitMessage(accumulated)
+        let lastId = ''
+        for (let i = 0; i < chunks.length; i++) {
+          const body: Record<string, unknown> = {
+            chat_id: chatId,
+            text: chunks[i],
+          }
+          if (i === 0 && replyTo) {
+            body.reply_parameters = { message_id: Number(replyTo) }
+          }
+          const result = await telegramApi(token, 'sendMessage', body) as { message_id: number }
+          lastId = String(result.message_id)
+        }
+        committedMessageId = lastId
+        return { platformMessageId: committedMessageId }
+      },
+
+      async abort(): Promise<void> {
+        if (finished) return
+        finished = true
+        if (flushTimer) { clearTimeout(flushTimer); flushTimer = null }
+        // Telegram drafts auto-expire after ~30s, but we try to clear the
+        // bubble immediately by sending an empty draft. This is best-effort
+        // — if it fails, the draft just fades on its own.
+        try {
+          await telegramApi(token, 'sendRichMessageDraft', {
+            chat_id: chatId,
+            draft_id: draftId,
+            rich_message: { html: '' },
+          })
+        } catch {
+          // Best-effort — ignore.
+        }
+      },
+    }
+  }
 }
+
+// Monotonic counter for Telegram draft ids (per process). Telegram requires
+// a non-zero draft_id; reusing the same id across updates animates the same
+// bubble. A simple incrementing counter is sufficient.
+let telegramDraftIdCounter = 0
 
 /** Send a file to Telegram using multipart/form-data upload */
 async function sendTelegramFile(

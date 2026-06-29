@@ -378,6 +378,42 @@ export interface OutboundMessageResult {
   deliveryMeta?: Record<string, unknown>
 }
 
+/**
+ * A live streaming-draft session opened by
+ * {@link ChannelAdapter.streamDraft}. The host feeds incremental text
+ * deltas via {@link update}, then either {@link commit} (persist as a
+ * final message) or {@link abort} (discard the draft).
+ *
+ * Adapters that support streaming drafts (e.g. Telegram's
+ * `sendRichMessageDraft`) return an instance of this interface; adapters
+ * that don't leave {@link ChannelAdapter.streamDraft} undefined and the
+ * host falls back to one-shot {@link ChannelAdapter.sendMessage}.
+ */
+export interface ChannelDraftStream {
+  /**
+   * Feed a text delta to the draft. The adapter MAY throttle internally
+   * (e.g. flush to the platform at most once every 400ms). `delta` is the
+   * new chunk since the last call; `accumulated` is the full text so far
+   * (the adapter may use either). Resolves when the delta has been
+   * accepted (not necessarily flushed to the platform yet).
+   */
+  update(delta: string, accumulated: string): Promise<void>
+
+  /**
+   * Persist the draft as a final message on the platform. Resolves with
+   * the same shape as {@link OutboundMessageResult}. After this call the
+   * stream handle is invalid.
+   */
+  commit(): Promise<OutboundMessageResult>
+
+  /**
+   * Discard the draft (e.g. delete the ephemeral bubble). Called when the
+   * LLM stream is aborted or errors mid-turn. After this call the stream
+   * handle is invalid. Should never throw — best-effort cleanup.
+   */
+  abort(): Promise<void>
+}
+
 /** Normalized delivery lifecycle status for an outbound message. */
 export type DeliveryStatus =
   | 'queued'
@@ -613,6 +649,28 @@ export interface ChannelAdapter {
      *  inbound message. {@link DeliveryStatusUpdate} */
     deliveryUpdate?: DeliveryStatusUpdate
   }>
+
+  /**
+   * Open a streaming-draft session so the Agent's reply appears
+   * incrementally on the platform (type-on animation) instead of arriving
+   * all at once after the LLM finishes. Optional — adapters that don't
+   * support streaming leave this undefined; the host falls back to
+   * one-shot {@link sendMessage} at turn end.
+   *
+   * The host calls this at the start of a channel-originated turn when the
+   * adapter exposes it. It then feeds text deltas via
+   * {@link ChannelDraftStream.update} as the LLM streams, and finalizes
+   * via {@link ChannelDraftStream.commit} (normal completion) or
+   * {@link ChannelDraftStream.abort} (user stop / error).
+   *
+   * `params` mirrors {@link OutboundMessageParams} so the adapter has the
+   * chat id, reply target, and locale from the start.
+   */
+  streamDraft?(
+    channelId: string,
+    config: Record<string, unknown>,
+    params: OutboundMessageParams,
+  ): Promise<ChannelDraftStream>
 }
 
 // ════════════════════════════════════════════════════════════════════════════

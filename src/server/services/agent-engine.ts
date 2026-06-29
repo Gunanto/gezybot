@@ -42,7 +42,9 @@ import { listAvailableAgents } from '@/server/services/inter-agent'
 import { listContactsForPrompt, findContactByLinkedUserId } from '@/server/services/contacts'
 import { contactNotes as contactNotesTable } from '@/server/db/schema'
 import { linkFilesToMessage, getFilesForMessage, serializeFile } from '@/server/services/files'
-import { popChannelQueueMeta, getChannelQueueMeta, deliverChannelResponse, getActiveChannelsForAgent, getChannel, findContactByPlatformId, getChannelOriginMeta } from '@/server/services/channels'
+import { popChannelQueueMeta, getChannelQueueMeta, deliverChannelResponse, getActiveChannelsForAgent, getChannel, findContactByPlatformId, getChannelOriginMeta, openChannelDraftStream, recordChannelDraftCommitted } from '@/server/services/channels'
+import type { ChannelQueueMeta } from '@/server/services/channels'
+import type { ChannelDraftStream } from '@/server/channels/adapter'
 import { popStagedAttachments, clearStagedAttachments } from '@/server/tools/attach-file-tool'
 import { parseMentions, notifyMentionedUsers } from '@/server/services/mentions'
 import { getGlobalPrompt, getSetting, setSetting } from '@/server/services/app-settings'
@@ -1604,6 +1606,30 @@ export async function processNextMessage(agentId: string): Promise<boolean> {
 
     const thinkingEffort = thinkingConfig?.enabled ? thinkingConfig.effort ?? undefined : undefined
 
+    // ─── Fase 2: channel streaming draft ──────────────────────────────────────
+    // If this turn originated from a channel and the adapter supports
+    // `streamDraft?`, open a draft session so the reply appears
+    // incrementally on the platform (e.g. Telegram type-on animation).
+    // The draft is fed per-delta via `onTextDelta` and finalized with
+    // `commit()` (normal) or `abort()` (user stop / error). Adapters
+    // without `streamDraft?` return null here and we fall back to one-shot
+    // `deliverChannelResponse` at turn end (unchanged legacy path).
+    let channelDraftStream: ChannelDraftStream | null = null
+    let channelDraftMeta: ChannelQueueMeta | null = null
+    if (queueItem.sourceType === 'channel') {
+      const meta = getChannelQueueMeta(queueItem.id)
+      if (meta) {
+        const opened = await openChannelDraftStream(meta).catch((err) => {
+          log.warn({ agentId, channelId: meta.channelId, err }, 'openChannelDraftStream threw, falling back to one-shot')
+          return null
+        })
+        if (opened) {
+          channelDraftStream = opened.stream
+          channelDraftMeta = meta
+        }
+      }
+    }
+
     let step = 0
     for (; step < maxSteps; step++) {
       if (abortController.signal.aborted) { wasAborted = true; break }
@@ -1641,8 +1667,21 @@ export async function processNextMessage(agentId: string): Promise<boolean> {
         onCommittedText: (delta) => { fullContent += delta },
         onDroppedText: (txt, idx) => log.debug(
           { agentId, assistantMessageId, step: idx, droppedChars: txt.length, preview: txt.slice(0, 200) },
-          'Dropped pre-narration from intermediate step',
+          'Dropped pre-narration text (intermediate step)'
         ),
+        onTextDelta: channelDraftStream
+          ? (_delta, accumulated) => {
+              // Forward incremental text to the channel streaming draft.
+              // Throttling is handled inside the adapter (e.g. Telegram
+              // flushes at most once every 400ms). Pre-narration that gets
+              // dropped by onDroppedText may briefly appear in the draft
+              // then be replaced when the next step commits — acceptable
+              // for an ephemeral draft bubble.
+              channelDraftStream!.update(_delta, accumulated).catch((err) =>
+                log.warn({ agentId, err }, 'channelDraftStream.update failed (non-fatal)')
+              )
+            }
+          : undefined,
       }, step)
       if (outcome.usage) {
         stepUsages.push(outcome.usage)
@@ -1932,9 +1971,24 @@ export async function processNextMessage(agentId: string): Promise<boolean> {
         const channelMeta = popChannelQueueMeta(queueItem.id)
         if (channelMeta) {
           const stagedFiles = popStagedAttachments(agentId)
-          deliverChannelResponse(channelMeta, assistantMessageId, fullContent, stagedFiles.length > 0 ? stagedFiles : undefined).catch((err) => {
-            log.error({ agentId, channelId: channelMeta.channelId, err }, 'Channel response delivery failed')
-          })
+          if (channelDraftStream && channelDraftMeta) {
+            // Fase 2: streaming draft was opened — commit it now (the
+            // draft bubble is replaced by the final persistent message).
+            // Then record the link/stats/SSE via recordChannelDraftCommitted.
+            channelDraftStream.commit()
+              .then((result) => recordChannelDraftCommitted(channelDraftMeta!, assistantMessageId, result))
+              .then(() => { if (stagedFiles.length > 0) log.debug({ agentId }, 'Attachments present but streaming draft does not support inline attachments; they were not sent') })
+              .catch((err) => {
+                log.error({ agentId, channelId: channelMeta.channelId, err }, 'Channel streaming draft commit failed, falling back to one-shot deliverChannelResponse')
+                deliverChannelResponse(channelMeta, assistantMessageId, fullContent, stagedFiles.length > 0 ? stagedFiles : undefined).catch((e) =>
+                  log.error({ agentId, channelId: channelMeta.channelId, err: e }, 'Fallback deliverChannelResponse also failed')
+                )
+              })
+          } else {
+            deliverChannelResponse(channelMeta, assistantMessageId, fullContent, stagedFiles.length > 0 ? stagedFiles : undefined).catch((err) => {
+              log.error({ agentId, channelId: channelMeta.channelId, err }, 'Channel response delivery failed')
+            })
+          }
         } else {
           clearStagedAttachments(agentId)
         }
@@ -1969,6 +2023,14 @@ export async function processNextMessage(agentId: string): Promise<boolean> {
     } else {
       // Aborted — clear any staged attachments
       clearStagedAttachments(agentId)
+      // Fase 2: abort the channel streaming draft if one was opened (user
+      // clicked stop / stream was aborted). This discards the ephemeral
+      // draft bubble on the platform. Best-effort — never throws.
+      if (channelDraftStream) {
+        channelDraftStream.abort().catch((err) =>
+          log.warn({ agentId, err }, 'channelDraftStream.abort failed (non-fatal)')
+        )
+      }
     }
 
     await markQueueItemDone(queueItem.id)
