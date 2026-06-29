@@ -8,7 +8,7 @@ import { AGENT_LANGUAGE_NAMES } from '@/shared/constants'
 
 // ─── Configurator (Queenie) blocks ─────────────────────────────────────────────
 // Loaded once from the bundled knowledge doc. The configurator Agent gets a
-// mission block (how to run onboarding) + this knowledge block (what Hivekeep is
+// mission block (how to run onboarding) + this knowledge block (what Gezy is
 // and can do) so it never "bottes en touche". See queenie.md §4.4/§4.6.
 let cachedQueenieKnowledge: string | null = null
 function getQueenieKnowledge(): string {
@@ -24,7 +24,7 @@ function getQueenieKnowledge(): string {
 
 const CONFIGURATOR_MISSION = `## Configurator mission
 
-You are the user's onboarding guide and ongoing configuration assistant. Your job is to help them set up and grow their Hivekeep through friendly conversation — they should never need to hunt through menus.
+You are the user's onboarding guide and ongoing configuration assistant. Your job is to help them set up and grow their Gezy through friendly conversation — they should never need to hunt through menus.
 
 How to run it:
 - **Use your tools — don't just talk about setup. You DO the setup; you never narrate steps for the user to perform.** You are not a help article. When the user agrees to set anything up — a provider, embeddings, search, an image provider, an avatar style/type/base, the global prompt, voice, a channel, or their first Agent — IMMEDIATELY call the matching tool that turn (e.g. \`describe_provider_config\` + \`request_provider_setup\`, \`set_default_provider\`, \`set_avatar_style\`/\`set_avatar_subject\`/\`generate_avatar_base\`, \`set_global_prompt\`, \`create_agent\`). Never reply with "go to Settings → …" or "you can add it in the menu": doing it for them, in-chat, IS the whole point. Answering an onboarding question in prose without taking the corresponding action is a failure.
@@ -52,7 +52,7 @@ You are admin-facing: provider/channel/default/global config is admin-only and w
 
 function buildConfiguratorBlock(): string {
   const knowledge = getQueenieKnowledge()
-  return knowledge ? `${CONFIGURATOR_MISSION}\n\n## Hivekeep knowledge\n\n${knowledge}` : CONFIGURATOR_MISSION
+  return knowledge ? `${CONFIGURATOR_MISSION}\n\n## Gezy knowledge\n\n${knowledge}` : CONFIGURATOR_MISSION
 }
 
 interface ContactSummary {
@@ -426,7 +426,7 @@ function buildContextBlock(): string {
     `Current time: ${time} (${tz})\n` +
     `ISO timestamp: ${iso}\n` +
     `Timezone: ${tz} — interpret schedules and wall-clock times in this zone unless the user asks otherwise\n` +
-    `Platform: Hivekeep v${config.version}\n` +
+    `Platform: Gezy v${config.version}\n` +
     `Installation: ${installLine}${envFileLine}\n` +
     `Data directory: ${config.dataDir}\n` +
     `Public URL: ${config.publicUrl}\n` +
@@ -984,8 +984,8 @@ export function buildSystemPrompt(params: PromptParams): BuiltSystemPrompt {
   if (params.isSubAgent && params.taskDescription) {
     // Sub-Agent prompt
     stableBlocks.push(
-      `You are ${params.agent.name}, a specialized AI agent on Hivekeep, executing a delegated task.\n` +
-      `Hivekeep is a self-hosted platform of expert AI agents (Agents) that collaborate to assist users.`,
+      `You are ${params.agent.name}, a specialized AI agent on Gezy, executing a delegated task.\n` +
+      `Gezy is a self-hosted platform of expert AI agents (Agents) that collaborate to assist users.`,
     )
     stableBlocks.push(`## Your mission\n\n${params.taskDescription}`)
 
@@ -1099,7 +1099,7 @@ export function buildSystemPrompt(params: PromptParams): BuiltSystemPrompt {
     // [0] Platform context
     stableBlocks.push(
       `## Platform context\n\n` +
-      `You are a specialized AI agent (Agent) on Hivekeep, a self-hosted platform of expert AI agents serving a small group of users.\n\n` +
+      `You are a specialized AI agent (Agent) on Gezy, a self-hosted platform of expert AI agents serving a small group of users.\n\n` +
       `Key facts about your environment:\n` +
       `- Your session is continuous and permanent — there is no "new conversation". You maintain context across all interactions through memory and compacted summaries of older exchanges.\n` +
       `- Multiple users may talk to you. Each message is prefixed with the sender's identity.\n` +
@@ -1375,7 +1375,7 @@ export function buildSystemPrompt(params: PromptParams): BuiltSystemPrompt {
       `### Response calibration\n` +
       `- Match your response length to the complexity of the request. Simple questions deserve concise answers; complex problems warrant detailed explanations.\n` +
       `- For external platform messages (Discord, Telegram, WhatsApp, etc.), default to shorter, conversational responses. Users on mobile expect quick answers, not essays.\n` +
-      `- For the Hivekeep web UI, you can use richer formatting (headings, code blocks, tables, lists) when it aids clarity.\n` +
+      `- For the Gezy web UI, you can use richer formatting (headings, code blocks, tables, lists) when it aids clarity.\n` +
       `- When a user asks a yes/no question, lead with the answer, then explain if needed.\n` +
       `- Avoid unnecessary preambles ("Great question!", "Sure, I'd be happy to help!"). Get to the point.\n` +
       `- When presenting multiple options or steps, use numbered lists for clarity.\n` +
@@ -1421,18 +1421,18 @@ export function buildSystemPrompt(params: PromptParams): BuiltSystemPrompt {
       `  - Key \`--color-*\` tokens: --color-background, --color-foreground, --color-card, --color-card-foreground, --color-muted, --color-muted-foreground, --color-primary, --color-primary-foreground, --color-border, --color-success, --color-warning, --color-destructive, --color-info.\n` +
       `  - **Validate it.** After writing a \`renderer.tsx\`, run test_custom_tool and CHECK the \`renderer\` field in the result: \`{ ok: true }\` means it built and rendered; \`{ ok: false, phase: "build" | "render", error }\` means it is broken. The renderer runs in the USER's browser, so a build/render error is otherwise INVISIBLE to you — fix the reported error before considering the tool done. (Validation does an initial server-side render only: build errors, bad data access, and invalid children are caught; useEffect/handlers are not exercised.)\n\n` +
       `### Mini-Apps\n` +
-      `You can create interactive web apps (mini-apps) in the Hivekeep sidebar.\n` +
+      `You can create interactive web apps (mini-apps) in the Gezy sidebar.\n` +
       `- **Always call get_mini_app_docs first** for the full SDK reference (hooks, components, setup patterns).\n` +
       `- Use get_mini_app_templates to start from a template (dashboard, todo-list, form, data-viewer, kanban, background-service, contacts-manager).\n` +
       `- Bare ES imports (react, @hivekeep/react, …) resolve ONLY via an app.json import map — NOT inline HTML. Pass \`dependencies\` (or a \`files\` map incl. app.json) to create_mini_app to set it up in one call.\n` +
       `- Mini-apps are not just UIs: a \`_server.js\` backend with \`"background": true\` in app.json runs as a LIVE service (loads at server boot, onStart/onStop lifecycle) — it can schedule local cron jobs (ctx.schedule), REACT to platform events (ctx.on("task:done" | "channel:message-received" | "contact:created" | … — gated by events:<prefix>), push platform notifications (ctx.notify), fetch external APIs (ctx.fetch), persist files (ctx.files), and talk to the UI over SSE both ways (ctx.events.emit / onClientEvent). When a user wants something watched, reacted to, or automated with a visual front, a background mini-app is often the right shape (cheaper than a cron spawning you: no LLM turn per tick).\n` +
       `- With user-approved permissions declared in app.json, a backend can also read vault secrets (ctx.secrets), run LLM completions (ctx.llm), message you or spawn tasks on you (ctx.agent), and send through the platform's EXISTING messaging channels (ctx.channels.send / ctx.channels.sendToContact — e.g. an SMS via an already-configured Twilio channel; prefer that over re-wiring a provider API with raw secrets) — see the backend section of get_mini_app_docs.\n` +
-      `- Mini-apps can EXTEND the Hivekeep UI: \`Hivekeep.platform.get/post/put/delete("/contacts" | "/crons" | "/projects" | …)\` calls Hivekeep's own REST API (the same one the settings pages use), so you can build an app that manages any resource (a contacts manager, a crons board) instead of sending the user into settings. Gated by \`platform:<resource>:<read|write>\` permissions in app.json (e.g. platform:contacts:read/write); read api.md for each resource's routes/shapes. A background backend has the same thing as \`ctx.platform.*\` (service-backed: contacts, projects, tickets, crons) to mutate resources in reaction to events.\n` +
+      `- Mini-apps can EXTEND the Gezy UI: \`Gezy.platform.get/post/put/delete("/contacts" | "/crons" | "/projects" | …)\` calls Gezy's own REST API (the same one the settings pages use), so you can build an app that manages any resource (a contacts manager, a crons board) instead of sending the user into settings. Gated by \`platform:<resource>:<read|write>\` permissions in app.json (e.g. platform:contacts:read/write); read api.md for each resource's routes/shapes. A background backend has the same thing as \`ctx.platform.*\` (service-backed: contacts, projects, tickets, crons) to mutate resources in reaction to events.\n` +
       `- NEVER hardcode API keys in app code or storage: declare \`"permissions": ["secrets:<NAME>"]\` and read them via ctx.secrets.get().\n` +
       `- Console output is only captured while the app is open in a browser tab (backend ctx.log entries are captured too, tagged \`source: backend\`). After writing files, check get_mini_app_console \`lastServedAt\`; use reload_mini_app to force a reload. Use get_mini_app_backend_status to inspect a backend (loaded?, jobs + next runs, permissions).\n` +
-      `- Persistence: use Hivekeep.storage / useStorage (server-backed) for anything that must survive a reload. The app runs in a sandboxed opaque-origin iframe so browser localStorage / useLocalStorage is in-session only and does NOT persist.\n` +
+      `- Persistence: use Gezy.storage / useStorage (server-backed) for anything that must survive a reload. The app runs in a sandboxed opaque-origin iframe so browser localStorage / useLocalStorage is in-session only and does NOT persist.\n` +
       `- Use create_mini_app_snapshot before risky changes.\n` +
-      `- Always use @hivekeep/components instead of raw HTML elements.`,
+      `- Always use @gezy/components instead of raw HTML elements.`,
     )
   }
 
@@ -1467,7 +1467,7 @@ export function buildSystemPrompt(params: PromptParams): BuiltSystemPrompt {
       `- **Telegram**: Supports Markdown (bold, italic, code, links). Keep messages moderate length. Avoid complex nested formatting.\n` +
       `- **WhatsApp**: Very limited formatting (*bold*, _italic_, \`code\`, ~~strike~~). No headings, no tables, no links with custom text. Use *bold* or CAPS for emphasis. Keep messages short.\n` +
       `- **Slack**: Supports Markdown-like syntax (mrkdwn). Use *bold*, _italic_, \`code\`. No headings.\n` +
-      `- **Web UI (Hivekeep)**: Full Markdown support including tables, headings, code blocks, and LaTeX.\n` +
+      `- **Web UI (Gezy)**: Full Markdown support including tables, headings, code blocks, and LaTeX.\n` +
       `When responding to an external platform message, match that platform's formatting capabilities.`,
     )
   }
