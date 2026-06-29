@@ -1,6 +1,6 @@
 /**
  * External plugin fixture — simulates a third-party plugin published on
- * npm. The whole module imports from `@hivekeep/sdk` only;
+ * npm. The whole module imports from `@gezy/sdk` only;
  * nothing from Hivekeep internals (no `@/server/...`, no `@/shared/...`).
  *
  * Loaded by `src/server/services/plugins-e2e.test.ts` to prove the SDK
@@ -19,31 +19,36 @@ import {
   type PluginContext,
   type PluginExports,
   type ProviderConfig,
-} from '@hivekeep/sdk'
+} from "@gezy/sdk";
 
 interface ExternalConfig {
-  greeting?: string
+  greeting?: string;
 }
 
 // ─── A real native LLMProvider, complete with streaming chat ────────────────
 
 class ExternalLLMProvider implements LLMProvider {
-  readonly type = 'external-echo'
-  readonly displayName = 'External Echo (fixture)'
-  readonly noApiKey = true
+  readonly type = "external-echo";
+  readonly displayName = "External Echo (fixture)";
+  readonly noApiKey = true;
   readonly configSchema = [
-    { key: 'baseUrl', type: 'url', label: 'Base URL', default: 'http://localhost' },
-  ] as const
+    {
+      key: "baseUrl",
+      type: "url",
+      label: "Base URL",
+      default: "http://localhost",
+    },
+  ] as const;
 
   async authenticate(_config: ProviderConfig) {
-    return { valid: true, accountLabel: 'fixture-account' }
+    return { valid: true, accountLabel: "fixture-account" };
   }
 
   async listModels(_config: ProviderConfig) {
     return [
-      { id: 'external-1', name: 'External 1', contextWindow: 8192 },
-      { id: 'external-2', name: 'External 2', contextWindow: 32768 },
-    ]
+      { id: "external-1", name: "External 1", contextWindow: 8192 },
+      { id: "external-2", name: "External 2", contextWindow: 32768 },
+    ];
   }
 
   async *chat(
@@ -51,104 +56,110 @@ class ExternalLLMProvider implements LLMProvider {
     request: ChatRequest,
     _config: ProviderConfig,
   ): AsyncIterable<ChatChunk> {
-    const last = [...request.messages].reverse().find((m) => m.role === 'user')
+    const last = [...request.messages].reverse().find((m) => m.role === "user");
     const text =
-      last?.content.find((b) => b.type === 'text')?.text ?? '(no input)'
-    yield { type: 'text-delta', text: `[external] ${text}` }
+      last?.content.find((b: any) => b.type === "text")?.text ?? "(no input)";
+    yield { type: "text-delta", text: `[external] ${text}` };
     yield {
-      type: 'finish',
-      reason: 'stop',
+      type: "finish",
+      reason: "stop",
       usage: {
         inputTokens: text.length,
         outputTokens: `[external] ${text}`.length,
       },
-    }
+    };
   }
 }
 
 // ─── A real ChannelAdapter ──────────────────────────────────────────────────
 
 const externalChannel: ChannelAdapter = {
-  platform: 'external-channel',
-  meta: { displayName: 'External Channel (fixture)' },
-  identitySwitchMode: 'prefix',
+  platform: "external-channel",
+  meta: { displayName: "External Channel (fixture)" },
+  identitySwitchMode: "prefix",
   async start() {},
   async stop() {},
-  async sendMessage(_channelId, _config, params) {
+  async sendMessage(_channelId: string, _config: any, params: any) {
     return {
       platformMessageId: `ext-${Date.now()}`,
       deliveryMeta: { content: params.content, chatId: params.chatId },
-    }
+    };
   },
   async validateConfig() {
-    return { valid: true }
+    return { valid: true };
   },
   async getBotInfo() {
-    return { name: 'External Bot' }
+    return { name: "External Bot" };
   },
-}
+};
 
 // ─── Entry point ────────────────────────────────────────────────────────────
 
 export default function externalPlugin(
   ctx: PluginContext<ExternalConfig>,
 ): PluginExports {
-  ctx.log.info('external plugin loaded')
+  ctx.log.info("external plugin loaded");
 
   return {
     tools: {
       hello: {
-        availability: ['main', 'sub-agent'],
+        availability: ["main", "sub-agent"],
         readOnly: true,
         concurrencySafe: true,
-        create: (execCtx) =>
+        create: (execCtx: any) =>
           tool({
-            description: 'Greet someone using the plugin\'s configured word.',
+            description: "Greet someone using the plugin's configured word.",
             inputSchema: z.object({
-              name: z.string().describe('Who to greet'),
+              name: z.string().describe("Who to greet"),
             }),
-            execute: async ({ name }) => {
-              const word = ctx.config.greeting ?? 'Hello'
+            execute: async ({ name }: { name: string }) => {
+              const word = ctx.config.greeting ?? "Hello";
               await ctx.cards.emit({
                 agentId: execCtx.agentId,
-                cardType: 'hello-card',
+                cardType: "hello-card",
                 layout: [
                   card.header({ title: `${word} card` }),
-                  card.statusBanner({ label: `${word}, ${name}!`, variant: 'success' }),
+                  card.statusBanner({
+                    label: `${word}, ${name}!`,
+                    variant: "success",
+                  }),
                 ],
                 initialState: { name },
-              })
-              return { reply: `${word}, ${name}!` }
+              });
+              return { reply: `${word}, ${name}!` };
             },
           }),
       },
     },
 
     channels: {
-      'external-channel': externalChannel,
+      "external-channel": externalChannel,
     },
 
     providers: [new ExternalLLMProvider()],
 
     hooks: {
-      beforeChat: (h) => {
-        ctx.log.debug({ agentId: h.agentId, len: h.message.length }, 'beforeChat')
+      beforeChat: (h: any) => {
+        ctx.log.debug(
+          { agentId: h.agentId, len: h.message.length },
+          "beforeChat",
+        );
       },
-      afterToolCall: (h) => {
-        ctx.log.debug({ tool: h.toolName }, 'afterToolCall')
+      afterToolCall: (h: any) => {
+        ctx.log.debug({ tool: h.toolName }, "afterToolCall");
       },
     },
 
-    async onCardAction({ actionId }) {
-      ctx.log.info({ actionId }, 'card action')
-      return { ok: true }
+    async onCardAction({ actionId }: { actionId: string }) {
+      ctx.log.info({ actionId }, "card action");
+      return { ok: true };
     },
 
     async activate() {
-      ctx.log.info('external plugin activated')
+      ctx.log.info("external plugin activated");
     },
     async deactivate() {
-      ctx.log.info('external plugin deactivated')
+      ctx.log.info("external plugin deactivated");
     },
-  }
+  };
 }
