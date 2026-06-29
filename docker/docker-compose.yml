@@ -11,8 +11,9 @@
 
 services:
   gezy:
-    image: ghcr.io/gunanto/gezytech:build-27
-    # build:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     container_name: gezy
     ports:
       - "4178:3000"
@@ -21,14 +22,13 @@ services:
     environment:
       - PORT=3000
       - HOST=0.0.0.0
-      - NODE_ENV=production
-      - HIVEKEEP_DATA_DIR=/app/data
+      - GEZY_DATA_DIR=/app/data
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
       - LOG_LEVEL=${LOG_LEVEL:-info}
-      - HIVEKEEP_MODEL_REGISTRY=false
-      - HIVEKEEP_PUBLIC_URL=https://aios.gezytech.web.id
-      - HIVEKEEP_TIMEZONE=Asia/Jakarta
-      - HIVEKEEP_ADAPTIVE_THINKING=true
+      - GEZY_MODEL_REGISTRY=false
+      - GEZY_PUBLIC_URL=https://aios.gezytech.web.id
+      - GEZY_TIMEZONE=Asia/Jakarta
+      - GEZY_ADAPTIVE_THINKING=true
     networks:
       - pgunNet
     healthcheck:
