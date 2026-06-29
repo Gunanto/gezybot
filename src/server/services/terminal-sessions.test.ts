@@ -4,7 +4,7 @@ import type { PersistedTerminalSession, TerminalPersistence } from '@/server/ser
 // Force the direct-PTY backend so tests are deterministic regardless of whether
 // tmux is installed on the host/CI (otherwise sessions would back themselves
 // with tmux and shell out to it).
-process.env.HIVEKEEP_TERMINAL_TMUX = 'off'
+process.env.GEZY_TERMINAL_TMUX = 'off'
 
 // Mock bun-pty before importing the service: no real shell is spawned, and the
 // fake PTY lets tests drive onData/onExit deterministically. (mock.module is
