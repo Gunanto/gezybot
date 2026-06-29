@@ -56,6 +56,7 @@ Long polling mode is selected automatically, no manual configuration needed. Jus
 ## Features
 
 - Text messages with Markdown formatting
+- **Rich messages (Bot API 10.1)** — when the Agent's reply contains block-level markdown (headings, tables, lists, code fences, blockquotes, horizontal rules), Gezy auto-sends it via `sendRichMessage` so Telegram renders headings/tables/lists/code blocks/blockquotes natively. Plain paragraphs still use the legacy `sendMessage` path. If the rich API rejects the payload, Gezy falls back to `sendMessage` automatically.
 - Image, document, audio, and video attachments (inbound and outbound)
 - File attachment retry logic (1 retry with 500ms delay for transient API failures)
 - Reply threading via `reply_to_message_id`

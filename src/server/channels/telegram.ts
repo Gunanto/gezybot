@@ -3,6 +3,7 @@ import { readAttachmentBlob, attachmentFileName, isImageAttachment } from '@/ser
 import type { ChannelAdapterMeta } from '@/server/channels/adapter'
 import { getSecretValue } from '@/server/services/vault'
 import { extractAttachments } from '@/server/channels/telegram-utils'
+import { markdownToTelegramHtml, markdownHasRichBlocks } from '@/server/channels/telegram-rich'
 import { config } from '@/server/config'
 import { createLogger } from '@/server/logger'
 
@@ -366,6 +367,37 @@ export class TelegramAdapter implements ChannelAdapter {
 
     // Send text message (or remaining text if caption was too long)
     if (params.content) {
+      // ─── Rich message path (Bot API 10.1) ────────────────────────────────
+      // Auto-detect: when the content contains block-level markdown (heading,
+      // table, list, code fence, blockquote, hr), send it as a rich message
+      // via `sendRichMessage` so Telegram renders headings/tables/lists/etc.
+      // natively. Otherwise fall through to the legacy plain-text path.
+      const useRich = markdownHasRichBlocks(params.content)
+      if (useRich) {
+        try {
+          const { pages } = markdownToTelegramHtml(params.content)
+          for (let i = 0; i < pages.length; i++) {
+            const body: Record<string, unknown> = {
+              chat_id: params.chatId,
+              rich_message: { html: pages[i] },
+            }
+            if (i === 0 && params.replyToMessageId && !params.attachments?.length) {
+              body.reply_parameters = { message_id: Number(params.replyToMessageId) }
+            }
+            const result = await telegramApi(token, 'sendRichMessage', body) as { message_id: number }
+            lastMessageId = String(result.message_id)
+          }
+          return { platformMessageId: lastMessageId }
+        } catch (richErr) {
+          // Fallback: rich-message API rejected the payload (unsupported tag,
+          // too-large table, etc.). Fall back to legacy sendMessage with the
+          // raw markdown content — better a plain-text delivery than a lost
+          // reply. Log the rich-path failure for debugging.
+          log.warn({ channelId: _channelId, err: richErr }, 'Telegram sendRichMessage failed, falling back to sendMessage')
+        }
+      }
+      // ─── End rich message path ────────────────────────────────────────────
+
       const chunks = splitMessage(params.content)
       for (let i = 0; i < chunks.length; i++) {
         const body: Record<string, unknown> = {
