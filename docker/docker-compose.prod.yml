@@ -7,9 +7,8 @@
 services:
   gezy:
     # build langsung dari repo GitHub branch rename/gezy
-    build:
-      context: https://github.com/Gunanto/gezybot.git#rename/gezy
-      dockerfile: docker/Dockerfile
+    image: ghcr.io/gunanto/gezybot:latest
+    # build:
     container_name: gezy
     ports:
       - "4178:3000"
