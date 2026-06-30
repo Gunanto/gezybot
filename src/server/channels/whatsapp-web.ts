@@ -247,7 +247,7 @@ export class WhatsAppWebAdapter implements ChannelAdapter {
         // phone number in the message text (covers cases where the bot isn't in
         // the user's contacts so the mention picker doesn't suggest it).
         const rawMentions = (waCtx?.mentionedJid ?? []) as string[]
-        const botDigits = botJid ? botJid.replace(/[^0-9]/g, '') : ''
+        const botDigits = botJid ? jidNormalizedUser(botJid).replace(/[^0-9]/g, '') : ''
         const nativeMention = !!(
           Array.isArray(rawMentions) && rawMentions.length > 0 && botJid &&
           rawMentions.some((j) => {

@@ -746,6 +746,7 @@ async function whatsappAccessGate(
       userId: incoming.platformUserId,
       chatType: incoming.chatType,
       isReplyToBot: incoming.isReplyToBot,
+      isMentioned: incoming.isMentioned,
       allow: decision.allow,
       reason: 'reason' in decision ? decision.reason : null,
       ownerDigits: config.channels.whatsappOwnerUserId ? waDigits(config.channels.whatsappOwnerUserId) : null,
