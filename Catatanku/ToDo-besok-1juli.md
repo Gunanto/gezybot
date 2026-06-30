@@ -1,6 +1,6 @@
 # ToDo Besok — 1 Juli 2026
 
-> Dibuat: 30 Jun 2026 ~17:00 · Status: **catatan eksekusi besok**
+> Dibuat: 30 Jun 2026 ~17:00 · Update: 30 Jun 2026 ~22:00 (OMML verified end-to-end) · Status: **catatan eksekusi besok**
 
 ## Status hari ini (30 Jun)
 
@@ -18,6 +18,7 @@
 - `b8e07b27` fix: WA mention — strip :device dari botJid sebelum digit extraction
 - `2b6ed1d8` fix: WA reply-to-bot via sent-message-ID tracking
 - `a8d9ca4b` fix: DOCX CSS.escape crash — ganti dengan direct selector
+- **OMML feasibility verified end-to-end** (~22:00): `\frac{a}{b}` → KaTeX mathml → `mml2omml` → `ImportedXmlComponent.fromXmlString` → DOCX 8671 bytes dengan `m:f`/`m:num`/`m:den` native. **Equation editable di Word, bukan gambar.** Besok tinggal implement di `document-render-docx.ts` + update test.
 
 ### ✅Confirmed working di VPS
 - generate_pdf dengan LaTeX ✅ (PDF render math sebagai MathML, Chromium native)
@@ -37,40 +38,73 @@
 
 ## Eksekusi besok
 
-### 1. DOCX: equation sebagai native OMML (bukan gambar) — PRIORITAS UTAMA
+### 1. DOCX: equation sebagai native OMML (bukan gambar) — PRIORITAS UTAMA ✅ VERIFIED
 
-**Tujuan:** ganti equation PNG image → native Word equation object (OMML). Equation bisa **diedit di Word**.
+**Tujuan:** ganti equation PNG image → native Word equation object (OMML). Equation bisa **diedit di Word** (klik equation → bisa edit, bukan gambar).
 
 **Pipeline baru:**
 ```
 LaTeX → KaTeX (output: 'mathml') → MathML string
-     → mml2omml(mathml) → OMML XML string
-     → insert sebagai raw XML di docx document.xml
+     → strip <annotation>...</annotation>
+     → mml2omml(mathml) → OMML XML string  (sudah dibungkus <m:oMath>...)
+     → ImportedXmlComponent.fromXmlString(omml) → XmlComponent
+     → push ke Paragraph children (cast sebagai ParagraphChild)
 ```
 
-**Sudah verified:**
+**VERIFIED END-TO-END (30 Jun ~22:00):**
 - `mathml2omml@0.5.0` terinstall, jalan di Bun ✅
-- Export: `mml2omml(mathmlString)` → OMML XML string ✅
-- `\frac{a}{b}` → `<m:oMath><m:f><m:num>a</m:num><m:den>b</m:den></m:f></m:oMath>` ✅
+- Export: `import { mml2omml } from 'mathml2omml'` → OMML XML string ✅
+- `\frac{a}{b}` → `<m:oMath><m:f><m:fPr><m:type m:val="bar"/></m:fPr><m:num>...a...</m:num><m:den>...b...</m:den></m:f></m:oMath>` ✅
+- `\frac{3}{4} + \sqrt{2}` → `m:f` + `m:rad` (akar kuadrat) benar ✅
+- `ImportedXmlComponent.fromXmlString(omml)` dari `docx` package → XmlComponent tree ✅
+- DOCX dibuat 8671 bytes (vs 103KB PNG approach) — jauh lebih kecil ✅
+- Inspeksi `word/document.xml`: `m:oMath`, `m:f`, `m:num`, `m:den`, `m:rad` semua hadir dengan namespace benar ✅
+- **Tidak butuh Playwright/Chromium** untuk equation lagi ✅
 
-**Implementasi:**
+**⚠️ PENTING — jangan pakai kelas `docx` `Math`:**
+Kelas `Math` (alias `Math_2`) me-render root key `m:oMath` sendiri. Output `mml2omml` SUDAH dibungkus `<m:oMath>`. Kalau dibungkus `Math` class lagi → double `<m:oMath>` (rusak). Jadi **langsung pakai `ImportedXmlComponent.fromXmlString(omml)`**, bukan `new Math({children:[...]})`.
+
+**⚠️ Strip `<annotation>` sebelum `mml2omml`:**
+KaTeX `output:'mathml'` menghasilkan `<span class="katex"><math>...<annotation encoding="application/x-tex">\frac{a}{b}</annotation></math></span>`. `mml2omml` complain "Type not supported: annotation" (warning, tapi tetap jalan). Bersihkan dulu:
+```ts
+const html = katex.renderToString(latex, { displayMode, throwOnError: false, output: 'mathml' })
+const mathMatch = html.match(/<math[\s\S]*?<\/math>/)
+let mathml = mathMatch[0].replace(/<annotation[\s\S]*?<\/annotation>/g, '')
+const omml = mml2omml(mathml)
+```
+
+**⚠️ Display (block) equation → bungkus `<m:oMathPara>`:**
+`mml2omml` keluarkan `<m:oMath>` untuk kedua mode (inline + display). Untuk block equation yang center, Word expect `<m:oMathPara><m:oMath>...</m:oMath></m:oMathPara>`. Kalau gak dibungkus, equation jalan tapi gak auto-center. Solusi: kalau `display === true`, bungkus omml manual:
+```ts
+const wrapped = display
+  ? `<m:oMathPara xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">${omml}</m:oMathPara>`
+  : omml
+return ImportedXmlComponent.fromXmlString(wrapped)
+```
+
+**Implementasi konkret (`document-render-docx.ts`):**
 - File: `src/server/services/document-render-docx.ts`
-- Hapus: `screenshotHtmlElements` call untuk equation (gak perlu lagi Playwright untuk math)
-- Ganti: `renderMathParagraph` dan `renderInline` case `inlineMath` → convert LaTeX→MathML→OMML, insert sebagai raw XML
-- `docx` package: butuh cara insert raw OMML XML. Cek:
-  - `docx` punya `Math` class + `MathRun`, `MathFraction`, dll — bisa build equation native
-  - ATAU insert raw XML via `XmlComponent` / custom element
-  - ATAU `Packer` support raw XML injection
-- KaTeX `output: 'mathml'` → pure MathML (tanpa `<span>` wrapper) → `mml2omml` → OMML
-- **Tidak butuh Playwright/Chromium** untuk equation lagi (lebih cepat, gak ada race condition)
-- **Tidak butuh `screenshotHtmlElements`** untuk math (method tetap ada untuk SVG nanti)
+- Import tambahan: `import { ImportedXmlComponent } from 'docx'` dan `import { mml2omml } from 'mathml2omml'`
+- Hapus: `playwrightManager` import + `screenshotHtmlElements` call + `buildEquationsHtml` + `pngDims` (gak dipakai untuk math lagi) — TAPI `screenshotHtmlElements` tetap dipakai untuk SVG (task #2), jadi jangan hapus dari `playwright-manager.ts`
+- Ganti `renderKatexMathml` → `latexToOmml(latex, display)`: KaTeX mathml → strip annotation → mml2omml → (wrap oMathPara kalau display) → return string
+- Ganti `renderMathParagraph(id, images, display)` → `renderMathParagraph(latex, display)`: `new DocxParagraph({ alignment: CENTER, children: [ImportedXmlComponent.fromXmlString(omml)] })`
+- Ganti inline `inlineMath` case → return `[ImportedXmlComponent.fromXmlString(omml)]` (cast `as unknown as TextRun`)
+- Hapus `mathNodes` collection + `cursor` + `images` Map (gak perlu lagi — equation langsung convert dari latex di node, gak perlu 2-pass)
+- Simplifikasi: jadi 1-pass walk (collect + render sekaligus), gak perlu collectMath/walkNode/newMathCursor
 
-**Test:**
-- Unit test: `\frac{a}{b}` → OMML berisi `m:f`, `m:num`, `m:den`
-- E2E VPS: generate docx dengan math, buka di Word, equation harus **editable** (klik equation → bisa edit)
-- File size: harus lebih kecil dari PNG approach (OMML = XML text, bukan gambar)
+**Test (`document-render-docx.test.ts` — perlu update):**
+- Hapus mock `screenshotHtmlElements` untuk math (gak dipanggil lagi untuk math)
+- Test baru: `\frac{a}{b}` → unzip docx → `word/document.xml` contains `m:oMath` + `m:f` + `m:num` + `m:den`
+- Test: `\sqrt{2}` → contains `m:rad`
+- Test: block equation (`$$...$$`) → contains `m:oMathPara`
+- Test: prose tanpa math → gak ada `m:oMath`, `screenshotHtmlElements` gak dipanggil
+- **Pakai byte-safe script** untuk edit file .ts (lihat Pitfalls) — `edit_file`/`write_file` trigger format-on-save yang ubah single→double quote + tambah semicolon di SELURUH file
 
-**Effort: ~0.5 hari**
+**Verifikasi VPS:**
+- Generate docx dengan math, download, buka di Word/LibreOffice → equation harus **editable** (klik equation → bisa edit, bukan gambar)
+- File size: harus ~8-15KB (vs 103KB PNG)
+
+**Effort: ~0.5 hari** (feasibility sudah done, tinggal implement + test)
 
 ### 2. SVG di DOCX — setelah OMML selesai
 
@@ -166,9 +200,12 @@ MDAST html node (berisi <svg>...</svg>)
 - `mathml2omml@0.5.0` — **sudah terinstall** ✅ (hari ini, untuk testing)
 - Tidak ada dep baru lain yang dibutuhkan
 
-## Catatan teknis
+## Catatan teknis (verified 30 Jun ~22:00)
 
-- `mml2omml` export: `import { mml2omml } from 'mathml2omml'` (bukan `mathml2omml`)
-- KaTeX `output: 'mathml'` menghasilkan `<span class="katex"><math>...</math><annotation>...</annotation></span>` — `mml2omml` complain "Type not supported: span" dan "Type not supported: annotation" tapi tetap menghasilkan OMML yang benar. Mungkin perlu strip `<span>` dan `<annotation>` sebelum `mml2omml` untuk hasil bersih.
-- `docx` package punya `Math`, `MathRun`, `MathFraction`, `MathRadical`, `MathSuperScript`, `MathSubScript`, `MathSum` classes — alternatif: build equation pakai docx Math API langsung (tanpa mml2omml). Tapi mapping LaTeX→docx Math API = effort besar. mml2omml lebih praktis.
-- Untuk insert raw OMML XML ke docx: cek `docx` package `XmlComponent` atau custom element approach. Atau pakai `Math` class dengan children yang di-parse dari OMML.
+- `mml2omml` export: `import { mml2omml } from 'mathml2omml'` (bukan `mathml2omml`). Pakai `mml2omml(mathmlString)` function, bukan class.
+- KaTeX `output: 'mathml'` menghasilkan `<span class="katex"><math>...<semantics>...<annotation encoding="application/x-tex">\frac{a}{b}</annotation></semantics></math></span>`. **Strip `<annotation>` sebelum `mml2omml`** (complain "Type not supported: annotation", warning aja tapi bersihkan biar gak noisy). `<span>` gak masuk ke `mml2omml` karena kita cuma extract `<math>...</math>` via regex.
+- **Pakai `ImportedXmlComponent.fromXmlString(omml)` dari `docx`** — BUKAN kelas `Math`. Kelas `Math` bikin double `<m:oMath>` (rusak). `ImportedXmlComponent` parse raw XML string jadi XmlComponent tree, lolos type-check dengan cast `as unknown as ParagraphChild` / `as unknown as TextRun`.
+- `mml2omml` output SUDAH dibungkus `<m:oMath xmlns:m=...>...</m:oMath>`. Untuk display (block) equation, bungkus tambahan `<m:oMathPara>...</m:oMathPara>` supaya auto-center di Word.
+- **Pakai byte-safe script untuk edit `.ts`** (`bun run /tmp/patch.ts` yang read→string-replace→writeFile). `edit_file`/`write_file` di editor trigger format-on-save → ubah single→double quote + tambah semicolon di SELURUH file (style violation, diff raksasa).
+- `mathml2omml@0.5.0` terinstall (sudah ada di `package.json` + `node_modules`).
+- Hasil prototype: DOCX 8671 bytes, `m:oMath`+`m:f`+`m:num`+`m:den`+`m:rad` semua benar di `word/document.xml`.

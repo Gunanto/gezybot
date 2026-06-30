@@ -93,7 +93,7 @@ export const generateDocxTool: ToolRegistration = {
   create: (ctx) =>
     tool({
       description:
-        'Render markdown content (headings, lists, tables, code blocks, and LaTeX math with $...$ / $$...$$ / ```math``` fences) into a PDF document and get a shareable URL. Use this for substantial written deliverables (reports, study notes, physics/math solutions) instead of dumping long content in a chat message. Always share the URL with the user afterwards.',
+        'Render markdown content (headings, lists, tables, code blocks, and LaTeX math with $...$ / $$...$$ / ```math``` fences) into a Word (.docx) document with native editable equations, and get a shareable URL. Use this for substantial written deliverables (reports, study notes, RPP, physics/math solutions) instead of dumping long content in a chat message. Always share the URL with the user afterwards.',
       inputSchema: z.object({
         content: z
           .string()
@@ -101,28 +101,13 @@ export const generateDocxTool: ToolRegistration = {
         title: z
           .string()
           .optional()
-          .describe('Document title (used for the browser tab / PDF metadata and as filename fallback).'),
+          .describe('Document title (used for metadata and as filename fallback).'),
         filename: z
           .string()
           .optional()
           .describe('Shareable file name (without extension). Defaults to the title or "document".'),
-        format: z
-          .enum(['A4', 'Letter'])
-          .optional()
-          .describe('Page size. Default: A4.'),
-        landscape: z
-          .boolean()
-          .optional()
-          .describe('Landscape orientation. Default: false (portrait).'),
       }),
       execute: async (args) => {
-        if (!playwrightManager.isEnabled) {
-          return {
-            error:
-              'Document generation unavailable — the headless browser is disabled. Ask the user to set WEB_BROWSING_HEADLESS_ENABLED=true and ensure Chromium is installed in the container.',
-          }
-        }
-
         const content = args.content?.trim()
         if (!content) return { error: 'content is required (markdown).' }
 

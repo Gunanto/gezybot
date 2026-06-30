@@ -1,20 +1,21 @@
 /**
  * Document rendering — markdown (with LaTeX math) → DOCX.
  *
- * Word has no native MathML rendering, so LaTeX equations are rasterized to PNG
- * (via the same headless Chromium used by generate_pdf — KaTeX MathML per
- * equation, screenshot per element, fully offline) and embedded as images in
- * the .docx. The rest of the markdown (headings, lists, tables, code, block-
- * quotes, inline formatting) is mapped to native Word structures with the
- * `docx` package so the document is editable in Word/Google Docs.
+ * LaTeX equations are converted to native Word equation objects (OMML) via
+ * KaTeX (LaTeX→MathML) + mathml2omml (MathML→OMML), then injected as raw XML
+ * using the docx package's ImportedXmlComponent. Equations are editable in
+ * Word — they are real equation objects, not rasterized images. Inline SVG
+ * elements in the markdown are rasterized to PNG via headless Chromium and
+ * embedded as images. The rest of the markdown (headings, lists, tables, code,
+ * blockquotes, inline formatting) is mapped to native Word structures with
+ * the `docx` package.
  *
  * Pipeline:
  *   markdown → unified (remark-parse + remark-gfm + remark-math) MDAST
- *   → collect math nodes, assign ids eq-0, eq-1, … (inline + block)
- *   → build one HTML page: each equation in <div id="eq-N"> with KaTeX MATHML
- *   → playwrightManager.screenshotHtmlElements(html, ids) → Map<id, PNG>
- *   → walk MDAST again → docx elements (Paragraph/TextRun/ImageRun/Table/…)
- *     inserting the equation PNGs as ImageRun at math nodes
+ *   → walk MDAST → docx elements (Paragraph/TextRun/Table/…)
+ *     math nodes: LaTeX → KaTeX(output:'mathml') → strip <annotation>
+ *       → mml2omml() → OMML XML → ImportedXmlComponent.fromXmlString()
+ *     SVG html nodes: screenshot via Playwright → ImageRun PNG
  *   → Packer.toBuffer(doc) → .docx buffer
  */
 
@@ -23,8 +24,8 @@ import remarkParse from 'remark-parse'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import katex from 'katex'
+import { mml2omml } from 'mathml2omml'
 import type {
-  Root,
   RootContent,
   Heading,
   List,
@@ -54,6 +55,7 @@ import {
   ExternalHyperlink,
   Packer,
   ShadingType,
+  ImportedXmlComponent,
 } from 'docx'
 import { playwrightManager } from '@/server/services/playwright-manager'
 import { createLogger } from '@/server/logger'
@@ -65,24 +67,9 @@ const log = createLogger('document-render-docx')
 export async function markdownToDocxBuffer(md: string, title: string | undefined): Promise<Buffer> {
   const tree = unified().use(remarkParse).use(remarkGfm).use(remarkMath).parse(md)
 
-  // Collect math nodes in document order, assigning stable ids.
-  const mathNodes: Array<{ id: string; latex: string; display: boolean }> = []
-  let eqCounter = 0
-  collectMath(tree, mathNodes, () => `eq-${eqCounter++}`)
-
-  // Rasterize all equations in one Chromium session.
-  const images = new Map<string, Buffer>()
-  if (mathNodes.length > 0) {
-    const html = buildEquationsHtml(mathNodes)
-    const ids = mathNodes.map((m) => m.id)
-    const buffers = await playwrightManager.screenshotHtmlElements(html, ids)
-    for (const [id, buf] of buffers) images.set(id, buf)
-  }
-
-  const cursor = newMathCursor(mathNodes)
   const children: (DocxParagraph | DocxTable)[] = []
   for (const block of tree.children) {
-    const el = renderBlock(block, images, cursor)
+    const el = await renderBlock(block)
     if (el) children.push(el)
   }
 
@@ -93,57 +80,87 @@ export async function markdownToDocxBuffer(md: string, title: string | undefined
   })
 
   const buffer = await Packer.toBuffer(doc)
-  log.debug({ bytes: buffer.length, equations: mathNodes.length }, 'DOCX rendered')
+  log.debug({ bytes: buffer.length }, 'DOCX rendered')
   return buffer
 }
 
-// ─── Math collection + rasterization HTML ───────────────────────────────────
+// ─── Math: LaTeX → OMML ─────────────────────────────────────────────────────
 
-function collectMath(node: Root, out: Array<{ id: string; latex: string; display: boolean }>, nextId: () => string): void {
-  for (const child of node.children) walkNode(child, out, nextId)
+const MATH_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math'
+
+/** Convert a LaTeX string to an OMML XmlComponent for embedding in a docx
+ *  paragraph. KaTeX renders LaTeX→MathML, mml2omml converts MathML→OMML.
+ *  Display equations are wrapped in <m:oMathPara> so Word centers them. */
+function mathToXmlComponent(latex: string, display: boolean): ImportedXmlComponent | null {
+  const omml = latexToOmml(latex, display)
+  if (!omml) return null
+  return ImportedXmlComponent.fromXmlString(omml)
 }
 
-function walkNode(node: RootContent, out: Array<{ id: string; latex: string; display: boolean }>, nextId: () => string): void {
-  if (node.type === 'math') {
-    out.push({ id: nextId(), latex: (node as { value: string }).value, display: true })
-    return
-  }
-  if (node.type === 'inlineMath') {
-    out.push({ id: nextId(), latex: (node as { value: string }).value, display: false })
-    return
-  }
-  if (node.type === 'code' && (node as Code).lang === 'math') {
-    out.push({ id: nextId(), latex: (node as Code).value, display: true })
-    return
-  }
-  const children = (node as { children?: unknown }).children
-  if (Array.isArray(children)) {
-    for (const c of children as RootContent[]) walkNode(c, out, nextId)
-  }
-}
-
-function renderKatexMathml(latex: string, displayMode: boolean): string {
+function latexToOmml(latex: string, display: boolean): string | null {
   try {
-    return katex.renderToString(latex, { displayMode, throwOnError: false, output: 'mathml' })
+    const html = katex.renderToString(latex, {
+      displayMode: display,
+      throwOnError: false,
+      output: 'mathml',
+    })
+    const mathMatch = html.match(/<math[\s\S]*?<\/math>/)
+    if (!mathMatch) return null
+    // Strip <annotation> — KaTeX includes the raw LaTeX as a semantic
+    // annotation; mml2omml warns "Type not supported: annotation" if left in.
+    const mathml = mathMatch[0].replace(/<annotation[\s\S]*?<\/annotation>/g, '')
+    const omml = mml2omml(mathml)
+    // mml2omml already wraps in <m:oMath>; for display (block) equations, add
+    // <m:oMathPara> so Word treats them as centered block equations.
+    if (display) {
+      return `<m:oMathPara xmlns:m="${MATH_NS}">${omml}</m:oMathPara>`
+    }
+    return omml
   } catch (err) {
-    log.warn({ err, latex }, 'KaTeX render failed in docx pipeline')
-    return `<span>${escapeHtml(latex)}</span>`
+    log.warn({ err, latex }, 'LaTeX to OMML conversion failed')
+    return null
   }
 }
 
-/** Build a single self-contained HTML page with one element per equation id.
- *  inline-block sizing makes each screenshot clip to its rendered math. */
-function buildEquationsHtml(eqs: Array<{ id: string; latex: string; display: boolean }>): string {
-  const items = eqs
-    .map(
-      (e) =>
-        `<div id="${e.id}" style="display:inline-block;padding:2px 4px;line-height:1">${renderKatexMathml(e.latex, e.display)}</div>`,
-    )
-    .join('\n')
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-    body { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-size: 16pt; margin: 0; }
-    math { font-size: 1.05em; }
-  </style></head><body>${items}</body></html>`
+// ─── SVG rendering ──────────────────────────────────────────────────────────
+
+/** Check if an HTML string contains an inline <svg> element. */
+function isSvgHtml(htmlString: string): boolean {
+  return /<svg[\s>]/i.test(htmlString)
+}
+
+/** Rasterize an inline SVG to a PNG ImageRun via headless Chromium.
+ *  Returns null if Playwright is unavailable or the screenshot fails. */
+async function renderSvgImage(svgHtml: string): Promise<ImageRun | null> {
+  if (!playwrightManager.isEnabled) return null
+  try {
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+      body { margin: 0; padding: 4px; display: inline-block; }
+      svg { max-width: 500px; height: auto; }
+    </style></head><body>${svgHtml}</body></html>`
+    const buffers = await playwrightManager.screenshotHtmlElements(html, ['svg-target'])
+    const buf = buffers.get('svg-target')
+    if (!buf) return null
+    const dims = pngDims(buf)
+    const maxW = 450
+    const scale = dims.width > maxW ? maxW / dims.width : 1
+    const w = Math.max(1, Math.round(dims.width * scale))
+    const h = Math.max(1, Math.round(dims.height * scale))
+    return new ImageRun({ type: 'png', data: buf, transformation: { width: w, height: h } })
+  } catch (err) {
+    log.warn({ err }, 'SVG rasterization failed in DOCX pipeline')
+    return null
+  }
+}
+
+/** Parse a PNG buffer's IHDR chunk for its pixel dimensions. */
+function pngDims(buf: Buffer): { width: number; height: number } {
+  if (buf.length < 24 || buf.toString('ascii', 12, 16) !== 'IHDR') {
+    return { width: 100, height: 30 }
+  }
+  const width = buf.readUInt32BE(16)
+  const height = buf.readUInt32BE(20)
+  return { width: width || 100, height: height || 30 }
 }
 
 // ─── MDAST → docx elements ──────────────────────────────────────────────────
@@ -154,49 +171,46 @@ interface FormatCtx {
   strike?: boolean
 }
 
-/** Cursor over collected math ids, advanced in document order as math nodes
- *  are encountered during the second walk (same order as collectMath). */
-function newMathCursor(mathNodes: Array<{ id: string; latex: string; display: boolean }>) {
-  let i = 0
-  return {
-    next(): { id: string; display: boolean } | undefined {
-      const m = mathNodes[i++]
-      return m ? { id: m.id, display: m.display } : undefined
-    },
-  }
-}
-type Cursor = ReturnType<typeof newMathCursor>
+type InlineResult = TextRun | ImportedXmlComponent | ImageRun
 
-function renderBlock(node: RootContent, images: Map<string, Buffer>, cursor: Cursor): DocxParagraph | DocxTable | undefined {
+async function renderBlock(node: RootContent): Promise<DocxParagraph | DocxTable | undefined> {
   switch (node.type) {
     case 'heading':
       return renderHeading(node as Heading)
     case 'paragraph':
-      return new DocxParagraph({ children: renderInlineList((node as { children: PhrasingContent[] }).children, images, cursor, {}) })
+      return new DocxParagraph({
+        children: await renderInlineList((node as { children: PhrasingContent[] }).children, {}),
+      })
     case 'list':
-      return renderList(node as List, images, cursor)
+      return await renderList(node as List)
     case 'blockquote':
       return new DocxParagraph({
-        children: renderBlockquoteRuns((node as Blockquote).children, images, cursor),
+        children: await renderBlockquoteRuns((node as Blockquote).children),
         indent: { left: 720 },
       })
     case 'code':
-      // ```math fenced block -> block equation (mirror collectMath's remap).
+      // ```math fenced block -> block equation.
       if ((node as Code).lang === 'math') {
-        const m = cursor.next()
-        return m ? renderMathParagraph(m.id, images, m.display) : undefined
+        return renderMathParagraph((node as Code).value, true)
       }
       return renderCodeBlock(node as Code)
     case 'table':
-      return renderTable(node as { children: unknown[] }, images, cursor)
+      return await renderTable(node as { children: unknown[] })
     case 'thematicBreak':
-      return new DocxParagraph({ children: [new TextRun({ text: '────────────────────────' })], alignment: AlignmentType.CENTER })
-    case 'html':
-      return new DocxParagraph({ children: [new TextRun({ text: stripTags((node as Html).value) })] })
-    case 'math': {
-      const m = cursor.next()
-      return m ? renderMathParagraph(m.id, images, m.display) : undefined
+      return new DocxParagraph({
+        children: [new TextRun({ text: '────────────────────────' })],
+        alignment: AlignmentType.CENTER,
+      })
+    case 'html': {
+      const htmlVal = (node as Html).value
+      if (isSvgHtml(htmlVal)) {
+        const img = await renderSvgImage(htmlVal)
+        if (img) return new DocxParagraph({ alignment: AlignmentType.CENTER, children: [img] })
+      }
+      return new DocxParagraph({ children: [new TextRun({ text: stripTags(htmlVal) })] })
     }
+    case 'math':
+      return renderMathParagraph((node as { value: string }).value, true)
     default:
       return undefined
   }
@@ -210,25 +224,27 @@ function renderHeading(node: Heading): DocxParagraph {
         : level === 3 ? HeadingLevel.HEADING_3
           : level === 4 ? HeadingLevel.HEADING_4
             : level === 5 ? HeadingLevel.HEADING_5 : HeadingLevel.HEADING_6
-  return new DocxParagraph({ heading, children: [new TextRun({ text: inlineText(node.children), bold: level <= 2 })] })
+  return new DocxParagraph({
+    heading,
+    children: [new TextRun({ text: inlineText(node.children), bold: level <= 2 })],
+  })
 }
 
-function renderList(node: List, images: Map<string, Buffer>, cursor: Cursor): DocxParagraph {
+async function renderList(node: List): Promise<DocxParagraph> {
   // v1: textual bullet/number markers (Word's real numbering config is heavier
   // and out of scope here; the result is still readable + editable).
   const runs: TextRun[] = []
   const items = (node as unknown as { children: ListItem[] }).children
-  items.forEach((item, idx) => {
+  for (let idx = 0; idx < items.length; idx++) {
+    const item = items[idx]!
     const marker = node.ordered ? `${(node.start ?? 1) + idx}. ` : '• '
     runs.push(new TextRun({ text: marker }))
-    const itemRuns = renderBlockquoteRuns(
+    const itemRuns = await renderBlockquoteRuns(
       (item as unknown as { children: RootContent[] }).children,
-      images,
-      cursor,
     )
     runs.push(...itemRuns)
     runs.push(new TextRun({ text: '', break: 1 }))
-  })
+  }
   return new DocxParagraph({ children: runs })
 }
 
@@ -236,29 +252,37 @@ function renderCodeBlock(node: Code): DocxParagraph {
   const lines = node.value.split('\n')
   const runs: TextRun[] = []
   lines.forEach((ln, i) => {
-    runs.push(new TextRun({ text: ln, font: { name: 'Consolas' }, shading: { type: ShadingType.SOLID, color: 'auto', fill: 'F1F5F9' } }))
+    runs.push(
+      new TextRun({
+        text: ln,
+        font: { name: 'Consolas' },
+        shading: { type: ShadingType.SOLID, color: 'auto', fill: 'F1F5F9' },
+      }),
+    )
     if (i < lines.length - 1) runs.push(new TextRun({ text: '', break: 1 }))
   })
   return new DocxParagraph({ children: runs })
 }
 
-function renderTable(node: { children: unknown[] }, images: Map<string, Buffer>, cursor: Cursor): DocxTable {
+async function renderTable(node: { children: unknown[] }): Promise<DocxTable> {
   const rows = node.children as Array<{ children: Array<{ children: PhrasingContent[] }> }>
-  const tableRows = rows.map((row) => {
-    const cells = row.children.map((cell) => {
-      const runs = renderInlineList(cell.children, images, cursor, {}) as TextRun[]
-      return new DocxTableCell({ children: [new DocxParagraph({ children: runs })] })
-    })
-    return new DocxTableRow({ children: cells })
-  })
+  const tableRows: DocxTableRow[] = []
+  for (const row of rows) {
+    const cells: DocxTableCell[] = []
+    for (const cell of row.children) {
+      const runs = (await renderInlineList(cell.children, {})) as TextRun[]
+      cells.push(new DocxTableCell({ children: [new DocxParagraph({ children: runs })] }))
+    }
+    tableRows.push(new DocxTableRow({ children: cells }))
+  }
   return new DocxTable({ rows: tableRows, width: { size: 100, type: WidthType.PERCENTAGE } })
 }
 
-function renderBlockquoteRuns(blocks: RootContent[], images: Map<string, Buffer>, cursor: Cursor): TextRun[] {
+async function renderBlockquoteRuns(blocks: RootContent[]): Promise<TextRun[]> {
   const runs: TextRun[] = []
   for (const block of blocks) {
     if (block.type === 'paragraph') {
-      runs.push(...(renderInlineList((block as { children: PhrasingContent[] }).children, images, cursor, {}) as TextRun[]))
+      runs.push(...((await renderInlineList((block as { children: PhrasingContent[] }).children, {})) as TextRun[]))
     } else {
       const children = (block as { children?: PhrasingContent[] }).children
       const txt = children ? inlineText(children) : ''
@@ -268,51 +292,42 @@ function renderBlockquoteRuns(blocks: RootContent[], images: Map<string, Buffer>
   return runs
 }
 
-function renderMathParagraph(id: string, images: Map<string, Buffer>, display: boolean): DocxParagraph | undefined {
-  const buf = images.get(id)
-  if (!buf) return new DocxParagraph({ children: [new TextRun({ text: '[equation]' })] })
-  const dims = pngDims(buf)
-  const maxW = display ? 400 : 200
-  const scale = dims.width > maxW ? maxW / dims.width : 1
-  const w = Math.max(1, Math.round(dims.width * scale))
-  const h = Math.max(1, Math.round(dims.height * scale))
+function renderMathParagraph(latex: string, display: boolean): DocxParagraph | undefined {
+  const comp = mathToXmlComponent(latex, display)
+  if (!comp) return new DocxParagraph({ children: [new TextRun({ text: '[equation]' })] })
   return new DocxParagraph({
-    alignment: AlignmentType.CENTER,
-    children: [new ImageRun({ type: 'png', data: buf, transformation: { width: w, height: h } })],
+    alignment: display ? AlignmentType.CENTER : undefined,
+    children: [comp as unknown as TextRun],
   })
 }
 
 // ─── inline ──────────────────────────────────────────────────────────────────
 
-function renderInlineList(
+async function renderInlineList(
   nodes: PhrasingContent[],
-  images: Map<string, Buffer>,
-  cursor: Cursor,
   ctx: FormatCtx,
-): (TextRun | ImageRun)[] {
-  const out: (TextRun | ImageRun)[] = []
+): Promise<InlineResult[]> {
+  const out: InlineResult[] = []
   for (const n of nodes) {
-    const r = renderInline(n, images, cursor, ctx)
+    const r = await renderInline(n, ctx)
     if (r) out.push(...r)
   }
   return out
 }
 
-function renderInline(
+async function renderInline(
   node: PhrasingContent,
-  images: Map<string, Buffer>,
-  cursor: Cursor,
   ctx: FormatCtx,
-): (TextRun | ImageRun)[] | undefined {
+): Promise<InlineResult[] | undefined> {
   switch (node.type) {
     case 'text':
       return [new TextRun({ text: (node as Text).value, ...ctx })]
     case 'strong':
-      return renderInlineList((node as Strong).children, images, cursor, { ...ctx, bold: true })
+      return await renderInlineList((node as Strong).children, { ...ctx, bold: true })
     case 'emphasis':
-      return renderInlineList((node as Emphasis).children, images, cursor, { ...ctx, italics: true })
+      return await renderInlineList((node as Emphasis).children, { ...ctx, italics: true })
     case 'delete':
-      return renderInlineList((node as Delete).children, images, cursor, { ...ctx, strike: true })
+      return await renderInlineList((node as Delete).children, { ...ctx, strike: true })
     case 'inlineCode':
       return [new TextRun({ text: (node as InlineCode).value, font: { name: 'Consolas' }, ...ctx })]
     case 'break':
@@ -320,22 +335,26 @@ function renderInline(
     case 'link': {
       const link = node as Link
       const text = inlineText(link.children)
-      return [new ExternalHyperlink({ link: link.url, children: [new TextRun({ text, style: 'Hyperlink' })] })] as unknown as TextRun[]
+      return [
+        new ExternalHyperlink({
+          link: link.url,
+          children: [new TextRun({ text, style: 'Hyperlink' })],
+        }),
+      ] as unknown as TextRun[]
     }
     case 'inlineMath': {
-      const m = cursor.next()
-      if (!m) return [new TextRun({ text: '' })]
-      const buf = images.get(m.id)
-      if (!buf) return [new TextRun({ text: '' })]
-      const dims = pngDims(buf)
-      const maxW = 100
-      const scale = dims.width > maxW ? maxW / dims.width : 1
-      const w = Math.max(1, Math.round(dims.width * scale))
-      const h = Math.max(1, Math.round(dims.height * scale))
-      return [new ImageRun({ type: 'png', data: buf, transformation: { width: w, height: h } })]
+      const comp = mathToXmlComponent((node as { value: string }).value, false)
+      if (!comp) return [new TextRun({ text: (node as { value: string }).value })]
+      return [comp]
     }
-    case 'html':
-      return [new TextRun({ text: stripTags((node as Html).value) })]
+    case 'html': {
+      const htmlVal = (node as Html).value
+      if (isSvgHtml(htmlVal)) {
+        const img = await renderSvgImage(htmlVal)
+        if (img) return [img]
+      }
+      return [new TextRun({ text: stripTags(htmlVal) })]
+    }
     default:
       return undefined
   }
@@ -349,26 +368,12 @@ function inlineText(nodes: PhrasingContent[]): string {
     if (n.type === 'text') out += (n as Text).value
     else if (n.type === 'inlineCode') out += (n as InlineCode).value
     else if (n.type === 'inlineMath') out += (n as { value: string }).value
-    else if ('children' in n) out += inlineText((n as unknown as { children: PhrasingContent[] }).children)
+    else if ('children' in n)
+      out += inlineText((n as unknown as { children: PhrasingContent[] }).children)
   }
   return out
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
-function stripTags(html: string): string {
-  return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
-}
-
-/** Parse a PNG buffer's IHDR chunk for its pixel dimensions. */
-function pngDims(buf: Buffer): { width: number; height: number } {
-  // PNG: 8-byte signature, then IHDR chunk: [len 4][type 4][width 4][height 4]…
-  if (buf.length < 24 || buf.toString('ascii', 12, 16) !== 'IHDR') {
-    return { width: 100, height: 30 }
-  }
-  const width = buf.readUInt32BE(16)
-  const height = buf.readUInt32BE(20)
-  return { width: width || 100, height: height || 30 }
+function stripTags(htmlString: string): string {
+  return htmlString.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
 }

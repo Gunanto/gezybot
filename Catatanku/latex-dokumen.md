@@ -1,6 +1,6 @@
 # LaTeX di Dokumen docx & PDF — Analisis Implementasi
 
-> Tanggal: 2026-06-30 · Status: **analisis saja — belum ada kode diubah**.
+> Tanggal: 2026-06-30 · Update: 2026-07-01 (OMML implemented) · Status: **PDF + DOCX dengan LaTeX native — selesai**
 
 ## 1. Kondisi Gezy sekarang
 
@@ -164,7 +164,29 @@ docx sekarang DIBANGUN (Opsi B), bukan defer lagi.
 - Remap ```math fence (code lang='math') → math block (sama kayak fix di PDF renderer), karena remark-gfm gak convert fence ke `math` node.
 - Word numbering v1: marker textual (• / 1.), bukan native numbering config (lebih ringan, tetap editable).
 
+## 7. Upgrade OMML (1 Jul 2026) — equation EDITABLE di Word, bukan gambar lagi
+
+### Yang berubah
+- **Equation bukan lagi gambar PNG** — sekarang native Word equation object (OMML). Klik equation di Word → bisa edit.
+- Pipeline: `LaTeX → KaTeX(output:'mathml') → strip <annotation> → mml2omml() → OMML XML → ImportedXmlComponent.fromXmlString() → insert ke docx paragraph`
+- **Tidak butuh Playwright/Chromium** untuk equation lagi (pure XML conversion, jauh lebih cepat).
+- File size: ~8-15KB (vs 103KB dengan PNG approach).
+- Display (block) equation dibungkus `<m:oMathPara>` supaya auto-center di Word.
+- Inline SVG tetap di-rasterisasi PNG via Playwright (fallback ke text kalau Playwright disabled).
+- Tool `generate_docx` gak lagi gate pada `playwrightManager.isEnabled` (Chromium cuma butuh untuk SVG, bukan math).
+
+### Dep baru
+- `mathml2omml@0.5.0` — MathML→OMML converter.
+- `fflate@0.8.3` (devDependency) — unzip .docx di test untuk verifikasi OMML tags.
+
+### Yang dikerjakan
+- `document-render-docx.ts`: hapus 2-pass collect+screenshot approach, ganti dengan 1-pass walk + inline LaTeX→OMML conversion. SVG detection di html nodes (rasterize via Playwright kalau ada SVG).
+- `document-render-docx.test.ts`: hapus mock screenshotHtmlElements, ganti dengan test yang unzip docx + assert OMML tags (`m:oMath`, `m:f`, `m:num`, `m:den`, `m:rad`, `m:oMathPara`). 9 test pass.
+- `document-tools.ts`: description diperbaiki ("Word (.docx) document with native editable equations"), hapus `format`/`landscape` field (PDF-only), hapus `playwrightManager.isEnabled` gate.
+- `prompt-builder.ts`: tambah info format capabilities (PDF: KaTeX/Chromium + SVG native, DOCX: OMML editable + SVG image, TikZ NOT supported) + "Do NOT self-diagnose generated files".
+- Typecheck clean, 1140 test pass di area terkait.
+
 ### Validasi: butuh VPS
-- Deploy (recreate container) + Chromium aktif → tes `generate_docx` output .docx, buka di Word/Google Docs, cek math tampil sebagai gambar + struktur heading/tabel rapi.
-- docx equation = gambar: kalau nanti mau equation EDITABLE di Word (OMML native), itu upgrade terpisah (LaTeX→MathML→OMML via temml + XSLT, kompleks). v1 gambar sudah cukup.
+- Deploy (recreate container) → tes `generate_docx` output .docx dengan `$\frac{a}{b}$`, buka di Word → equation harus **editable** (klik equation → bisa edit, bukan gambar).
+- cek file size: harus ~8-15KB (bukan 100KB+).
 

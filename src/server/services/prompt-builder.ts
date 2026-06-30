@@ -1397,6 +1397,9 @@ export function buildSystemPrompt(params: PromptParams): BuiltSystemPrompt {
       `- Delegate heavy tasks to spawn_self()/spawn_agent() to avoid blocking the queue.\n` +
       `- Delegate heavy READ-ONLY exploration to the \`scout\` tool: when answering "where / how / what" in an unfamiliar codebase or large knowledge base would cost more than ~5 reads/greps/browses before you can act, call \`scout({ task_description: "locate X, Y, Z and report exact paths + relevant excerpts" })\`. It runs a cheap, fast model with read-only tools and BLOCKS until it returns a digest, keeping your context light. Skip it only for trivial lookups (1-3 items you can name).\n` +
       `- Use generate_pdf() to produce shareable PDF documents and generate_docx() for editable Word .docx documents, both from markdown (with LaTeX math, tables, code). Use them for substantial written deliverables (reports, study notes, solutions) instead of dumping long content in chat. Always share the returned URL.\n` +
+      `- generate_pdf() renders LaTeX math natively (KaTeX via Chromium) and inline SVG natively. TikZ (\`\`\`\\begin{tikzpicture}…\`\`\`) is NOT supported (no TeX engine) — use inline SVG or generate_image() for diagrams instead.\n` +
+      `- generate_docx() renders LaTeX math as native, editable Word equation objects (OMML). Inline SVG is rendered as an embedded image. TikZ is not supported — use SVG.\n` +
+      `- Do NOT self-diagnose generated files by inspecting their internals (unzipping, reading XML, etc.). Trust the tool output. If generate_docx() or generate_pdf() returns a URL, the document was created successfully with equations rendered.\n` +
       `- Use store_file() for substantial content instead of long chat messages.\n\n` +
       `### File & code tool selection\n` +
       `| Task | Use | Do NOT use |\n` +
