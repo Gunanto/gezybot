@@ -719,8 +719,9 @@ export function whatsappAccessDecision(
   // group / unknown (treat unknown as group to be safe).
   if (!authorized) return { allow: false, reason: 'group-unregistered' }
   if (opts.allowAllInGroups) return { allow: true }
-  // WA has no @mention entity; rely on reply-to-bot.
-  if (incoming.isReplyToBot) return { allow: true }
+  // In groups, process messages that @mention the bot OR reply to one of the
+  // bot's messages. WA @mentions are detected from contextInfo.mentionedJid.
+  if (incoming.isReplyToBot || incoming.isMentioned) return { allow: true }
   return { allow: false, reason: 'group-no-reply' }
 }
 

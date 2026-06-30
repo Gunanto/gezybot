@@ -14,11 +14,11 @@ WhatsApp integration uses the multi-device **web protocol** (Baileys) — QR-cod
 
 ## Access Control (DM vs Group + Allowlist)
 
-WhatsApp-Web has the same access-control gate as Telegram: an env allowlist + owner, with **reply-only-in-group** unless you opt into processing all group messages. New senders that pass the gate still go through the per-channel contact-approval flow.
+WhatsApp-Web has the same access-control gate as Telegram: an env allowlist + owner, processing group messages only when they **@mention the bot or reply to one of its messages** (unless you opt into processing all group messages). New senders that pass the gate still go through the per-channel contact-approval flow.
 
 `authorized` = sender is the owner or in `GEZY_WHATSAPP_ALLOWED_USERS`.
 
-| `chatType` | sender | reply-to-bot? | `GEZY_WHATSAPP_ALLOW_ALL_IN_GROUPS` | result |
+| `chatType` | sender | mention/reply? | `GEZY_WHATSAPP_ALLOW_ALL_IN_GROUPS` | result |
 |---|---|---|---|---|
 | `private` (DM) | owner | n/a | n/a | ✅ process |
 | `private` (DM) | allowlist | n/a | n/a | ✅ process |
@@ -30,7 +30,7 @@ WhatsApp-Web has the same access-control gate as Telegram: an env allowlist + ow
 | `group` | allowlist | no | `false` | ❌ silent drop |
 | `group` | allowlist | no | `true` | ✅ process |
 
-A "reply-to-bot" is detected from the quoted-message `contextInfo.participant` matching the bot's own JID. WhatsApp has no `@mention` entity like Telegram, so in groups the reply is the only signal that the user is addressing the bot (unless `GEZY_WHATSAPP_ALLOW_ALL_IN_GROUPS=true`).
+A "reply-to-bot" is detected from the quoted-message `contextInfo.participant` matching the bot's own JID, and an "@mention of the bot" is detected from `contextInfo.mentionedJid` containing the bot's JID. In groups, either signal triggers processing (unless `GEZY_WHATSAPP_ALLOW_ALL_IN_GROUPS=true`, which processes all authorized group messages).
 
 ### Environment variables
 

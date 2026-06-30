@@ -207,6 +207,14 @@ export class WhatsAppWebAdapter implements ChannelAdapter {
           waCtx?.participant && botJid &&
           jidNormalizedUser(waCtx.participant) === jidNormalizedUser(botJid)
         )
+        // Group @mention of the bot: Baileys lists mentioned JIDs in
+        // contextInfo.mentionedJid. Treat a mention of the bot's own JID like a
+        // reply-to-bot so group messages that @mention the bot are processed
+        // (not just replies).
+        const isMentioned = !!(
+          Array.isArray(waCtx?.mentionedJid) && botJid &&
+          (waCtx!.mentionedJid as string[]).some((j) => jidNormalizedUser(j) === jidNormalizedUser(botJid))
+        )
         void runtime.handlers
           .onMessage({
             platformUserId: jidNormalizedUser(senderJid),
@@ -216,7 +224,7 @@ export class WhatsAppWebAdapter implements ChannelAdapter {
             content: text,
             chatType: isGroup ? 'group' : 'private',
             isReplyToBot,
-            isMentioned: false, // WA has no @mention entity like Telegram; rely on isReplyToBot
+            isMentioned,
             metadata: { whatsappWeb: { group: isGroup } },
           })
           .catch((err) => log.error({ channelId, err }, 'Failed to handle inbound WhatsApp-Web message'))

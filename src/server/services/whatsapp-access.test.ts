@@ -99,6 +99,18 @@ describe('whatsappAccessDecision', () => {
     ).toEqual({ allow: true })
   })
 
+  it('allows an authorized group message WITH a mention of the bot (no reply)', () => {
+    expect(
+      whatsappAccessDecision('whatsapp-web', mk({ chatType: 'group', isReplyToBot: false, isMentioned: true }), opts),
+    ).toEqual({ allow: true })
+  })
+
+  it('denies an authorized group message with neither mention nor reply', () => {
+    expect(
+      whatsappAccessDecision('whatsapp-web', mk({ chatType: 'group', isReplyToBot: false, isMentioned: false }), opts),
+    ).toEqual({ allow: false, reason: 'group-no-reply' })
+  })
+
   it('allows all group messages when allowAllInGroups is true', () => {
     expect(
       whatsappAccessDecision(
