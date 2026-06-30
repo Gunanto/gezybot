@@ -65,6 +65,10 @@ interface ChannelRuntime {
    *  '@lid' sender JID instead of '@s.whatsapp.net'; we resolve it to the phone
    *  JID so the access-control gate can match against phone-number allowlists. */
   lidToPn: Map<string, string>
+  /** Recently sent message IDs — used to detect
+   *  reply-to-bot via contextInfo.stanzaId (format-independent: works regardless
+   *  of LID/PN JID format). Capped to last 200 to bound memory. */
+  sentMessageIds: Set<string>
 }
 
 const runtimes = new Map<string, ChannelRuntime>()
@@ -121,6 +125,7 @@ export class WhatsAppWebAdapter implements ChannelAdapter {
       reconnectBackoff: 0,
       connected: false,
       lidToPn: new Map<string, string>(),
+      sentMessageIds: new Set<string>(),
     }
     runtimes.set(channelId, runtime)
     await this.openSocket(channelId, runtime)
@@ -237,9 +242,14 @@ export class WhatsAppWebAdapter implements ChannelAdapter {
         // bot's own JID so LID-addressed quotes still match.
         const waCtx = (m.message as Record<string, any> | null)?.extendedTextMessage?.contextInfo
         const botJid = runtime.sock?.user?.id
+        // Reply-to-bot: check if the quoted message's stanzaId matches one of
+        // our recently-sent message IDs (format-independent — works with LID/PN).
+        // Fall back to JID comparison (participant === botJid) for older messages.
+        const quotedStanzaId = waCtx?.stanzaId as string | undefined
         const isReplyToBot = !!(
-          waCtx?.participant && botJid &&
-          jidNormalizedUser(resolveLid(waCtx.participant)) === jidNormalizedUser(botJid)
+          (quotedStanzaId && runtime.sentMessageIds.has(quotedStanzaId)) ||
+          (waCtx?.participant && botJid &&
+            jidNormalizedUser(resolveLid(waCtx.participant)) === jidNormalizedUser(botJid))
         )
         // Group @mention of the bot: Baileys lists mentioned JIDs in
         // contextInfo.mentionedJid (native WhatsApp mentions via the @-picker).
@@ -323,6 +333,13 @@ export class WhatsAppWebAdapter implements ChannelAdapter {
     }
 
     const sent = await runtime.sock.sendMessage(jid, { text: params.content })
+    if (sent?.key?.id) {
+      runtime.sentMessageIds.add(sent.key.id)
+      if (runtime.sentMessageIds.size > 200) {
+        const first = runtime.sentMessageIds.values().next().value
+        if (first) runtime.sentMessageIds.delete(first)
+      }
+    }
     return { platformMessageId: sent?.key?.id ?? '' }
   }
 
