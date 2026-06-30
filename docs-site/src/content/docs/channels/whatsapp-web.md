@@ -32,6 +32,12 @@ WhatsApp-Web has the same access-control gate as Telegram: an env allowlist + ow
 
 A "reply-to-bot" is detected from the quoted-message `contextInfo.participant` matching the bot's own JID, and an "@mention of the bot" is detected from `contextInfo.mentionedJid` containing the bot's JID. In groups, either signal triggers processing (unless `GEZY_WHATSAPP_ALLOW_ALL_IN_GROUPS=true`, which processes all authorized group messages).
 
+### WhatsApp privacy & LIDs (Linked Identity)
+
+WhatsApp may deliver messages from a sender using a **LID** (`<random>@lid`) instead of their phone-number JID (`<number>@s.whatsapp.net`) — a privacy feature that hides phone numbers. Gezy listens to Baileys `lid-mapping.update` events and resolves `@lid` sender JIDs to the phone-number JID before the access-control gate runs, so you can allowlist by phone number (`6281...`) as usual.
+
+If a mapping has not been learned yet (e.g. the very first message from a brand-new contact), the sender is matched against the LID digits instead — as a fallback you can also add a LID's digits to `GEZY_WHATSAPP_ALLOWED_USERS`. Once the mapping arrives, phone-number matching takes over.
+
 ### Environment variables
 
 | Variable | Default | Description |

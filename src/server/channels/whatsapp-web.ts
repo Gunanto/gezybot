@@ -60,6 +60,11 @@ interface ChannelRuntime {
   /** Latest known connection state, for validateConfig / getBotInfo. */
   connected: boolean
   selfName?: string
+  /** LID -> phone-number JID map, populated from the Baileys 'lid-mapping.update'
+   *  event. WhatsApp's privacy (Linked Identity) delivers some messages with a
+   *  '@lid' sender JID instead of '@s.whatsapp.net'; we resolve it to the phone
+   *  JID so the access-control gate can match against phone-number allowlists. */
+  lidToPn: Map<string, string>
 }
 
 const runtimes = new Map<string, ChannelRuntime>()
@@ -115,6 +120,7 @@ export class WhatsAppWebAdapter implements ChannelAdapter {
       stopping: false,
       reconnectBackoff: 0,
       connected: false,
+      lidToPn: new Map<string, string>(),
     }
     runtimes.set(channelId, runtime)
     await this.openSocket(channelId, runtime)
@@ -142,6 +148,11 @@ export class WhatsAppWebAdapter implements ChannelAdapter {
     runtime.sock = sock
 
     sock.ev.on('creds.update', saveCreds)
+    // WhatsApp privacy (Linked Identity): learn LID <-> phone-number mappings so
+    // we can resolve '@lid' sender JIDs to '@s.whatsapp.net' for the gate.
+    sock.ev.on('lid-mapping.update', (m: { lid?: string; pn?: string } | undefined) => {
+      if (m?.lid && m?.pn) runtime.lidToPn.set(m.lid, m.pn)
+    })
 
     sock.ev.on('connection.update', (update) => {
       const { connection, lastDisconnect, qr } = update
@@ -196,28 +207,37 @@ export class WhatsAppWebAdapter implements ChannelAdapter {
         if (!text) continue // media-only messages: download is out of scope for now
         const isGroup = remoteJid.endsWith('@g.us')
         const senderJid = isGroup ? (m.key?.participant ?? remoteJid) : remoteJid
+        // WhatsApp privacy (Linked Identity): a '@lid' JID is a per-chat random
+        // identifier that hides the phone number. Resolve it to the phone JID
+        // ('@s.whatsapp.net') via the runtime's LID->PN map so the access-control
+        // gate can match the sender against the phone-number allowlist. Falls
+        // back to the LID if no mapping is known yet.
+        const resolveLid = (jid: string | undefined): string => {
+          if (!jid) return ''
+          const j = jidNormalizedUser(jid)
+          if (j.endsWith('@lid') && runtime.lidToPn.has(j)) return runtime.lidToPn.get(j)!
+          return j
+        }
+        const resolvedSender = resolveLid(senderJid)
         // Detect a reply-to-the-bot: Baileys puts a quoted-message contextInfo on
         // extendedTextMessage (text replies); its `participant` is the JID of the
-        // sender of the quoted message. If that equals the bot's own JID, this is a
-        // reply to one of our messages — used by the WA group access-control gate
-        // (only reply-to-bot group messages are processed unless allowAllInGroups).
+        // sender of the quoted message. Resolve it to PN before comparing to the
+        // bot's own JID so LID-addressed quotes still match.
         const waCtx = (m.message as Record<string, any> | null)?.extendedTextMessage?.contextInfo
         const botJid = runtime.sock?.user?.id
         const isReplyToBot = !!(
           waCtx?.participant && botJid &&
-          jidNormalizedUser(waCtx.participant) === jidNormalizedUser(botJid)
+          jidNormalizedUser(resolveLid(waCtx.participant)) === jidNormalizedUser(botJid)
         )
         // Group @mention of the bot: Baileys lists mentioned JIDs in
-        // contextInfo.mentionedJid. Treat a mention of the bot's own JID like a
-        // reply-to-bot so group messages that @mention the bot are processed
-        // (not just replies).
+        // contextInfo.mentionedJid. Resolve each to PN and compare to the bot JID.
         const isMentioned = !!(
           Array.isArray(waCtx?.mentionedJid) && botJid &&
-          (waCtx!.mentionedJid as string[]).some((j) => jidNormalizedUser(j) === jidNormalizedUser(botJid))
+          (waCtx!.mentionedJid as string[]).some((j) => jidNormalizedUser(resolveLid(j)) === jidNormalizedUser(botJid))
         )
         void runtime.handlers
           .onMessage({
-            platformUserId: jidNormalizedUser(senderJid),
+            platformUserId: resolvedSender,
             platformDisplayName: m.pushName ?? undefined,
             platformMessageId: m.key?.id ?? '',
             platformChatId: remoteJid,
