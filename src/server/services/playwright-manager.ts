@@ -430,7 +430,7 @@ class PlaywrightManager {
       page = await context.newPage()
       await page.setContent(html, { waitUntil: 'load', timeout: config.webBrowsing.pageTimeout })
       for (const id of ids) {
-        const buf = await page.locator(`#${CSS.escape(id)}`).screenshot({ type: 'png' })
+        const buf = await page.locator('#' + id).screenshot({ type: 'png' })
         out.set(id, Buffer.from(buf))
       }
       return out
