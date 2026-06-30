@@ -196,6 +196,17 @@ export class WhatsAppWebAdapter implements ChannelAdapter {
         if (!text) continue // media-only messages: download is out of scope for now
         const isGroup = remoteJid.endsWith('@g.us')
         const senderJid = isGroup ? (m.key?.participant ?? remoteJid) : remoteJid
+        // Detect a reply-to-the-bot: Baileys puts a quoted-message contextInfo on
+        // extendedTextMessage (text replies); its `participant` is the JID of the
+        // sender of the quoted message. If that equals the bot's own JID, this is a
+        // reply to one of our messages — used by the WA group access-control gate
+        // (only reply-to-bot group messages are processed unless allowAllInGroups).
+        const waCtx = (m.message as Record<string, any> | null)?.extendedTextMessage?.contextInfo
+        const botJid = runtime.sock?.user?.id
+        const isReplyToBot = !!(
+          waCtx?.participant && botJid &&
+          jidNormalizedUser(waCtx.participant) === jidNormalizedUser(botJid)
+        )
         void runtime.handlers
           .onMessage({
             platformUserId: jidNormalizedUser(senderJid),
@@ -203,6 +214,9 @@ export class WhatsAppWebAdapter implements ChannelAdapter {
             platformMessageId: m.key?.id ?? '',
             platformChatId: remoteJid,
             content: text,
+            chatType: isGroup ? 'group' : 'private',
+            isReplyToBot,
+            isMentioned: false, // WA has no @mention entity like Telegram; rely on isReplyToBot
             metadata: { whatsappWeb: { group: isGroup } },
           })
           .catch((err) => log.error({ channelId, err }, 'Failed to handle inbound WhatsApp-Web message'))

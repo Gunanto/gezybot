@@ -644,6 +644,27 @@ export const config = {
       .split(',')
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean),
+
+    // ─── WhatsApp-Web access control (mirror of the Telegram gate) ───────────
+    // Owner WhatsApp JID/number (digits, e.g. "6281234567890"). This user always
+    // has full access (DM + group, group reply rule still applies unless
+    // whatsappAllowAllInGroups is true). Identified by number only (cannot be
+    // spoofed by display name).
+    whatsappOwnerUserId: process.env.OWNER_WHATSAPP_USER_ID?.trim() || null,
+    // true  → process ALL group messages (no reply-to-bot required)
+    // false → only process group messages that REPLY to one of the bot's
+    //         messages. DMs are unaffected (always processed for authorized users).
+    whatsappAllowAllInGroups: process.env.GEZY_WHATSAPP_ALLOW_ALL_IN_GROUPS === 'true',
+    // Whitelist of WhatsApp numbers/JIDs allowed to interact with the bot.
+    // Comma-separated; entries are normalized to bare digits (everything except
+    // [0-9] is stripped) so "6281234567890", "+62 812-3456-7890", and the full
+    // JID "6281234567890@s.whatsapp.net" all match. If empty, ONLY the owner can
+    // interact. Owner is always implicitly allowed.
+    // Example: GEZY_WHATSAPP_ALLOWED_USERS=6281234567890,6281211002200
+    whatsappAllowedUsers: (process.env.GEZY_WHATSAPP_ALLOWED_USERS ?? '')
+      .split(',')
+      .map((s) => s.trim().replace(/[^0-9]/g, ''))
+      .filter(Boolean),
   },
 
   quickSessions: {

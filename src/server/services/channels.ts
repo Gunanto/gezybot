@@ -669,6 +669,105 @@ async function telegramAccessGate(
   return false
 }
 
+// ─── WhatsApp-Web access-control gate ────────────────────────────────────────
+// Mirrors the Telegram gate: env allowlist (GEZY_WHATSAPP_ALLOWED_USERS) +
+// owner (OWNER_WHATSAPP_USER_ID), with reply-only-in-group unless
+// GEZY_WHATSAPP_ALLOW_ALL_IN_GROUPS=true. JIDs/numbers are normalized to bare
+// digits so "6281234567890", "+62 812-3456-7890", and the full JID all match.
+
+/** Reduce a WhatsApp JID or phone string to its bare digits (country+number). */
+function waDigits(jidOrNumber: string): string {
+  return jidOrNumber.replace(/[^0-9]/g, '')
+}
+
+export function matchWhatsappAllowlist(
+  senderPlatformUserId: string,
+  ownerId: string | null,
+  allowlist: readonly string[],
+): boolean {
+  const senderDigits = waDigits(senderPlatformUserId)
+  if (ownerId && waDigits(ownerId) === senderDigits) return true
+  if (allowlist.length === 0) return ownerId ? waDigits(ownerId) === senderDigits : false
+  for (const entry of allowlist) {
+    if (waDigits(entry) === senderDigits) return true
+  }
+  return false
+}
+
+export type WhatsappAccessDecision =
+  | { allow: true }
+  | { allow: false; reason: 'dm-unregistered' | 'group-unregistered' | 'group-no-reply' }
+
+export function whatsappAccessDecision(
+  platform: string,
+  incoming: IncomingMessage,
+  opts: { ownerId: string | null; allowlist: readonly string[]; allowAllInGroups: boolean },
+): WhatsappAccessDecision {
+  if (platform !== 'whatsapp-web') return { allow: true }
+  // Nothing configured → gate is a no-op (preserves legacy behavior: contact
+  // approval gate still applies downstream).
+  if (!opts.ownerId && opts.allowlist.length === 0) return { allow: true }
+
+  const authorized = matchWhatsappAllowlist(incoming.platformUserId, opts.ownerId, opts.allowlist)
+  const chatType = incoming.chatType
+
+  if (chatType === 'private') {
+    if (authorized) return { allow: true }
+    return { allow: false, reason: 'dm-unregistered' }
+  }
+
+  // group / unknown (treat unknown as group to be safe).
+  if (!authorized) return { allow: false, reason: 'group-unregistered' }
+  if (opts.allowAllInGroups) return { allow: true }
+  // WA has no @mention entity; rely on reply-to-bot.
+  if (incoming.isReplyToBot) return { allow: true }
+  return { allow: false, reason: 'group-no-reply' }
+}
+
+const whatsappNotifiedUnregistered = new Set<string>()
+
+async function whatsappAccessGate(
+  channel: typeof channels.$inferSelect,
+  incoming: IncomingMessage,
+): Promise<boolean> {
+  const decision = whatsappAccessDecision(
+    channel.platform,
+    incoming,
+    {
+      ownerId: config.channels.whatsappOwnerUserId,
+      allowlist: config.channels.whatsappAllowedUsers,
+      allowAllInGroups: config.channels.whatsappAllowAllInGroups,
+    },
+  )
+  if (decision.allow) return true
+
+  if (decision.reason === 'dm-unregistered') {
+    const key = `${channel.id}:${incoming.platformUserId}`
+    if (!whatsappNotifiedUnregistered.has(key)) {
+      whatsappNotifiedUnregistered.add(key)
+      const adapter = channelAdapters.get('whatsapp-web')
+      if (adapter) {
+        const adapterCfg = JSON.parse(channel.platformConfig) as Record<string, unknown>
+        adapter.sendMessage(channel.id, adapterCfg, {
+          chatId: incoming.platformChatId,
+          content: 'Maaf, Anda belum terdaftar berkomunikasi dengan Saya.',
+        }).catch((err) => log.warn({ channelId: channel.id, err }, 'Failed to send WhatsApp "not registered" reply'))
+      }
+    }
+    log.debug({ channelId: channel.id, userId: incoming.platformUserId }, 'WhatsApp DM from unregistered user, dropping')
+    return false
+  }
+  if (decision.reason === 'group-unregistered') {
+    log.debug({ channelId: channel.id, userId: incoming.platformUserId, chatType: incoming.chatType }, 'WhatsApp group message from unregistered user, dropping')
+    return false
+  }
+  if (decision.reason === 'group-no-reply') {
+    log.debug({ channelId: channel.id, userId: incoming.platformUserId, chatType: incoming.chatType }, 'WhatsApp group message without a reply to the bot, dropping')
+    return false
+  }
+  return false
+}
+
 export async function handleIncomingChannelMessage(channelId: string, incoming: IncomingMessage) {
   const channel = await getChannel(channelId)
   if (!channel || channel.status !== 'active') return
@@ -686,7 +785,10 @@ export async function handleIncomingChannelMessage(channelId: string, incoming: 
   // before any contact creation, pending mapping, or LLM turn. Runs only for
   // Telegram channels; other platforms are unaffected. See `telegramAccessGate`.
   if (!(await telegramAccessGate(channel, incoming))) return
-  // ─── End Telegram access-control gate ──────────────────────────────────────
+  // ─── End Telegram access-control gate ────────────────────────────────────
+  // ─── WhatsApp-Web access-control gate ─────────────────────────────────────
+  if (!(await whatsappAccessGate(channel, incoming))) return
+  // ─── End WhatsApp-Web access-control gate ───────────────────────────────────
 
   // Resolve contact via contactPlatformIds or create pending mapping
   const { contact, pendingMappingId } = await resolveChannelContact(channel, incoming)
