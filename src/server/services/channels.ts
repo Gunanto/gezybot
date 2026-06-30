@@ -1118,6 +1118,47 @@ export async function sendToChannelAs(
 
 // ─── Response delivery ──────────────────────────────────────────────────────
 
+/**
+ * Deliver staged file attachments to a channel WITHOUT a text payload.
+ *
+ * Used by the streaming-draft (Fase 2) path: the text reply was already
+ * persisted via `channelDraftStream.commit()` + `recordChannelDraftCommitted`,
+ * so only the staged files still need to be pushed to the platform. Sends via
+ * the adapter's `sendMessage` with empty content — Telegram's sendMessage
+ * routes empty-content + attachments through `sendDocument`/`sendPhoto` and
+ * returns after sending. No additional `channel_message_links` row is
+ * recorded, because the text message's link is already recorded by
+ * `recordChannelDraftCommitted` (parity with the one-shot path, which only
+ * links the text message even when attachments are sent alongside it).
+ */
+export async function deliverChannelAttachments(
+  meta: ChannelQueueMeta,
+  attachments: OutboundAttachment[],
+): Promise<void> {
+  if (!attachments.length) return
+  const channel = await getChannel(meta.channelId)
+  if (!channel || channel.status !== 'active') return
+  const adapter = channelAdapters.get(channel.platform)
+  if (!adapter) {
+    log.error({ channelId: meta.channelId }, 'No adapter found for attachment delivery')
+    return
+  }
+  const cfg = JSON.parse(channel.platformConfig) as Record<string, unknown>
+  try {
+    const locale = resolveChannelLocale(meta.channelId)
+    await adapter.sendMessage(meta.channelId, cfg, {
+      chatId: meta.platformChatId,
+      content: '',
+      attachments,
+      replyToMessageId: meta.platformMessageId,
+      locale,
+    })
+    log.info({ channelId: meta.channelId, count: attachments.length }, 'Channel attachments delivered after streaming-draft commit')
+  } catch (err) {
+    log.error({ channelId: meta.channelId, err }, 'Failed to deliver channel attachments after streaming-draft commit')
+  }
+}
+
 export async function deliverChannelResponse(
   meta: ChannelQueueMeta,
   assistantMessageId: string,

@@ -42,7 +42,7 @@ import { listAvailableAgents } from '@/server/services/inter-agent'
 import { listContactsForPrompt, findContactByLinkedUserId } from '@/server/services/contacts'
 import { contactNotes as contactNotesTable } from '@/server/db/schema'
 import { linkFilesToMessage, getFilesForMessage, serializeFile } from '@/server/services/files'
-import { popChannelQueueMeta, getChannelQueueMeta, deliverChannelResponse, getActiveChannelsForAgent, getChannel, findContactByPlatformId, getChannelOriginMeta, openChannelDraftStream, recordChannelDraftCommitted } from '@/server/services/channels'
+import { popChannelQueueMeta, getChannelQueueMeta, deliverChannelResponse, getActiveChannelsForAgent, getChannel, findContactByPlatformId, getChannelOriginMeta, openChannelDraftStream, recordChannelDraftCommitted, deliverChannelAttachments } from '@/server/services/channels'
 import type { ChannelQueueMeta } from '@/server/services/channels'
 import type { ChannelDraftStream } from '@/server/channels/adapter'
 import { popStagedAttachments, clearStagedAttachments } from '@/server/tools/attach-file-tool'
@@ -1977,7 +1977,16 @@ export async function processNextMessage(agentId: string): Promise<boolean> {
             // Then record the link/stats/SSE via recordChannelDraftCommitted.
             channelDraftStream.commit()
               .then((result) => recordChannelDraftCommitted(channelDraftMeta!, assistantMessageId, result))
-              .then(() => { if (stagedFiles.length > 0) log.debug({ agentId }, 'Attachments present but streaming draft does not support inline attachments; they were not sent') })
+              .then(() => {
+                // The text reply was committed as the final persistent message.
+                // Staged attachments (attach_file) are NOT carried by the draft,
+                // so push them as separate platform messages (Telegram sendDocument).
+                if (stagedFiles.length > 0) {
+                  deliverChannelAttachments(channelDraftMeta!, stagedFiles).catch((e) =>
+                    log.error({ agentId, channelId: channelMeta.channelId, err: e }, 'deliverChannelAttachments after streaming-draft commit failed'),
+                  )
+                }
+              })
               .catch((err) => {
                 log.error({ agentId, channelId: channelMeta.channelId, err }, 'Channel streaming draft commit failed, falling back to one-shot deliverChannelResponse')
                 deliverChannelResponse(channelMeta, assistantMessageId, fullContent, stagedFiles.length > 0 ? stagedFiles : undefined).catch((e) =>
