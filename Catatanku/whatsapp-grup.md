@@ -44,3 +44,50 @@ Tambah ke `docker/docker-compose.prod.yml` (env service gezy):
 - DM (private) authorized selalu diproses tanpa perlu reply.
 
 ## Estimasi: ~0.5 hari (audit + implement + test + docs).
+
+## Fix LID (Linked Identity) — root cause DM owner ditolak
+
+### Diagnosa
+
+Log diagnostik info-level (`WhatsApp access gate decision`) menunjukan:
+```
+"userId":"37456745394304@lid","chatType":"private","allow":false,"reason":"dm-unregistered",
+"ownerDigits":"6285156266044","allowlistDigits":["6285156266044","6289527852099"]
+```
+
+Pengirim dikirim sebagai **LID** (`37456745394304@lid`) — fitur privasi WhatsApp
+(Linked Identity) yang menyembunyikan nomor telepon di belakang identifier acak
+`@lid`. `waDigits` LID → `37456745394304` → gak match owner `6285156266044` →
+DM owner ditolak sebagai `dm-unregistered`. Bukan salah env, bukan salah kode
+gate-nya — JID-nya emang bukan nomor telepon.
+
+### Fix (`d9ed5912`)
+
+- `src/server/channels/whatsapp-web.ts`:
+    - `ChannelRuntime` tambah field `lidToPn: Map<string, string>`.
+    - `openSocket` subscribe `sock.ev.on('lid-mapping.update', ...)` — event
+      Baileys yang bawakan mapping LID ↔ PN (`{ lid, pn }`).
+    - Helper `resolveLid(jid)` di onMessage: kalau JID `@lid` ada di map,
+      balikin JID telepon (`@s.whatsapp.net`); kalau belum, fallback ke LID.
+    - `platformUserId`, `isReplyToBot` (participant), `isMentioned`
+      (mentionedJid) semua diresolve ke PN dulu → gate match terhadap nomor.
+- `docs-site/channels/whatsapp-web.md`: section baru "WhatsApp privacy & LIDs".
+
+### Fallback
+
+Kalau mapping belum dipelajari (pesan pertama dari kontak baru sebelum Baileys
+publish `lid-mapping.update`), sender tetap di-match pakai LID digits. Sebagai
+escape hatch, LID-nya bisa ditambah ke `GEZY_WHATSAPP_ALLOWED_USERS`:
+```
+GEZY_WHATSAPP_ALLOWED_USERS=6285156266044,6289527852099,37456745394304
+```
+Begitu mapping datang, nomor-telepon match ambil alih.
+
+### Status
+
+- [x] Gate host WA: allowlist + reply-only → mention-atau-reply
+- [x] Deteksi `@mention` via `contextInfo.mentionedJid`
+- [x] Resolve LID → PN sebelum gate (fix DM owner ditolak)
+- [x] Log diagnostik info-level (bisa dihapus nanti setelah fix terkonfirmasi)
+- [ ] Tes E2E VPS: DM owner + mention + reply (tunggu deploy `d9ed5912`)
+
