@@ -141,3 +141,30 @@ Dipilih **Opsi A (PDF via Playwright + KaTeX)**. docx defer.
 - **docx** defer. Kalau dibutuhkan: Opsi B (`docx` npm + math→PNG via KaTeX→SVG→sharp embed) atau Opsi D (pandoc via Dockerfile + `:mathml`).
 - **Cleanup dep:** `bun remove remark-rehype rehype-stringify` (di-add tapi akhirnya gak dipakai) — opsional biar lockfile rampung.
 
+## 6. Implementasi docx (30 Jun 2026) — DONE
+
+docx sekarang DIBANGUN (Opsi B), bukan defer lagi.
+
+### Yang dikerjakan
+- Paket npm `docx` ditambah (pembuat .docx terstruktur, jalan di Bun).
+- Service `src/server/services/document-render-docx.ts`:
+  - `markdownToDocxBuffer(md, title)`: parse MDAST (unified stack) → kumpulkan node math (inline, block, DAN ```math fence remap) dengan id stabil → render SEMUA equation dalam satu sesi Chromium (satuan HTML, MathML per `<div id>`) → screenshot per elemen → PNG → embed sebagai `ImageRun` di .docx pada posisi math.
+  - Sisa markdown dipetakan ke struktur Word native: heading, paragraf, list (marker tekstual bullet/number), tabel, code block (Consolas + shading), blockquote, inline strong/em/del/code/link/break, dan image math inline (dipakai juga untuk block math).
+  - Padding PNG diparse dari IHDR untuk sizing ImageRun (display cap 400px, inline cap 100px).
+- Method baru `PlaywrightManager.screenshotHtmlElements(html, ids)` (`playwright-manager.ts`) yang mirror `renderPdf` (acquire/release page, `setContent`, `page.locator('#id').screenshot()`).
+- Tool `generate_docx` di `document-tools.ts` (main-only, gate `playwrightManager.isEnabled`, simpan via `createFileFromContent` base64 mime docx). Register `generate_docx` grup 'documents'.
+- Prompt-builder: bullet `generate_pdf()`/`generate_docx()` disebut bareng di File storage section.
+- i18n: label `generate_docx` di 10 locale (parity OK).
+- Docs: `docs-site/agents/tools.md` tambah baris `generate_docx` di tabel Documents + catatan.
+- Test: `document-render-docx.test.ts` (5 test: valid zip no-math, rasterize N ids, ```math fence, only-math, title). Mock `screenshotHtmlElements` (no browser). 5 pass.
+- Typecheck clean, full suite 4179 pass / 0 fail.
+
+### Keputusan teknis
+- Word gak render MathML → equation di-rasterisasi PNG (KaTeX MathML → Chromium screenshot). Offline, satu sesi browser per dokumen, tanpa font/CDN. Equation jadi GAMBAR (gak editable sebagai equation object), tapi layout akurat. Trade-off v1.
+- Remap ```math fence (code lang='math') → math block (sama kayak fix di PDF renderer), karena remark-gfm gak convert fence ke `math` node.
+- Word numbering v1: marker textual (• / 1.), bukan native numbering config (lebih ringan, tetap editable).
+
+### Validasi: butuh VPS
+- Deploy (recreate container) + Chromium aktif → tes `generate_docx` output .docx, buka di Word/Google Docs, cek math tampil sebagai gambar + struktur heading/tabel rapi.
+- docx equation = gambar: kalau nanti mau equation EDITABLE di Word (OMML native), itu upgrade terpisah (LaTeX→MathML→OMML via temml + XSLT, kompleks). v1 gambar sudah cukup.
+

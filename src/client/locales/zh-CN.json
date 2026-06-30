@@ -2774,6 +2774,7 @@
       "list_mcp_servers": "列出 MCP 服务器",
       "store_file": "存储文件",
       "generate_pdf": "生成 PDF",
+      "generate_docx": "生成文档",
       "get_stored_file": "获取已存储文件",
       "download_stored_file": "下载已存储文件到工作区",
       "list_stored_files": "列出已存储文件",

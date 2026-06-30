@@ -402,6 +402,45 @@ class PlaywrightManager {
     }
   }
 
+  /** One-shot: render multiple inline elements from a self-contained HTML
+   *  string to individual PNG buffers via a headless Chromium page. Used by the
+   *  generate_docx tool to rasterize each LaTeX equation (MathML) to an image
+   *  to embed in the .docx (Word has no MathML rendering, so equations become
+   *  images). The HTML must contain one element per requested id; we screenshot
+   *  each `#<id>` via Playwright's locator screenshot. Mirrors renderPdf's
+   *  acquire/release lifecycle. */
+  async screenshotHtmlElements(
+    html: string,
+    ids: string[],
+  ): Promise<Map<string, Buffer>> {
+    if (!this.isEnabled) {
+      throw new Error(
+        'Headless browser not available. Set WEB_BROWSING_HEADLESS_ENABLED=true and install Chromium.',
+      )
+    }
+
+    this.ensureInitialized()
+    const entry = await this.acquireEntry()
+
+    const out = new Map<string, Buffer>()
+    let context: BrowserContext | null = null
+    let page: Page | null = null
+    try {
+      context = await this.openContext(entry.browser, { width: 1280, height: 720 })
+      page = await context.newPage()
+      await page.setContent(html, { waitUntil: 'load', timeout: config.webBrowsing.pageTimeout })
+      for (const id of ids) {
+        const buf = await page.locator(`#${CSS.escape(id)}`).screenshot({ type: 'png' })
+        out.set(id, Buffer.from(buf))
+      }
+      return out
+    } finally {
+      if (page) await page.close().catch(() => {})
+      if (context) await context.close().catch(() => {})
+      this.release(entry)
+    }
+  }
+
   // ─── Stateful session API ─────────────────────────────────────────────────
 
   countSessionsForAgent(agentId: string): number {

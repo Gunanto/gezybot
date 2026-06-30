@@ -2798,6 +2798,7 @@
       "list_mcp_servers": "Список MCP-серверов",
       "store_file": "Сохранить файл",
       "generate_pdf": "Создать PDF",
+      "generate_docx": "Создать документ",
       "get_stored_file": "Получить сохранённый файл",
       "download_stored_file": "Скачать сохранённый файл в воркспейс",
       "list_stored_files": "Список сохранённых файлов",

@@ -225,7 +225,7 @@ import {
   deleteStoredFileTool,
   downloadStoredFileTool,
 } from '@/server/tools/file-storage-tools'
-import { generatePdfTool } from '@/server/tools/document-tools'
+import { generatePdfTool, generateDocxTool } from '@/server/tools/document-tools'
 import {
   createAgentTool,
   updateAgentTool,
@@ -596,6 +596,7 @@ export function registerAllTools(): void {
 
   // Document generation (main only)
   toolRegistry.register('generate_pdf', generatePdfTool, 'documents')
+  toolRegistry.register('generate_docx', generateDocxTool, 'documents')
 
   // Agent management tools (main only, opt-in required)
   toolRegistry.register('create_agent', createAgentTool, 'agent-management')

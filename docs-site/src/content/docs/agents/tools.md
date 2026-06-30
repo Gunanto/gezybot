@@ -177,12 +177,13 @@ The three image tools are designed to be chained:
 | Tool | Description |
 |---|---|
 | `generate_pdf` | Render markdown (with LaTeX math via `$...$` inline, `$$...$$` block, and `math` code fences; GFM tables, code blocks, task lists) into a shareable PDF document and get a URL. Use it for substantial written deliverables (reports, study notes, math/physics solutions) instead of dumping long content in a chat message. Always share the returned URL with the user. |
+| `generate_docx` | Render the same markdown (with LaTeX math) into an **editable Word .docx** document and get a shareable URL. Equations are embedded as images (Word has no MathML rendering); the rest is native Word structure (headings, lists, tables, code). Same prerequisites as `generate_pdf` (headless Chromium). | 
 
 #### PDF generation
 
 - `generate_pdf` renders the markdown in a headless Chromium page (Playwright) and prints it to PDF. Math is rendered to **MathML** so Chromium native MathML engine draws it; no external fonts or CDN are needed, so the document is fully offline.
 - The tool needs the headless browser enabled (`WEB_BROWSING_HEADLESS_ENABLED=true` with Chromium installed in the container). If it is unavailable, the tool returns an error the Agent can surface to the user.
-- Output is stored through the same file-storage mechanism as `store_file`, so the returned URL is shareable, public, or password-protectable like any stored file. You can pass an optional `title`, `filename`, `format` (`A4` or `Letter`), and a `landscape` flag.
+- Output is stored through the same file-storage mechanism as `store_file`, so the returned URL is shareable, public, or password-protectable like any stored file. You can pass an optional `title`, `filename`, `format` (`A4` or `Letter`), and a `landscape` flag. `generate_docx` accepts the same `content`/`title`/`filename` and produces a `.docx` instead — use it when the user needs to edit the document in Word/Google Docs (equations become images).
 
 
 ### Webhooks

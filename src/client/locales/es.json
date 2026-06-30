@@ -2774,6 +2774,7 @@
       "list_mcp_servers": "Listar servidores MCP",
       "store_file": "Guardar archivo",
       "generate_pdf": "Generar PDF",
+      "generate_docx": "Generar documento",
       "get_stored_file": "Obtener archivo guardado",
       "download_stored_file": "Descargar archivo guardado al workspace",
       "list_stored_files": "Listar archivos guardados",

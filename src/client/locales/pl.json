@@ -2792,6 +2792,7 @@
       "list_mcp_servers": "Lista serwerów MCP",
       "store_file": "Zachowaj plik",
       "generate_pdf": "Wygeneruj PDF",
+      "generate_docx": "Wygeneruj dokument",
       "get_stored_file": "Pobierz zachowany plik",
       "download_stored_file": "Pobierz zachowany plik do przestrzeni roboczej",
       "list_stored_files": "Lista zachowanych plików",
