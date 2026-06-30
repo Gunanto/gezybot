@@ -2773,6 +2773,7 @@
       "remove_mcp_server": "MCPサーバーを削除",
       "list_mcp_servers": "MCPサーバー一覧",
       "store_file": "ファイルを保存",
+      "generate_pdf": "PDFを生成",
       "get_stored_file": "保存ファイルを取得",
       "download_stored_file": "保存ファイルをワークスペースにダウンロード",
       "list_stored_files": "保存ファイル一覧",

@@ -172,6 +172,19 @@ The three image tools are designed to be chained:
 2. **`describe_image_model`** *(optional but recommended)*, for the model you want to use, fetch its parameter schema (each entry has `type`, `description`, `default`, and either an `enum` or `minimum`/`maximum`). Image-input fields are deliberately excluded, those are driven by `generate_image`'s `imageUrls`, not by `params`.
 3. **`generate_image`**: provide `prompt`, optional `imageUrls` (one or more URLs from the conversation or a previous `generate_image` call), and optional `params` from step 2. Validation is loose on the client side: an invalid `params` value surfaces as a 422 from the upstream provider, which round-trips back as a tool error so you can self-correct on the next call.
 
+### Documents
+
+| Tool | Description |
+|---|---|
+| `generate_pdf` | Render markdown (with LaTeX math via `$...$` inline, `$$...$$` block, and `math` code fences; GFM tables, code blocks, task lists) into a shareable PDF document and get a URL. Use it for substantial written deliverables (reports, study notes, math/physics solutions) instead of dumping long content in a chat message. Always share the returned URL with the user. |
+
+#### PDF generation
+
+- `generate_pdf` renders the markdown in a headless Chromium page (Playwright) and prints it to PDF. Math is rendered to **MathML** so Chromium native MathML engine draws it; no external fonts or CDN are needed, so the document is fully offline.
+- The tool needs the headless browser enabled (`WEB_BROWSING_HEADLESS_ENABLED=true` with Chromium installed in the container). If it is unavailable, the tool returns an error the Agent can surface to the user.
+- Output is stored through the same file-storage mechanism as `store_file`, so the returned URL is shareable, public, or password-protectable like any stored file. You can pass an optional `title`, `filename`, `format` (`A4` or `Letter`), and a `landscape` flag.
+
+
 ### Webhooks
 
 | Tool | Description |

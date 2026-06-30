@@ -359,6 +359,49 @@ class PlaywrightManager {
     }
   }
 
+  /** One-shot: render a self-contained HTML string to a PDF buffer using a
+   *  headless Chromium page. Mirrors screenshotPage's acquire/release lifecycle.
+   *  Used by the generate_pdf tool to turn Agent markdown (with LaTeX via KaTeX
+   *  MathML) into a shareable PDF. */
+  async renderPdf(
+    html: string,
+    options: {
+      format?: 'A4' | 'Letter'
+      landscape?: boolean
+      margin?: { top?: string; bottom?: string; left?: string; right?: string }
+    } = {},
+  ): Promise<Buffer> {
+    if (!this.isEnabled) {
+      throw new Error(
+        'Headless browser not available. Set WEB_BROWSING_HEADLESS_ENABLED=true and install Chromium.',
+      )
+    }
+
+    this.ensureInitialized()
+    const entry = await this.acquireEntry()
+
+    let context: BrowserContext | null = null
+    let page: Page | null = null
+    try {
+      context = await this.openContext(entry.browser, { width: 1280, height: 720 })
+      page = await context.newPage()
+      // Fully inline HTML — no network needed. 'load' settles instantly.
+      await page.setContent(html, { waitUntil: 'load', timeout: config.webBrowsing.pageTimeout })
+
+      const buffer = await page.pdf({
+        format: options.format ?? 'A4',
+        landscape: options.landscape ?? false,
+        printBackground: true,
+        margin: options.margin ?? { top: '20mm', bottom: '20mm', left: '18mm', right: '18mm' },
+      })
+      return Buffer.from(buffer)
+    } finally {
+      if (page) await page.close().catch(() => {})
+      if (context) await context.close().catch(() => {})
+      this.release(entry)
+    }
+  }
+
   // ─── Stateful session API ─────────────────────────────────────────────────
 
   countSessionsForAgent(agentId: string): number {

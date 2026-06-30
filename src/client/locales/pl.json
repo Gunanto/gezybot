@@ -2791,6 +2791,7 @@
       "remove_mcp_server": "Usuń serwer MCP",
       "list_mcp_servers": "Lista serwerów MCP",
       "store_file": "Zachowaj plik",
+      "generate_pdf": "Wygeneruj PDF",
       "get_stored_file": "Pobierz zachowany plik",
       "download_stored_file": "Pobierz zachowany plik do przestrzeni roboczej",
       "list_stored_files": "Lista zachowanych plików",

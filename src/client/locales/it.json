@@ -2773,6 +2773,7 @@
       "remove_mcp_server": "Rimuovi server MCP",
       "list_mcp_servers": "Elenca server MCP",
       "store_file": "Archivia file",
+      "generate_pdf": "Genera PDF",
       "get_stored_file": "Leggi file archiviato",
       "download_stored_file": "Scarica file archiviato nel workspace",
       "list_stored_files": "Elenca file archiviati",

@@ -43,15 +43,29 @@ Balasan Agent muncul real-time di Telegram (type-on animation seperti ChatGPT), 
 - M2: inline math tanpa block lain tetap rich path (`hasInlineMath` check) ✅
 - M3: fallback ke `sendMessage` plain text kalau rich reject (sudah ada dari Fase 1) ✅
 
-### 2b. LaTeX di dokumen yang dihasilkan Agent (docx & PDF)
-- [ ] Audit tool `store_file` / generator dokumen di Gezy sekarang — apakah Agent bisa buat docx/PDF? Cari tool terkait (`grep -r "docx\|pdf\|generate.*document\|store_file" src/server/tools/`)
-- [ ] Cek apakah ada library docx/PDF di `package.json` (mis. `docx`, `pdfkit`, `puppeteer`)
-- [ ] Tentukan: LaTeX render ke gambar (MathJax/KaTeX → SVG/PNG) lalu embed di docx/PDF, atau pakai native equation support (Word OMML untuk docx, LaTeX passthrough untuk PDF via LaTeX engine)
-- [ ] Implement renderer math → gambar (Kalau KaTeX server-side sudah ada via `rehype-katex`, bisa reuse untuk SVG)
-- [ ] Integrasi ke pipeline generator dokumen
-- [ ] Test: dokumen dengan rumus trigonometri/fisika, cek render di Word/Adobe Reader
-- [ ] Docs
-- [ ] Estimasi: butuh audit dulu sebelum estimate (mungkin 2–4 hari tergantung stack)
+### 2b. LaTeX di dokumen yang dihasilkan Agent (docx & PDF) — PDF DONE, docx DEFER
+- [x] Audit tool generator dokumen: tidak ada tool `generate_pdf`/`generate_docx` native. Yang ada `store_file` (simpan content/workspace/url → share URL), `write_file`, `attach_file`.
+- [x] Cek library docx/PDF di `package.json`: tidak ada `docx`/`pdfkit` / `html-to-pdf`. Yang ada: Playwright (headless Chromium, dipakai browse+screenshot; bisa `page.pdf()`), `remark-math`+`rehype-katex` (client-side). → PDF bisa pakai Playwright tanpa dep engine baru.
+- [x] Tentukan pendekatan: **Opsi A — Markdown → HTML (KaTeX MathML) → PDF via Playwright `page.pdf()`**. LaTeX passthrough (TeX engine) ditolak karena berat & melanggar prinsip "single container, zero external infra". docx (gambar/native OMML) defer ke fase berikutnya.
+- [x] Implement renderer math: `katex.renderToString({ output: 'mathml', throwOnError: false })` — render ke MathML, Chromium gambar native di PDF (offline, tanpa font/CSS KaTeX). Dep tambah: `katex` (explicit), `remark-rehype`+`rehype-stringify` (DITOLAK — bun global-cache gak resolve subpath `unist-util-visit-parents/do-not-use-color`, jadi pakai manual MDAST walker + katex direct, mirip `telegram-rich.ts`).
+- [x] Service `src/server/services/document-render.ts`: `markdownToHtml` (MDAST walk + katex mathml) + `buildPdfHtml` (template print CSS A4) + `markdownToPdf` (delegasi ke `playwrightManager.renderPdf`).
+- [x] Method `renderPdf(html, opts)` di `playwright-manager.ts` (acquire/release page, `setContent`+`page.pdf`).
+- [x] Tool `generate_pdf` di `src/server/tools/document-tools.ts` (main-only; cek `playwrightManager.isEnabled`, simpan via `createFileFromContent` base64 pdf → share URL). Register di `register.ts` grup 'documents'.
+- [x] Granting: otomatis via toolbox 'all' (`['*']` expand semua native tool). Tidak ditambah ke built-in toolbox spesifik (sama seperti `store_file`).
+- [x] Prompt-builder: tambah bullet `generate_pdf()` di section File storage.
+- [x] i18n tool-name label: 10 locale (en, fr, es, de, pt-BR, zh-CN, ja, ru, it, pl) — parity OK (`check-locales.ts`).
+- [x] Unit test `document-render.test.ts` (21 test: inline/block/fence math, escape, heading, list <p>, task, table, code, quote, inline fmt, link, image, mix, nonl guard, template title, renderPdf wiring/format). 21 pass.
+- [x] Typecheck clean (exit 0) + full suite 4083 pass / 0 fail.
+- [x] Docs: docs-site `agents/tools.md` tambah section Documents.
+- [ ] Test end-to-end via VPS (Agent output trigonometri/fisika → buka PDF di Adobe Reader) — tunggu deploy (butuh Playwright aktif di container: `WEB_BROWSING_HEADLESS_ENABLED=true` + Chromium).
+- [ ] docx (defer): kalau dibutuhkan, opsi B (`docx` npm + math→PNG embed) atau Opsi D (pandoc via Dockerfile). Estimasi 2–4 hari.
+
+**Keputusan desain diterapkan (2b/PDF):**
+- D2b-1: PDF via Playwright `page.pdf()` (infra sudah ada), bukan TeX engine (offline/zero-infra). ✅ + md eksplisit (lihat `latex-dokumen.md`)
+- D2b-2: Math via KaTeX `output:'mathml'` (native Chromium MathML render), bukan KaTeX HTML+CSS (perlu font woff2 offline). ✅
+- D2b-3: Manual MDAST walker + katex direct, BUKAN remark-rehype/rehype-katex/unified-hast stack (subpath export bug di bun cache). ✅
+- D2b-4: Tool auto-grant via toolbox 'all', tidak di built-in non-all preset. ✅
+- D2b-5: docx defer (scope PDF dulu sesuai rekomendasi `latex-dokumen.md` Opsi A)
 
 ---
 

@@ -2773,6 +2773,7 @@
       "remove_mcp_server": "MCP-Server entfernen",
       "list_mcp_servers": "MCP-Server auflisten",
       "store_file": "Datei ablegen",
+      "generate_pdf": "PDF erstellen",
       "get_stored_file": "Gespeicherte Datei abrufen",
       "download_stored_file": "Gespeicherte Datei in den Workspace laden",
       "list_stored_files": "Gespeicherte Dateien auflisten",
