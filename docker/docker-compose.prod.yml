@@ -23,8 +23,16 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - GEZY_MODEL_REGISTRY=false
       - GEZY_PUBLIC_URL=https://aios.gezytech.web.id
+      - PUBLIC_URL=https://aios.gezytech.web.id
+      - TRUSTED_ORIGINS=https://aios.gezytech.web.id
       - GEZY_TIMEZONE=Asia/Jakarta
       - GEZY_ADAPTIVE_THINKING=true
+      - OWNER_TELEGRAM_USER_ID=${OWNER_TELEGRAM_USER_ID}
+      - ALLOW_ALL_USERS_IN_GROUPS=${ALLOW_ALL_USERS_IN_GROUPS}
+      - TELEGRAM_ALLOWED_USERS=${TELEGRAM_ALLOWED_USERS}
+      - OWNER_WHATSAPP_USER_ID=${OWNER_WHATSAPP_USER_ID}
+      - GEZY_WHATSAPP_ALLOWED_USERS=${GEZY_WHATSAPP_ALLOWED_USERS}
+      - GEZY_WHATSAPP_ALLOW_ALL_IN_GROUPS=${GEZY_WHATSAPP_ALLOW_ALL_IN_GROUPS:-false}
     networks:
       - pgunNet
     healthcheck:
