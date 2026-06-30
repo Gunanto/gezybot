@@ -242,11 +242,28 @@ export class WhatsAppWebAdapter implements ChannelAdapter {
           jidNormalizedUser(resolveLid(waCtx.participant)) === jidNormalizedUser(botJid)
         )
         // Group @mention of the bot: Baileys lists mentioned JIDs in
-        // contextInfo.mentionedJid. Resolve each to PN and compare to the bot JID.
-        const isMentioned = !!(
-          Array.isArray(waCtx?.mentionedJid) && botJid &&
-          (waCtx!.mentionedJid as string[]).some((j) => jidNormalizedUser(resolveLid(j)) === jidNormalizedUser(botJid))
+        // contextInfo.mentionedJid (native WhatsApp mentions via the @-picker).
+        // Also detect text-based mentions: user types @<bot_number> or the bot's
+        // phone number in the message text (covers cases where the bot isn't in
+        // the user's contacts so the mention picker doesn't suggest it).
+        const rawMentions = (waCtx?.mentionedJid ?? []) as string[]
+        const botDigits = botJid ? botJid.replace(/[^0-9]/g, '') : ''
+        const nativeMention = !!(
+          Array.isArray(rawMentions) && rawMentions.length > 0 && botJid &&
+          rawMentions.some((j) => {
+            const resolved = jidNormalizedUser(resolveLid(j))
+            const normalizedBot = jidNormalizedUser(botJid)
+            return resolved === normalizedBot || j === botJid || jidNormalizedUser(j) === normalizedBot
+          })
         )
+        // Text-based mention: check if the message text mentions the bot's phone
+        // number (e.g. "@6282361201550" or "6282361201550"). This is a fallback
+        // for when the user types the @ manually instead of using the picker.
+        const textMention = !!(botDigits && botDigits.length > 5 && text.includes(botDigits))
+        const isMentioned = nativeMention || textMention
+        if (isGroup && !isMentioned && !isReplyToBot) {
+          log.debug({ channelId, rawMentions, botJid, botDigits, textSample: text.slice(0, 100) }, 'Group message: no mention/reply detected')
+        }
         void runtime.handlers
           .onMessage({
             platformUserId: resolvedSender,
