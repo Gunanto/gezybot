@@ -739,6 +739,19 @@ async function whatsappAccessGate(
       allowAllInGroups: config.channels.whatsappAllowAllInGroups,
     },
   )
+  log.info(
+    {
+      channelId: channel.id,
+      userId: incoming.platformUserId,
+      chatType: incoming.chatType,
+      isReplyToBot: incoming.isReplyToBot,
+      allow: decision.allow,
+      reason: 'reason' in decision ? decision.reason : null,
+      ownerDigits: config.channels.whatsappOwnerUserId ? waDigits(config.channels.whatsappOwnerUserId) : null,
+      allowlistDigits: config.channels.whatsappAllowedUsers.map(waDigits),
+    },
+    'WhatsApp access gate decision',
+  )
   if (decision.allow) return true
 
   if (decision.reason === 'dm-unregistered') {
