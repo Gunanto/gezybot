@@ -65,6 +65,20 @@ describe('markdownToDocxBuffer', () => {
     expect(xml).toContain('m:rad')
   })
 
+  it('does NOT produce <undefined> wrapper tags (regression: xml-js/sax bug in Bun)', async () => {
+    const md = 'Test $\\frac{a}{b}$ inline and block:\n\n$$\nE=mc^2\n$$\n'
+    const buf = await markdownToDocxBuffer(md, 'Regression')
+    expect(buf[0]).toBe(0x50)
+    const xml = extractDocumentXml(buf)
+    // The bug: ImportedXmlComponent.fromXmlString uses xml-js/sax which
+    // returns rootKey "undefined" for namespace-prefixed elements in Bun,
+    // producing invalid <undefined> wrapper tags that prevent Word from
+    // rendering equations. Our custom parser avoids this.
+    expect(xml).not.toContain('<undefined')
+    expect(xml).not.toContain('</undefined')
+    expect(xml).toContain('m:oMath')
+  })
+
   it('handles only math (no prose) without throwing', async () => {
     const buf = await markdownToDocxBuffer('$$\\sum_{i=1}^n i$$', 'S')
     expect(buf[0]).toBe(0x50)

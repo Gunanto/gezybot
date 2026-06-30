@@ -90,11 +90,109 @@ const MATH_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math'
 
 /** Convert a LaTeX string to an OMML XmlComponent for embedding in a docx
  *  paragraph. KaTeX renders LaTeX→MathML, mml2omml converts MathML→OMML.
- *  Display equations are wrapped in <m:oMathPara> so Word centers them. */
+ *  Display equations are wrapped in <m:oMathPara> so Word centers them.
+ *
+ *  We build ImportedXmlComponent objects manually instead of using
+ *  fromXmlString() because the xml-js/sax parser bundled in the docx
+ *  package doesn't extract namespace-prefixed element names (e.g. m:oMath)
+ *  correctly in the Bun runtime — it returns rootKey "undefined", which
+ *  produces invalid <undefined> wrapper tags in the document XML that
+ *  prevent Word from rendering equations. */
 function mathToXmlComponent(latex: string, display: boolean): ImportedXmlComponent | null {
   const omml = latexToOmml(latex, display)
   if (!omml) return null
-  return ImportedXmlComponent.fromXmlString(omml)
+  return parseOmml(omml)
+}
+
+/** Parse a well-formed OMML XML string into an ImportedXmlComponent tree.
+ *  Handles namespace-prefixed element names, attributes, text content, and
+ *  nested elements. Self-closing tags and CDATA are not expected in OMML
+ *  output from mml2omml, so they are not handled. */
+function parseOmml(xml: string): ImportedXmlComponent {
+  const tokens = tokenizeXml(xml)
+  const [comp] = buildTree(tokens, 0)
+  return comp
+}
+
+interface XmlToken {
+  kind: 'open' | 'close' | 'text'
+  name?: string
+  attrs?: Record<string, string>
+  text?: string
+}
+
+/** Tokenize an XML string into opening tags, closing tags, and text nodes. */
+function tokenizeXml(xml: string): XmlToken[] {
+  const tokens: XmlToken[] = []
+  let i = 0
+  while (i < xml.length) {
+    if (xml[i] === '<') {
+      const end = xml.indexOf('>', i)
+      if (end === -1) break
+      const tagContent = xml.slice(i + 1, end)
+      if (tagContent.startsWith('/')) {
+        tokens.push({ kind: 'close', name: tagContent.slice(1).trim() })
+      } else if (tagContent.endsWith('/')) {
+        // Self-closing tag — treat as open + immediate close
+        const { name, attrs } = parseTag(tagContent.slice(0, -1))
+        tokens.push({ kind: 'open', name, attrs })
+        tokens.push({ kind: 'close', name })
+      } else {
+        const { name, attrs } = parseTag(tagContent)
+        tokens.push({ kind: 'open', name, attrs })
+      }
+      i = end + 1
+    } else {
+      const lt = xml.indexOf('<', i)
+      const textEnd = lt === -1 ? xml.length : lt
+      const text = xml.slice(i, textEnd)
+      if (text.trim()) tokens.push({ kind: 'text', text })
+      i = textEnd
+    }
+  }
+  return tokens
+}
+
+/** Parse a tag's content string into element name + attributes. */
+function parseTag(tagContent: string): { name: string; attrs?: Record<string, string> } {
+  // name = everything up to the first space
+  const spaceIdx = tagContent.indexOf(' ')
+  if (spaceIdx === -1) return { name: tagContent.trim() }
+  const name = tagContent.slice(0, spaceIdx).trim()
+  const attrStr = tagContent.slice(spaceIdx + 1).trim()
+  if (!attrStr) return { name }
+  // parse attributes: key="value" pairs
+  const attrs: Record<string, string> = {}
+  const re = /([w:.-]+)s*=s*"([^"]*)"/g
+  let m
+  while ((m = re.exec(attrStr)) !== null) {
+    attrs[m[1]!] = m[2]!
+  }
+  return { name, attrs }
+}
+
+/** Recursively build an ImportedXmlComponent tree from tokens. */
+function buildTree(tokens: XmlToken[], startIdx: number): [ImportedXmlComponent, number] {
+  const token = tokens[startIdx]!
+  const comp = new ImportedXmlComponent(token.name!, token.attrs)
+  let i = startIdx + 1
+  while (i < tokens.length) {
+    const t = tokens[i]!
+    if (t.kind === 'close') {
+      return [comp, i + 1]
+    }
+    if (t.kind === 'text') {
+      comp.push(t.text!)
+      i++
+    } else if (t.kind === 'open') {
+      const [child, nextIdx] = buildTree(tokens, i)
+      comp.push(child)
+      i = nextIdx
+    } else {
+      i++
+    }
+  }
+  return [comp, i]
 }
 
 function latexToOmml(latex: string, display: boolean): string | null {
