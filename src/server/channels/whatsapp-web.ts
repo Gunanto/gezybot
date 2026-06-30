@@ -151,7 +151,11 @@ export class WhatsAppWebAdapter implements ChannelAdapter {
     // WhatsApp privacy (Linked Identity): learn LID <-> phone-number mappings so
     // we can resolve '@lid' sender JIDs to '@s.whatsapp.net' for the gate.
     sock.ev.on('lid-mapping.update', (m: { lid?: string; pn?: string } | undefined) => {
-      if (m?.lid && m?.pn) runtime.lidToPn.set(m.lid, m.pn)
+      log.debug({ channelId, lid: m?.lid, pn: m?.pn }, 'LID mapping update received')
+      if (m?.lid && m?.pn) {
+        runtime.lidToPn.set(m.lid, m.pn)
+        log.info({ channelId, lid: m.lid, pn: m.pn, mapSize: runtime.lidToPn.size }, 'LID mapping stored')
+      }
     })
 
     sock.ev.on('connection.update', (update) => {
@@ -215,7 +219,15 @@ export class WhatsAppWebAdapter implements ChannelAdapter {
         const resolveLid = (jid: string | undefined): string => {
           if (!jid) return ''
           const j = jidNormalizedUser(jid)
-          if (j.endsWith('@lid') && runtime.lidToPn.has(j)) return runtime.lidToPn.get(j)!
+          if (j.endsWith('@lid')) {
+        const mapped = runtime.lidToPn.get(j)
+        if (mapped) {
+          log.debug({ original: j, resolved: mapped }, 'LID resolved to PN')
+          return mapped
+        } else {
+          log.warn({ lid: j, mapSize: runtime.lidToPn.size, mapKeys: Array.from(runtime.lidToPn.keys()) }, 'LID not found in mapping')
+        }
+      }
           return j
         }
         const resolvedSender = resolveLid(senderJid)
