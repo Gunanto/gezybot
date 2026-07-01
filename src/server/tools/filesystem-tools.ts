@@ -113,9 +113,15 @@ export const readFileTool: ToolRegistration = {
             // PDF: extract text instead of rejecting
             if (absPath.endsWith('.pdf')) {
               try {
-                const pdfParse = (await import('pdf-parse') as any).default
-                const pdf = await pdfParse(buffer)
-                const text = pdf.text
+                // pdf-parse v2 API: PDFParse class, not a default function export.
+                // v1 used: import pdfParse from 'pdf-parse'; const pdf = await pdfParse(buffer)
+                // v2 uses: const { PDFParse } = await import('pdf-parse'); new PDFParse({data}).load().getText()
+                const { PDFParse } = await import('pdf-parse') as any
+                const parser = new PDFParse({ data: new Uint8Array(buffer), verbosity: 0 })
+                await parser.load()
+                const result = await parser.getText()
+                const text = result.text
+                const numPages = result.total
                 const allLines = text.split('\n')
                 const totalLines = allLines.length
                 const startLine = offset ?? 1
@@ -124,7 +130,7 @@ export const readFileTool: ToolRegistration = {
                 const selectedLines = allLines.slice(startLine - 1, endLine)
                 const content = selectedLines.join('\n')
 
-                log.info({ agentId: ctx.agentId, path: filePath, totalLines, startLine, endLine, pages: pdf.numpages }, 'PDF text extracted')
+                log.info({ agentId: ctx.agentId, path: filePath, totalLines, startLine, endLine, pages: numPages }, 'PDF text extracted')
 
                 const dup = noteReadFile(ctx.taskId, filePath, { offset, limit })
                 recordReadPath(ctx.taskId, filePath)
@@ -136,7 +142,7 @@ export const readFileTool: ToolRegistration = {
                   startLine,
                   endLine,
                   language: 'text',
-                  note: `Extracted text from PDF (${pdf.numpages} pages)`,
+                  note: `Extracted text from PDF (${numPages} pages)`,
                   ...(dup.previousRanges.length > 0
                     ? {
                         duplicate: true as const,
