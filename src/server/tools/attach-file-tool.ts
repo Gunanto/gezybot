@@ -5,6 +5,9 @@ import type { ToolRegistration } from '@/server/tools/types'
 import type { OutboundAttachment } from '@/server/channels/adapter'
 import { existsSync } from 'fs'
 import { resolve, basename, extname } from 'path'
+import { db } from '@/server/db/index'
+import { fileStorage } from '@/server/db/schema'
+import { eq } from 'drizzle-orm'
 
 /** Simple MIME type lookup from file extension */
 function guessMimeType(filename: string): string {
@@ -70,7 +73,7 @@ export const attachFileTool: ToolRegistration = {
         'Attach a file to your response for channel delivery (Telegram, Discord, etc.). Call before your text reply.',
       inputSchema: z.object({
         source: z.string().describe(
-          'Internal URL path (/api/uploads/...), workspace path, or external https:// URL',
+          'Share URL (/s/<token>), internal path (/api/uploads/...), workspace path, or external https:// URL',
         ),
         mimeType: z.string().optional().describe('Auto-detected if omitted'),
         fileName: z.string().optional().describe('Auto-derived if omitted'),
@@ -98,6 +101,24 @@ export const attachFileTool: ToolRegistration = {
         } else if (source.startsWith('https://') || source.startsWith('http://')) {
           // External URL — pass through as-is
           resolvedSource = source
+        } else if (source.startsWith('/s/')) {
+          // File-storage share URL: /s/<token> -> resolve token to local file
+          const token = source.replace(/^\/s\//, '').split('?')[0]!.split('/')[0]!
+          const row = db.select().from(fileStorage).where(eq(fileStorage.accessToken, token)).get()
+          if (!row) {
+            return { error: 'File not found for share link ' + source }
+          }
+          // Check expiry
+          if (row.expiresAt && row.expiresAt.getTime() < Date.now()) {
+            return { error: 'This shared file has expired' }
+          }
+          if (!existsSync(row.storedPath)) {
+            return { error: 'File not found on disk: ' + row.originalName }
+          }
+          resolvedSource = row.storedPath
+          // Auto-fill mimeType and fileName from DB if not provided
+          if (!resolvedMime) resolvedMime = row.mimeType
+          if (!fileName) fileName = row.originalName
         } else {
           // Treat as workspace path — resolve relative to Agent workspace
           const localPath = resolve('data/workspaces', ctx.agentId, source)
