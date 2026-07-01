@@ -366,6 +366,9 @@ export interface OutboundMessageParams {
   /** Locale of the Agent owner (`en`, `fr`, …). Adapters may use it to localize
    *  the `contextLine` they return. */
   locale?: string
+  /** Telegram forum topic / message thread ID. When set, the adapter
+   *  sends the reply to this topic instead of the group's main thread. */
+  threadId?: string
 }
 
 export interface OutboundMessageResult {
@@ -621,6 +624,7 @@ export interface ChannelAdapter {
     channelId: string,
     config: Record<string, unknown>,
     chatId: string,
+    threadId?: string,
   ): Promise<void>
 
   /**

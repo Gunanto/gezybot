@@ -105,6 +105,8 @@ export interface ChannelQueueMeta {
   platformChatId: string
   platformMessageId: string
   platformUserId: string
+  /** Telegram forum topic / message thread ID. */
+  threadId?: string
 }
 
 const channelQueueMeta = new Map<string, ChannelQueueMeta>()
@@ -165,6 +167,8 @@ export interface ChannelOriginMeta {
   platformChatId: string
   platformMessageId: string
   platformUserId: string
+  /** Telegram forum topic / message thread ID. */
+  threadId?: string
   createdAt: number
   ttlMs: number
 }
@@ -648,6 +652,7 @@ async function telegramAccessGate(
         const adapterCfg = JSON.parse(channel.platformConfig) as Record<string, unknown>
         adapter.sendMessage(channel.id, adapterCfg, {
           chatId: incoming.platformChatId,
+      threadId: incoming.metadata?.threadId as string | undefined,
           content: 'Maaf, Anda belum terdaftar berkomunikasi dengan Saya.',
         }).catch((err) => log.warn({ channelId: channel.id, err }, 'Failed to send Telegram "not registered" reply'))
       }
@@ -765,6 +770,7 @@ async function whatsappAccessGate(
         const adapterCfg = JSON.parse(channel.platformConfig) as Record<string, unknown>
         adapter.sendMessage(channel.id, adapterCfg, {
           chatId: incoming.platformChatId,
+      threadId: incoming.metadata?.threadId as string | undefined,
           content: 'Maaf, Anda belum terdaftar berkomunikasi dengan Saya.',
         }).catch((err) => log.warn({ channelId: channel.id, err }, 'Failed to send WhatsApp "not registered" reply'))
       }
@@ -913,6 +919,7 @@ async function bufferPendingChannelMessage(
       adapter
         .sendMessage(channel.id, adapterCfg, {
           chatId: incoming.platformChatId,
+      threadId: incoming.metadata?.threadId as string | undefined,
           content: 'Your access is pending approval. Please wait for an admin to approve your access.',
           replyToMessageId: incoming.platformMessageId,
         })
@@ -1031,6 +1038,7 @@ async function enqueueChannelTurn(
     platformChatId: last.platformChatId,
     platformMessageId: last.platformMessageId,
     platformUserId: last.platformUserId,
+    threadId: last.metadata?.threadId as string | undefined,
   })
 
   setChannelOriginMeta(originId, {
@@ -1038,6 +1046,7 @@ async function enqueueChannelTurn(
     platformChatId: last.platformChatId,
     platformMessageId: last.platformMessageId,
     platformUserId: last.platformUserId,
+    threadId: last.metadata?.threadId as string | undefined,
     createdAt: Date.now(),
     ttlMs: config.channels.pendingOriginTtlMs,
   })
@@ -1046,7 +1055,7 @@ async function enqueueChannelTurn(
   const adapter = channelAdapters.get(channel.platform)
   if (adapter?.sendTypingIndicator) {
     const adapterCfg = JSON.parse(channel.platformConfig) as Record<string, unknown>
-    adapter.sendTypingIndicator(channel.id, adapterCfg, last.platformChatId).catch(() => {})
+    adapter.sendTypingIndicator(channel.id, adapterCfg, last.platformChatId, last.metadata?.threadId as string | undefined).catch(() => {})
   }
 
   // Emit SSE event for web UI
@@ -1087,6 +1096,7 @@ async function handleBotStart(
     try {
       await adapter.sendMessage(channel.id, cfg, {
         chatId: incoming.platformChatId,
+      threadId: incoming.metadata?.threadId as string | undefined,
         content: welcomeText,
         replyToMessageId: incoming.platformMessageId,
       })
@@ -1269,6 +1279,7 @@ export async function deliverChannelAttachments(
       attachments,
       replyToMessageId: meta.platformMessageId,
       locale,
+      threadId: meta.threadId,
     })
     log.info({ channelId: meta.channelId, count: attachments.length }, 'Channel attachments delivered after streaming-draft commit')
   } catch (err) {
@@ -1328,6 +1339,7 @@ export async function deliverChannelResponse(
       replyToMessageId: meta.platformMessageId,
       attachments: attachments?.length ? attachments : undefined,
       locale,
+      threadId: meta.threadId,
     })
 
     // Record the outbound link. Auto-delivered replies are authored by the

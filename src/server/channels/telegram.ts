@@ -319,6 +319,10 @@ export class TelegramAdapter implements ChannelAdapter {
     // Derive access-control context (chat type, mention, reply-to-bot).
     const { chatType, isMentioned, isReplyToBot } = analyzeTelegramMessage(message, state.botId, state.botUsername)
 
+    // Extract Telegram forum topic / message thread ID so replies go to
+    // the correct topic, not the group's main thread.
+    const threadId = message.message_thread_id != null ? String(message.message_thread_id) : undefined
+
     await state.onMessage({
       platformUserId: String(from.id),
       platformUsername: from.username as string | undefined,
@@ -330,6 +334,7 @@ export class TelegramAdapter implements ChannelAdapter {
       chatType,
       isMentioned,
       isReplyToBot,
+      metadata: threadId ? { threadId } : undefined,
     })
   }
 
@@ -351,6 +356,7 @@ export class TelegramAdapter implements ChannelAdapter {
           // First attachment gets the text as caption (if short enough for Telegram's 1024 limit)
           caption: i === 0 && params.content && params.content.length <= 1024 ? params.content : undefined,
           replyToMessageId: i === 0 ? params.replyToMessageId : undefined,
+          threadId: params.threadId,
         })
         lastMessageId = result
       }
@@ -381,6 +387,7 @@ export class TelegramAdapter implements ChannelAdapter {
               chat_id: params.chatId,
               rich_message: { html: pages[i] },
             }
+            if (params.threadId) body.message_thread_id = Number(params.threadId)
             if (i === 0 && params.replyToMessageId && !params.attachments?.length) {
               body.reply_parameters = { message_id: Number(params.replyToMessageId) }
             }
@@ -404,6 +411,7 @@ export class TelegramAdapter implements ChannelAdapter {
           chat_id: params.chatId,
           text: chunks[i],
         }
+        if (params.threadId) body.message_thread_id = Number(params.threadId)
 
         if (i === 0 && params.replyToMessageId && !params.attachments?.length) {
           body.reply_parameters = { message_id: Number(params.replyToMessageId) }
@@ -440,9 +448,11 @@ export class TelegramAdapter implements ChannelAdapter {
     }
   }
 
-  async sendTypingIndicator(_channelId: string, cfg: Record<string, unknown>, chatId: string): Promise<void> {
+  async sendTypingIndicator(_channelId: string, cfg: Record<string, unknown>, chatId: string, threadId?: string): Promise<void> {
     const token = await resolveToken(cfg)
-    await telegramApi(token, 'sendChatAction', { chat_id: chatId, action: 'typing' })
+    const body: Record<string, unknown> = { chat_id: chatId, action: 'typing' }
+    if (threadId) body.message_thread_id = Number(threadId)
+    await telegramApi(token, 'sendChatAction', body)
   }
 
   async onIdentityChange(
@@ -485,6 +495,7 @@ export class TelegramAdapter implements ChannelAdapter {
     const token = await resolveToken(cfg)
     const chatId = params.chatId
     const replyTo = params.replyToMessageId
+    const threadId = params.threadId
     // Per-process monotonic draft id; Telegram only requires it be non-zero
     // and reused across updates for the same draft bubble.
     const draftId = ++telegramDraftIdCounter
@@ -505,11 +516,13 @@ export class TelegramAdapter implements ChannelAdapter {
       // draft that Telegram would reject.
       if (!html) return
       try {
-        await telegramApi(token, 'sendRichMessageDraft', {
+        const draftBody: Record<string, unknown> = {
           chat_id: chatId,
           draft_id: draftId,
           rich_message: { html },
-        })
+        }
+        if (threadId) draftBody.message_thread_id = Number(threadId)
+        await telegramApi(token, 'sendRichMessageDraft', draftBody)
         lastFlushAt = Date.now()
       } catch (err) {
         // Draft update failures are non-fatal — the draft is ephemeral and
@@ -572,6 +585,7 @@ export class TelegramAdapter implements ChannelAdapter {
                 chat_id: chatId,
                 rich_message: { html: pages[i] },
               }
+              if (threadId) body.message_thread_id = Number(threadId)
               if (i === 0 && replyTo) {
                 body.reply_parameters = { message_id: Number(replyTo) }
               }
@@ -592,6 +606,7 @@ export class TelegramAdapter implements ChannelAdapter {
             chat_id: chatId,
             text: chunks[i],
           }
+          if (threadId) body.message_thread_id = Number(threadId)
           if (i === 0 && replyTo) {
             body.reply_parameters = { message_id: Number(replyTo) }
           }
@@ -610,11 +625,13 @@ export class TelegramAdapter implements ChannelAdapter {
         // bubble immediately by sending an empty draft. This is best-effort
         // — if it fails, the draft just fades on its own.
         try {
-          await telegramApi(token, 'sendRichMessageDraft', {
+          const abortBody: Record<string, unknown> = {
             chat_id: chatId,
             draft_id: draftId,
             rich_message: { html: '' },
-          })
+          }
+          if (threadId) abortBody.message_thread_id = Number(threadId)
+          await telegramApi(token, 'sendRichMessageDraft', abortBody)
         } catch {
           // Best-effort — ignore.
         }
@@ -633,7 +650,7 @@ async function sendTelegramFile(
   token: string,
   chatId: string,
   att: OutboundAttachment,
-  opts: { caption?: string; replyToMessageId?: string },
+  opts: { caption?: string; replyToMessageId?: string; threadId?: string },
 ): Promise<string> {
   const blob = await readAttachmentBlob(att)
   const fileName = attachmentFileName(att)
@@ -645,6 +662,7 @@ async function sendTelegramFile(
 
   const form = new FormData()
   form.append('chat_id', chatId)
+  if (opts.threadId) form.append('message_thread_id', opts.threadId)
   form.append(fieldName, blob, fileName)
   if (opts.caption) form.append('caption', opts.caption)
   if (opts.replyToMessageId) {
