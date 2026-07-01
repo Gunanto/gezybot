@@ -1,6 +1,25 @@
 # ToDo Besok — 1 Juli 2026
 
-> Dibuat: 30 Jun 2026 ~17:00 · Update: 30 Jun 2026 ~22:00 (OMML verified end-to-end) · Status: **catatan eksekusi besok**
+> Dibuat: 30 Jun 2026 ~17:00 · Update: 1 Jul 2026 ~01:00 · Status: **SELESAI — semua task dikerjakan**
+>
+> ## Eksekusi 1 Jul 2026 — STATUS
+>
+> | Task | Status | Commit |
+> |---|---|---|
+> | 1. DOCX OMML (equation editable) | ✅ Done | `12337317` |
+> | 1b. Fix <undefined> bug | ✅ Done | `e7e0191e` |
+> | 2. SVG di DOCX | ✅ Done | `12337317` |
+> | 4. RC-2b prompt update | ✅ Done | `12337317` |
+> | Telegram forum topics (bonus) | ✅ Done | `63754010` |
+> | 6. RC-3 attach_file /s/ | ✅ Done | `4ed9f396` |
+> | 3. Hapus diagnostic logs | ⏳ Deferred (sampai WA reply confirmed) |
+> | 5. Test WA reply | ⏳ Butuh VPS deploy |
+> | 7. Update catatan | ✅ Done (this section) |
+>
+> **Deploy ke VPS:** tunggu GitHub Actions selesai, lalu `docker compose pull && docker compose up -d --force-recreate gezy`.
+> **Test di VPS:** DOCX dengan `$\frac{a}{b}# ToDo Besok — 1 Juli 2026
+
+ → buka di Word → equation editable. Telegram forum topic reply → balas di topic yang benar.
 
 ## Status hari ini (30 Jun)
 
