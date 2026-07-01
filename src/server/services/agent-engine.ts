@@ -1547,7 +1547,7 @@ export async function processNextMessage(agentId: string): Promise<boolean> {
           const chAdapter = channelAdapters.get(ch.platform)
           if (chAdapter?.sendTypingIndicator) {
             const chCfg = JSON.parse(ch.platformConfig) as Record<string, unknown>
-            chAdapter.sendTypingIndicator(ch.id, chCfg, meta.platformChatId).catch(() => {})
+            chAdapter.sendTypingIndicator(ch.id, chCfg, meta.platformChatId, meta.threadId).catch(() => {})
           }
         }
       }

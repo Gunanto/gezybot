@@ -1443,6 +1443,7 @@ export async function openChannelDraftStream(
       content: '',
       replyToMessageId: meta.platformMessageId,
       locale,
+      threadId: meta.threadId,
     })
     log.info({ channelId: meta.channelId, platform: channel.platform }, 'Channel streaming draft opened')
     return { stream, channel, cfg }
